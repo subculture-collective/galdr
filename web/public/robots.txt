@@ -1,11 +1,10 @@
 User-agent: *
 Allow: /
-
-# Auth routes are intentionally crawlable so bots can observe
-# page/server-level noindex directives (meta robots + X-Robots-Tag).
 Disallow: /dashboard
 Disallow: /customers
 Disallow: /settings
 Disallow: /onboarding
+Disallow: /login
+Disallow: /register
 
 Sitemap: https://pulsescore.app/sitemap.xml

@@ -1,15 +1,24 @@
 import { readFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
 
-const FAMILY_CONFIG = JSON.parse(
-  readFileSync(new URL("../src/content/seo-family-config.json", import.meta.url), "utf8"),
-);
+const VALID_FAMILIES = new Set([
+  "templates",
+  "integrations",
+  "personas",
+  "comparisons",
+  "glossary",
+  "examples",
+  "curation",
+]);
 
-const FAMILY_PATH_PREFIX = Object.fromEntries(
-  Object.entries(FAMILY_CONFIG).map(([family, config]) => [family, config.path]),
-);
-
-const VALID_FAMILIES = new Set(Object.keys(FAMILY_PATH_PREFIX));
+const FAMILY_PATH_PREFIX = {
+  templates: "/templates",
+  integrations: "/integrations",
+  personas: "/for",
+  comparisons: "/compare",
+  glossary: "/glossary",
+  examples: "/examples",
+  curation: "/best",
+};
 
 const FAMILY_MINIMUMS = {
   templates: 20,
@@ -34,12 +43,19 @@ function isSlugValid(slug) {
 async function main() {
   const raw = await readFile(new URL("../src/content/seo-pages.json", import.meta.url), "utf8");
   const pages = JSON.parse(raw);
-  const families = Object.keys(FAMILY_PATH_PREFIX);
 
   assert(Array.isArray(pages), "SEO catalog must be an array.");
   assert(pages.length >= 50, `Expected at least 50 SEO pages, found ${pages.length}.`);
 
-  const counts = Object.fromEntries(families.map((family) => [family, 0]));
+  const counts = {
+    templates: 0,
+    integrations: 0,
+    personas: 0,
+    comparisons: 0,
+    glossary: 0,
+    examples: 0,
+    curation: 0,
+  };
 
   const fullPaths = new Set();
   const keywords = new Set();
