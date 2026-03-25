@@ -1,11 +1,58 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
 
 const SITE_ORIGIN = "https://pulsescore.app";
 
-const FAMILY_CONFIG = JSON.parse(
-  readFileSync(new URL("../src/content/seo-family-config.json", import.meta.url), "utf8"),
-);
+const FAMILY_CONFIG = {
+  templates: {
+    path: "/templates",
+    label: "Templates",
+    hubTitle: "Customer health templates for lean SaaS teams",
+    hubDescription:
+      "Action-ready customer health templates you can use immediately, then operationalize in PulseScore.",
+  },
+  integrations: {
+    path: "/integrations",
+    label: "Integrations",
+    hubTitle: "Integration playbooks for customer health scoring",
+    hubDescription:
+      "Connect billing, CRM, and support signals to unify churn-risk visibility in one workflow.",
+  },
+  personas: {
+    path: "/for",
+    label: "Personas",
+    hubTitle: "PulseScore by persona and growth stage",
+    hubDescription:
+      "See how founders, CS, and RevOps teams tailor health scoring to their operating model.",
+  },
+  comparisons: {
+    path: "/compare",
+    label: "Comparisons",
+    hubTitle: "PulseScore comparison guides",
+    hubDescription:
+      "Balanced comparisons focused on setup speed, pricing, and fit for lean teams.",
+  },
+  glossary: {
+    path: "/glossary",
+    label: "Glossary",
+    hubTitle: "Customer success and churn glossary",
+    hubDescription:
+      "Clear, practical definitions with examples and implementation context for SaaS operators.",
+  },
+  examples: {
+    path: "/examples",
+    label: "Examples",
+    hubTitle: "Real customer health examples",
+    hubDescription:
+      "Concrete examples of health scores, thresholds, alerts, and intervention patterns.",
+  },
+  curation: {
+    path: "/best",
+    label: "Best-of Guides",
+    hubTitle: "Curated best-of customer success guides",
+    hubDescription:
+      "Research-backed shortlists of tools and approaches by team size, stack, and outcomes.",
+  },
+};
 
 const FAMILY_ORDER = [
   "templates",
@@ -87,18 +134,46 @@ function withBrandTitle(base) {
   return `${truncatedBase}${suffix}`;
 }
 
-function renderTemplate(template, page) {
-  return template
-    .replaceAll("{entity}", page.entity)
-    .replaceAll("{entityLower}", page.entity.toLowerCase());
-}
-
 function buildTitle(page) {
-  return withBrandTitle(renderTemplate(FAMILY_CONFIG[page.family].titleTemplate, page));
+  switch (page.family) {
+    case "templates":
+      return withBrandTitle(`${page.entity} Template`);
+    case "integrations":
+      return withBrandTitle(`PulseScore + ${page.entity} Integration`);
+    case "personas":
+      return withBrandTitle(`Health Scoring for ${page.entity}`);
+    case "comparisons":
+      return withBrandTitle(`${page.entity} Comparison`);
+    case "glossary":
+      return withBrandTitle(`${page.entity} Definition`);
+    case "examples":
+      return withBrandTitle(`${page.entity} Examples`);
+    case "curation":
+      return withBrandTitle(page.entity);
+    default:
+      return withBrandTitle(page.entity);
+  }
 }
 
 function buildDescription(page) {
-  return renderTemplate(FAMILY_CONFIG[page.family].descriptionTemplate, page);
+  switch (page.family) {
+    case "templates":
+      return `Use this ${page.entity.toLowerCase()} template to prioritize risk, define thresholds, and run a repeatable retention workflow for B2B SaaS.`;
+    case "integrations":
+      return `Learn how ${page.entity} can feed customer health signals into PulseScore so your team can identify churn risk earlier and act faster.`;
+    case "personas":
+      return `See how ${page.entity.toLowerCase()} use PulseScore to monitor account health, reduce churn, and focus effort where it drives revenue retention.`;
+    case "comparisons":
+      return `Compare ${page.entity} across pricing, setup speed, integrations, and fit so lean customer success teams can choose with confidence.`;
+    case "glossary":
+      return `Understand ${page.entity.toLowerCase()} with clear definitions, formulas, examples, and practical guidance for SaaS customer success workflows.`;
+    case "examples":
+      return `Explore ${page.entity.toLowerCase()} with practical patterns, implementation notes, and proven workflows for retention-focused teams.`;
+    case "curation":
+      return `Review ${page.entity.toLowerCase()} using transparent criteria: setup complexity, integration depth, pricing, and operational fit for SMB SaaS.`;
+    default:
+      return `${page.entity} resources and implementation guidance from PulseScore.`;
+  }
 }
 
 function buildPath(page) {
@@ -106,7 +181,20 @@ function buildPath(page) {
 }
 
 function buildHeading(page) {
-  return renderTemplate(FAMILY_CONFIG[page.family].h1Template, page);
+  switch (page.family) {
+    case "templates":
+      return `Free ${page.entity} Template for B2B SaaS`;
+    case "integrations":
+      return `PulseScore + ${page.entity}`;
+    case "personas":
+      return `PulseScore for ${page.entity}`;
+    case "comparisons":
+      return page.entity;
+    case "glossary":
+      return `What is ${page.entity}?`;
+    default:
+      return page.entity;
+  }
 }
 
 function toAbsolute(path) {

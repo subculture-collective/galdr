@@ -250,7 +250,6 @@ export default function SeoProgrammaticPage({ family }: SeoProgrammaticPageProps
   const sections = buildSections(page);
   const relatedPages = getRelatedPages(page, 6);
   const crossFamilyHubs = getCrossFamilyHubs(family);
-  const lastUpdated = new Date().toISOString().slice(0, 10);
 
   const structuredData = [
     {
@@ -351,7 +350,7 @@ export default function SeoProgrammaticPage({ family }: SeoProgrammaticPageProps
               Primary keyword: {page.keyword}
             </span>
             <span className="rounded-full border border-gray-300 px-3 py-1 dark:border-gray-700">
-              Last updated: {lastUpdated}
+              Last updated: 2026-02-24
             </span>
           </div>
         </header>

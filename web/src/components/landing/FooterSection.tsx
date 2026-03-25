@@ -77,16 +77,8 @@ export default function FooterSection() {
               onSubmit={handleSubmit}
               className="mt-5 flex max-w-md flex-col gap-2 sm:flex-row"
             >
-              <label htmlFor="footer-updates-email" className="sr-only">
-                Work email
-              </label>
               <input
-                id="footer-updates-email"
-                name="email"
                 type="email"
-                autoComplete="email"
-                spellCheck={false}
-                required
                 placeholder="you@company.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
