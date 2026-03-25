@@ -41,16 +41,13 @@ const features = [
 
 export default function FeaturesSection() {
   return (
-    <section
-      id="features"
-      className="bg-gray-50 px-6 py-16 dark:bg-gray-900 sm:px-10 lg:px-14 lg:py-24"
-    >
+    <section id="features" className="px-6 py-16 sm:px-10 lg:px-14 lg:py-24">
       <div className="mx-auto max-w-7xl">
         <div className="max-w-3xl">
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 sm:text-4xl">
+          <h2 className="text-3xl font-bold tracking-tight text-[var(--galdr-fg)] sm:text-4xl">
             Built for lean CS teams that still need enterprise-grade signal.
           </h2>
-          <p className="mt-3 text-gray-600 dark:text-gray-300">
+          <p className="mt-3 text-[var(--galdr-fg-muted)]">
             Focus effort where it matters most, with proactive visibility
             instead of reactive firefighting.
           </p>
@@ -62,15 +59,15 @@ export default function FeaturesSection() {
             return (
               <article
                 key={feature.title}
-                className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-gray-800 dark:bg-gray-950"
+                className="galdr-panel p-6 transition hover:-translate-y-0.5"
               >
-                <div className="mb-4 inline-flex rounded-lg bg-indigo-100 p-2 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                <div className="mb-4 inline-flex rounded-lg border border-[color:rgb(139_92_246_/_0.45)] bg-[color:rgb(139_92_246_/_0.15)] p-2 text-[var(--galdr-accent)]">
                   <Icon className="h-5 w-5" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                <h3 className="text-lg font-semibold text-[var(--galdr-fg)]">
                   {feature.title}
                 </h3>
-                <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                <p className="mt-2 text-sm leading-6 text-[var(--galdr-fg-muted)]">
                   {feature.description}
                 </p>
               </article>

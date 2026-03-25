@@ -30,14 +30,13 @@ function triggerLabel(type: string): string {
 
 function statusBadge(status: string) {
   const colors: Record<string, string> = {
-    sent: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-    failed: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-    pending:
-      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+    sent: "galdr-alert-success",
+    failed: "galdr-alert-danger",
+    pending: "galdr-alert-warning",
   };
   return (
     <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${colors[status] ?? "bg-gray-100 text-gray-800"}`}
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${colors[status] ?? "galdr-pill"}`}
     >
       {status}
     </span>
@@ -101,15 +100,11 @@ function RuleForm({ onSave, onCancel, initial, saving }: RuleFormProps) {
     });
   }
 
-  const inputCls =
-    "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500";
-  const labelCls = "block text-sm font-medium text-gray-700 dark:text-gray-300";
+  const inputCls = "galdr-input w-full px-3 py-2 text-sm";
+  const labelCls = "block text-sm font-medium text-[var(--galdr-fg-muted)]";
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
-    >
+    <form onSubmit={handleSubmit} className="galdr-panel space-y-4 p-4">
       <div>
         <label className={labelCls}>Name</label>
         <input
@@ -154,7 +149,7 @@ function RuleForm({ onSave, onCancel, initial, saving }: RuleFormProps) {
             value={threshold}
             onChange={(e) => setThreshold(e.target.value)}
           />
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-[var(--galdr-fg-muted)]">
             Alert when score drops below this value
           </p>
         </div>
@@ -202,14 +197,14 @@ function RuleForm({ onSave, onCancel, initial, saving }: RuleFormProps) {
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          className="galdr-button-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {saving ? "Saving…" : initial ? "Update Rule" : "Create Rule"}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+          className="galdr-button-secondary px-4 py-2 text-sm font-medium"
         >
           Cancel
         </button>
@@ -303,7 +298,7 @@ export default function AlertsTab() {
   if (loading) {
     return (
       <div className="flex justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--galdr-fg-muted)]" />
       </div>
     );
   }
@@ -318,14 +313,11 @@ export default function AlertsTab() {
           { label: "Failed", value: stats.failed ?? 0 },
           { label: "Pending", value: stats.pending ?? 0 },
         ].map((s) => (
-          <div
-            key={s.label}
-            className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
-          >
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+          <div key={s.label} className="galdr-panel p-4">
+            <p className="text-xs font-medium text-[var(--galdr-fg-muted)]">
               {s.label}
             </p>
-            <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <p className="mt-1 text-2xl font-bold text-[var(--galdr-fg)]">
               {s.value}
             </p>
           </div>
@@ -335,12 +327,12 @@ export default function AlertsTab() {
       {/* Alert Rules */}
       <div>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <h3 className="text-lg font-semibold text-[var(--galdr-fg)]">
             Alert Rules
           </h3>
           <button
             onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            className="galdr-button-primary inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium"
           >
             <Plus className="h-4 w-4" /> New Rule
           </button>
@@ -355,14 +347,14 @@ export default function AlertsTab() {
         )}
 
         {rules.length === 0 && !showForm ? (
-          <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 py-12 dark:border-gray-600">
-            <Bell className="h-8 w-8 text-gray-400" />
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          <div className="galdr-panel flex flex-col items-center justify-center border-2 border-dashed border-[var(--galdr-border)] py-12">
+            <Bell className="h-8 w-8 text-[var(--galdr-fg-muted)]" />
+            <p className="mt-2 text-sm text-[var(--galdr-fg-muted)]">
               No alert rules yet
             </p>
             <button
               onClick={() => setShowForm(true)}
-              className="mt-3 text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+              className="galdr-link mt-3 text-sm font-medium"
             >
               Create your first rule
             </button>
@@ -370,23 +362,20 @@ export default function AlertsTab() {
         ) : (
           <div className="space-y-3">
             {rules.map((rule) => (
-              <div
-                key={rule.id}
-                className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
-              >
+              <div key={rule.id} className="galdr-panel">
                 <div className="flex items-center justify-between p-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                      <h4 className="font-medium text-[var(--galdr-fg)]">
                         {rule.name}
                       </h4>
                       <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${rule.is_active ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"}`}
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${rule.is_active ? "galdr-alert-success" : "galdr-pill"}`}
                       >
                         {rule.is_active ? "Active" : "Disabled"}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    <p className="mt-0.5 text-sm text-[var(--galdr-fg-muted)]">
                       {triggerLabel(rule.trigger_type)} ·{" "}
                       {rule.recipients.length} recipient
                       {rule.recipients.length !== 1 ? "s" : ""}
@@ -396,7 +385,7 @@ export default function AlertsTab() {
                     <button
                       onClick={() => toggleRuleHistory(rule.id)}
                       title="View history"
-                      className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                      className="galdr-icon-button p-1.5"
                     >
                       {expandedRule === rule.id ? (
                         <ChevronUp className="h-4 w-4" />
@@ -407,7 +396,7 @@ export default function AlertsTab() {
                     <button
                       onClick={() => toggleActive(rule)}
                       title={rule.is_active ? "Disable" : "Enable"}
-                      className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                      className="galdr-icon-button p-1.5"
                     >
                       {rule.is_active ? (
                         <PowerOff className="h-4 w-4" />
@@ -418,16 +407,16 @@ export default function AlertsTab() {
                     <button
                       onClick={() => deleteRule(rule.id)}
                       title="Delete"
-                      className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                      className="galdr-icon-button p-1.5 hover:text-[var(--galdr-danger)]"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
                 {expandedRule === rule.id && (
-                  <div className="border-t border-gray-200 px-4 py-3 dark:border-gray-700">
+                  <div className="border-t border-[var(--galdr-border)] px-4 py-3">
                     {ruleHistory.length === 0 ? (
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-[var(--galdr-fg-muted)]">
                         No alerts sent for this rule yet.
                       </p>
                     ) : (
@@ -437,7 +426,7 @@ export default function AlertsTab() {
                             key={h.id}
                             className="flex items-center justify-between text-sm"
                           >
-                            <span className="text-gray-600 dark:text-gray-400">
+                            <span className="text-[var(--galdr-fg-muted)]">
                               {new Date(h.created_at).toLocaleString()}
                             </span>
                             {statusBadge(h.status)}
@@ -455,17 +444,17 @@ export default function AlertsTab() {
 
       {/* Recent Alert History */}
       <div>
-        <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <h3 className="mb-4 text-lg font-semibold text-[var(--galdr-fg)]">
           Recent Alerts
         </h3>
         {history.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-[var(--galdr-fg-muted)]">
             No alerts sent yet.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="galdr-panel overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+              <thead className="border-b border-[var(--galdr-border)] bg-[color-mix(in_srgb,var(--galdr-surface-soft)_82%,black_18%)] text-xs uppercase text-[var(--galdr-fg-muted)]">
                 <tr>
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Channel</th>
@@ -476,12 +465,12 @@ export default function AlertsTab() {
                 {history.map((h) => (
                   <tr
                     key={h.id}
-                    className="border-b border-gray-100 dark:border-gray-800"
+                    className="border-b border-[var(--galdr-border)]/60"
                   >
-                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                    <td className="px-4 py-3 text-[var(--galdr-fg-muted)]">
                       {new Date(h.created_at).toLocaleString()}
                     </td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
+                    <td className="px-4 py-3 text-[var(--galdr-fg-muted)]">
                       {h.channel}
                     </td>
                     <td className="px-4 py-3">{statusBadge(h.status)}</td>

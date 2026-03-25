@@ -9,6 +9,7 @@ import {
   Circle,
   Loader2,
 } from "lucide-react";
+import { relativeTime } from "@/lib/format";
 
 interface CustomerEvent {
   id: string;
@@ -28,26 +29,25 @@ interface EventsResponse {
 
 const eventIcons: Record<string, { icon: typeof CheckCircle; color: string }> =
   {
-    "payment.success": { icon: CheckCircle, color: "text-green-500" },
-    "payment.succeeded": { icon: CheckCircle, color: "text-green-500" },
-    "payment.failed": { icon: XCircle, color: "text-red-500" },
-    "subscription.created": { icon: PlusCircle, color: "text-blue-500" },
-    "subscription.updated": { icon: PlusCircle, color: "text-blue-500" },
-    "ticket.opened": { icon: Flag, color: "text-yellow-500" },
+    "payment.success": {
+      icon: CheckCircle,
+      color: "text-[var(--galdr-success)]",
+    },
+    "payment.succeeded": {
+      icon: CheckCircle,
+      color: "text-[var(--galdr-success)]",
+    },
+    "payment.failed": { icon: XCircle, color: "text-[var(--galdr-danger)]" },
+    "subscription.created": {
+      icon: PlusCircle,
+      color: "text-[var(--galdr-accent-2)]",
+    },
+    "subscription.updated": {
+      icon: PlusCircle,
+      color: "text-[var(--galdr-accent-2)]",
+    },
+    "ticket.opened": { icon: Flag, color: "text-[var(--galdr-at-risk)]" },
   };
-
-function relativeTime(dateStr: string): string {
-  if (!dateStr) return "—";
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString();
-}
 
 export default function EventTimeline({ customerId }: { customerId: string }) {
   const [events, setEvents] = useState<CustomerEvent[]>([]);
@@ -92,7 +92,7 @@ export default function EventTimeline({ customerId }: { customerId: string }) {
   if (loading) {
     return (
       <div className="flex justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--galdr-fg-muted)]" />
       </div>
     );
   }
@@ -109,13 +109,13 @@ export default function EventTimeline({ customerId }: { customerId: string }) {
   return (
     <div className="relative">
       {/* Timeline line */}
-      <div className="absolute bottom-0 left-4 top-0 w-0.5 bg-gray-200 dark:bg-gray-700" />
+      <div className="absolute bottom-0 left-4 top-0 w-0.5 bg-[color:rgb(45_45_64_/_0.9)]" />
 
       <div className="space-y-4">
         {events.map((event) => {
           const config = eventIcons[event.type] ?? {
             icon: Circle,
-            color: "text-gray-400",
+            color: "text-[var(--galdr-fg-muted)]",
           };
           const Icon = config.icon;
           const expanded = expandedId === event.id;
@@ -124,7 +124,7 @@ export default function EventTimeline({ customerId }: { customerId: string }) {
             <div key={event.id} className="relative ml-10">
               {/* Dot */}
               <div
-                className={`absolute -left-10 top-1 flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-gray-900 ${config.color}`}
+                className={`absolute -left-10 top-1 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--galdr-border)] bg-[var(--galdr-bg-elevated)] ${config.color}`}
               >
                 <Icon className="h-4 w-4" />
               </div>
@@ -132,21 +132,21 @@ export default function EventTimeline({ customerId }: { customerId: string }) {
               {/* Content */}
               <button
                 onClick={() => setExpandedId(expanded ? null : event.id)}
-                className="w-full rounded-lg border border-gray-200 bg-white p-4 text-left transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800"
+                className="galdr-panel w-full p-4 text-left transition-colors hover:bg-[color:rgb(139_92_246_/_0.08)]"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <span className="text-sm font-medium text-[var(--galdr-fg)]">
                     {event.title || event.type}
                   </span>
-                  <span className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 dark:bg-gray-800">
+                  <span className="flex items-center gap-2 text-xs text-[var(--galdr-fg-muted)]">
+                    <span className="galdr-pill px-2 py-0.5 text-[10px] uppercase tracking-[0.06em]">
                       {event.source}
                     </span>
                     {relativeTime(event.timestamp)}
                   </span>
                 </div>
                 {expanded && event.data && (
-                  <pre className="mt-3 overflow-x-auto rounded-md bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                  <pre className="mt-3 overflow-x-auto rounded-md border border-[var(--galdr-border)] bg-[var(--galdr-bg-elevated)] p-3 text-xs text-[var(--galdr-fg-muted)]">
                     {JSON.stringify(event.data, null, 2)}
                   </pre>
                 )}
@@ -161,7 +161,7 @@ export default function EventTimeline({ customerId }: { customerId: string }) {
           <button
             onClick={loadMore}
             disabled={loadingMore}
-            className="text-sm font-medium text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400"
+            className="galdr-link text-sm font-medium disabled:opacity-50"
           >
             {loadingMore ? "Loading..." : "Load more"}
           </button>

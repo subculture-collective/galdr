@@ -100,16 +100,14 @@ export default function WizardShell({
       {currentStep?.content}
 
       {error && (
-        <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
+        <div className="galdr-alert-danger mt-4 px-4 py-3 text-sm">{error}</div>
       )}
 
       <div className="mt-6 flex items-center justify-between">
         <button
           onClick={() => onCurrentStepChange(currentStepIndex - 1)}
           disabled={isFirst || busy}
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="galdr-button-secondary px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
         >
           Back
         </button>
@@ -119,7 +117,7 @@ export default function WizardShell({
             <button
               onClick={handleSkip}
               disabled={busy}
-              className="rounded-md border border-yellow-300 px-4 py-2 text-sm font-medium text-yellow-800 hover:bg-yellow-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="galdr-alert-warning px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
             >
               Skip for now
             </button>
@@ -127,7 +125,7 @@ export default function WizardShell({
           <button
             onClick={handleNext}
             disabled={busy || currentStep?.canProceed === false}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="galdr-button-primary px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? "Working..." : isLast ? "Done" : "Next"}
           </button>

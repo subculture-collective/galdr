@@ -65,23 +65,23 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+    <div className="galdr-noise flex min-h-screen items-center justify-center bg-[var(--galdr-bg)] px-4 py-10 text-[var(--galdr-fg)]">
       <SeoMeta
         title="Create account | PulseScore"
         description="Create your PulseScore account and start tracking customer health."
         path="/register"
         noIndex
       />
-      <div className="w-full max-w-md rounded-lg bg-white p-8 shadow">
-        <h1 className="mb-1 text-center text-2xl font-bold text-gray-900">
+      <div className="galdr-card w-full max-w-md p-8">
+        <h1 className="mb-1 text-center text-2xl font-bold text-[var(--galdr-fg)]">
           Create your account
         </h1>
-        <p className="mb-6 text-center text-sm text-gray-500">
-          Get started with PulseScore for your team
+        <p className="mb-6 text-center text-sm text-[var(--galdr-fg-muted)]">
+          Get started with Galdr for your team
         </p>
 
         {error && (
-          <div className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="galdr-alert-danger mb-4 px-4 py-3 text-sm">
             {error}
           </div>
         )}
@@ -91,7 +91,7 @@ export default function RegisterPage() {
             <div>
               <label
                 htmlFor="firstName"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-medium text-[var(--galdr-fg-muted)]"
               >
                 First name
               </label>
@@ -101,13 +101,13 @@ export default function RegisterPage() {
                 autoComplete="given-name"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                className="galdr-input mt-1 block w-full px-3 py-2 text-sm"
               />
             </div>
             <div>
               <label
                 htmlFor="lastName"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-medium text-[var(--galdr-fg-muted)]"
               >
                 Last name
               </label>
@@ -117,7 +117,7 @@ export default function RegisterPage() {
                 autoComplete="family-name"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                className="galdr-input mt-1 block w-full px-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -125,7 +125,7 @@ export default function RegisterPage() {
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-medium text-[var(--galdr-fg-muted)]"
             >
               Email
             </label>
@@ -136,7 +136,7 @@ export default function RegisterPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+              className="galdr-input mt-1 block w-full px-3 py-2 text-sm"
               placeholder="you@example.com"
             />
           </div>
@@ -144,7 +144,7 @@ export default function RegisterPage() {
           <div>
             <label
               htmlFor="orgName"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-medium text-[var(--galdr-fg-muted)]"
             >
               Organization name
             </label>
@@ -154,7 +154,7 @@ export default function RegisterPage() {
               required
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+              className="galdr-input mt-1 block w-full px-3 py-2 text-sm"
               placeholder="Acme Inc."
             />
           </div>
@@ -162,7 +162,7 @@ export default function RegisterPage() {
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-medium text-[var(--galdr-fg-muted)]"
             >
               Password
             </label>
@@ -173,10 +173,10 @@ export default function RegisterPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+              className="galdr-input mt-1 block w-full px-3 py-2 text-sm"
               placeholder="••••••••"
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-[var(--galdr-fg-muted)]">
               Min 8 characters with uppercase, lowercase, and a digit
             </p>
           </div>
@@ -184,7 +184,7 @@ export default function RegisterPage() {
           <div>
             <label
               htmlFor="confirmPassword"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-medium text-[var(--galdr-fg-muted)]"
             >
               Confirm password
             </label>
@@ -195,26 +195,28 @@ export default function RegisterPage() {
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+              className="galdr-input mt-1 block w-full px-3 py-2 text-sm"
               placeholder="••••••••"
             />
             {fieldError && (
-              <p className="mt-1 text-xs text-red-600">{fieldError}</p>
+              <p className="mt-1 text-xs text-[var(--galdr-danger)]">
+                {fieldError}
+              </p>
             )}
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
+            className="galdr-button-primary w-full px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             {loading ? "Creating account..." : "Create account"}
           </button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-gray-500">
+        <p className="mt-4 text-center text-sm text-[var(--galdr-fg-muted)]">
           Already have an account?{" "}
-          <Link to="/login" className="text-indigo-600 hover:text-indigo-500">
+          <Link to="/login" className="galdr-link">
             Sign in
           </Link>
         </p>

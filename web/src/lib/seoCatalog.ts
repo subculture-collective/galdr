@@ -251,9 +251,12 @@ export function getRelatedPages(page: SeoPage, limit = 6): SeoPage[] {
     (item) => item.family !== page.family && item.intent === page.intent,
   );
 
-  return [...sameFamily.slice(0, limit - 2), ...crossFamily.slice(0, 2)].slice(
+  const safeLimit = Math.max(0, limit);
+  const sameFamilyLimit = Math.max(0, safeLimit - 2);
+
+  return [...sameFamily.slice(0, sameFamilyLimit), ...crossFamily.slice(0, 2)].slice(
     0,
-    limit,
+    safeLimit,
   );
 }
 

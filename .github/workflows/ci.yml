@@ -1,70 +1,70 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
 
 jobs:
-  go:
-    name: Go (lint, test, build)
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: pulsescore
-          POSTGRES_PASSWORD: pulsescore
-          POSTGRES_DB: pulsescore_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U pulsescore -d pulsescore_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
+    go:
+        name: Go (lint, test, build)
+        runs-on: ubuntu-latest
+        services:
+            postgres:
+                image: postgres:16-alpine
+                env:
+                    POSTGRES_USER: pulsescore
+                    POSTGRES_PASSWORD: pulsescore
+                    POSTGRES_DB: pulsescore_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd "pg_isready -U pulsescore -d pulsescore_test"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 5
+        steps:
+            - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
+            - uses: actions/setup-go@v5
+              with:
+                  go-version-file: go.mod
+                  cache: true
 
-      - name: Lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
+            - name: Lint
+              uses: golangci/golangci-lint-action@v6
+              with:
+                  version: latest
 
-      - name: Test
-        env:
-          DATABASE_URL: postgres://pulsescore:pulsescore@localhost:5432/pulsescore_test?sslmode=disable
-        run: go test ./... -race -coverprofile=coverage.out -covermode=atomic
+            - name: Test
+              env:
+                  DATABASE_URL: postgres://pulsescore:pulsescore@localhost:5432/pulsescore_test?sslmode=disable
+              run: go test ./... -race -coverprofile=coverage.out -covermode=atomic
 
-      - name: Build
-        run: go build -o bin/pulsescore-api ./cmd/api
+            - name: Build
+              run: go build -o bin/pulsescore-api ./cmd/api
 
-  react:
-    name: React (lint, build)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - uses: actions/checkout@v4
+    react:
+        name: React (lint, build)
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: web
+        steps:
+            - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: web/package-lock.json
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+                  cache-dependency-path: web/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+            - name: Install dependencies
+              run: npm ci
 
-      - name: Lint
-        run: npm run lint
+            - name: Lint
+              run: npm run lint
 
-      - name: Build
-        run: npm run build
+            - name: Build
+              run: npm run build

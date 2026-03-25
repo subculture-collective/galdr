@@ -1,11 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
 import { useToast } from "@/contexts/ToastContext";
 import StatCard from "@/components/StatCard";
 import CardSkeleton from "@/components/skeletons/CardSkeleton";
-import ScoreDistributionChart from "@/components/charts/ScoreDistributionChart";
-import MRRTrendChart from "@/components/charts/MRRTrendChart";
 import { Users, AlertTriangle, DollarSign, Activity } from "lucide-react";
+import { formatCurrency } from "@/lib/format";
+
+const ScoreDistributionChart = lazy(
+  () => import("@/components/charts/ScoreDistributionChart"),
+);
+const MRRTrendChart = lazy(() => import("@/components/charts/MRRTrendChart"));
+const RiskDistributionChart = lazy(
+  () => import("@/components/charts/RiskDistributionChart"),
+);
+const AtRiskCustomersTable = lazy(
+  () => import("@/components/AtRiskCustomersTable"),
+);
 
 interface DashboardSummary {
   total_customers: number;
@@ -14,13 +24,24 @@ interface DashboardSummary {
   average_health_score: number;
 }
 
-function formatCurrency(cents: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(cents / 100);
+function ChartPanelFallback() {
+  return <CardSkeleton />;
+}
+
+function TablePanelFallback() {
+  return (
+    <div className="galdr-card p-6">
+      <div className="h-4 w-40 animate-pulse rounded bg-[color-mix(in_srgb,var(--galdr-fg-muted)_35%,transparent)]" />
+      <div className="mt-4 space-y-2">
+        {[...Array(4)].map((_, idx) => (
+          <div
+            key={idx}
+            className="h-10 animate-pulse rounded bg-[color-mix(in_srgb,var(--galdr-fg-muted)_25%,transparent)]"
+          />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function DashboardPage() {
@@ -50,9 +71,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-        Dashboard
-      </h1>
+      <h1 className="text-2xl font-bold text-[var(--galdr-fg)]">Dashboard</h1>
 
       {/* Stat cards */}
       {loading ? (
@@ -62,13 +81,11 @@ export default function DashboardPage() {
           ))}
         </div>
       ) : error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center dark:border-red-800 dark:bg-red-950">
-          <p className="text-sm text-red-700 dark:text-red-300">
-            Failed to load dashboard data.
-          </p>
+        <div role="alert" className="galdr-alert-danger p-6 text-center">
+          <p className="text-sm">Failed to load dashboard data.</p>
           <button
             onClick={fetchSummary}
-            className="mt-2 text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+            className="galdr-link mt-2 text-sm font-medium"
           >
             Retry
           </button>
@@ -100,8 +117,24 @@ export default function DashboardPage() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ScoreDistributionChart />
-        <MRRTrendChart />
+        <Suspense fallback={<ChartPanelFallback />}>
+          <ScoreDistributionChart />
+        </Suspense>
+        <Suspense fallback={<ChartPanelFallback />}>
+          <MRRTrendChart />
+        </Suspense>
+      </div>
+
+      {/* Risk overview */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Suspense fallback={<ChartPanelFallback />}>
+          <RiskDistributionChart />
+        </Suspense>
+        <div className="lg:col-span-2">
+          <Suspense fallback={<TablePanelFallback />}>
+            <AtRiskCustomersTable />
+          </Suspense>
+        </div>
       </div>
     </div>
   );

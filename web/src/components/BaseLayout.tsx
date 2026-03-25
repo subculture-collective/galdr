@@ -6,24 +6,26 @@ interface BaseLayoutProps {
 
 export default function BaseLayout({ children }: BaseLayoutProps) {
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      <header className="border-b border-gray-200 bg-white">
+    <div className="galdr-shell min-h-screen text-[var(--galdr-fg)]">
+      <header className="border-b border-[var(--galdr-border)] bg-[color-mix(in_srgb,var(--galdr-surface)_85%,black_15%)]/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <h1 className="text-xl font-bold text-indigo-600">PulseScore</h1>
-          <nav className="flex gap-4 text-sm font-medium text-gray-600">
-            <a href="/" className="hover:text-gray-900">
+          <h1 className="text-xl font-bold tracking-tight text-[var(--galdr-fg)]">
+            PulseScore
+          </h1>
+          <nav className="flex gap-4 text-sm font-medium text-[var(--galdr-fg-muted)]">
+            <a href="/" className="galdr-link">
               Dashboard
             </a>
-            <a href="/customers" className="hover:text-gray-900">
+            <a href="/customers" className="galdr-link">
               Customers
             </a>
-            <a href="/settings" className="hover:text-gray-900">
+            <a href="/settings" className="galdr-link">
               Settings
             </a>
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         {children}
       </main>
     </div>

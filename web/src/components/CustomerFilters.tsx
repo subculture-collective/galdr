@@ -61,13 +61,13 @@ export default function CustomerFilters() {
     <div className="flex flex-wrap items-center gap-3">
       {/* Search */}
       <div className="relative flex-1 sm:max-w-xs">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--galdr-fg-muted)]" />
         <input
           type="text"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="Search customers..."
-          className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+          className="galdr-input w-full py-2 pl-9 pr-3 text-sm"
         />
       </div>
 
@@ -79,8 +79,8 @@ export default function CustomerFilters() {
             onClick={() => updateParam("risk", opt.value)}
             className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
               risk === opt.value
-                ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+                ? "border border-[color:rgb(139_92_246_/_0.45)] bg-[color:rgb(139_92_246_/_0.2)] text-[var(--galdr-fg)]"
+                : "galdr-pill hover:border-[color:rgb(139_92_246_/_0.3)] hover:text-[var(--galdr-fg)]"
             }`}
           >
             {opt.label}
@@ -92,7 +92,7 @@ export default function CustomerFilters() {
       <select
         value={source}
         onChange={(e) => updateParam("source", e.target.value)}
-        className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
+        className="galdr-input px-3 py-1.5 text-sm"
       >
         {sourceOptions.map((opt) => (
           <option key={opt.value} value={opt.value}>
@@ -105,7 +105,7 @@ export default function CustomerFilters() {
       {hasFilters && (
         <button
           onClick={clearAll}
-          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          className="galdr-link flex items-center gap-1 text-xs"
         >
           <X className="h-3 w-3" />
           Clear all

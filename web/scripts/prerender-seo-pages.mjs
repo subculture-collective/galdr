@@ -53,6 +53,12 @@ const FAMILY_CONFIG = {
       "Research-backed shortlists of tools and approaches by team size, stack, and outcomes.",
   },
 };
+const FAMILY_CONFIG = JSON.parse(
+  readFileSync(
+    new URL("../src/content/seo-family-config.json", import.meta.url),
+    "utf8",
+  ),
+);
 
 const FAMILY_ORDER = [
   "templates",
@@ -84,14 +90,19 @@ const CORE_PAGES = [
     title: "PulseScore Pricing",
     description:
       "Compare PulseScore Free, Growth, and Scale plans with monthly and annual billing options.",
-    keywords: ["pulsescore pricing", "customer success pricing", "b2b saas pricing"],
+    keywords: [
+      "pulsescore pricing",
+      "customer success pricing",
+      "b2b saas pricing",
+    ],
     h1: "Simple pricing for lean customer success teams",
     robots: "index, follow",
   },
   {
     path: "/privacy",
     title: "Privacy Policy | PulseScore",
-    description: "Read the PulseScore privacy policy and data handling practices.",
+    description:
+      "Read the PulseScore privacy policy and data handling practices.",
     keywords: ["privacy policy", "data handling", "pulsescore"],
     h1: "Privacy Policy",
     robots: "noindex, follow",
@@ -153,6 +164,9 @@ function buildTitle(page) {
     default:
       return withBrandTitle(page.entity);
   }
+  return withBrandTitle(
+    renderTemplate(FAMILY_CONFIG[page.family].titleTemplate, page),
+  );
 }
 
 function buildDescription(page) {
@@ -206,14 +220,17 @@ function getAssetTags(indexHtml) {
   const scriptTags = [];
 
   const cssRegex = /<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"[^>]*>/g;
-  const scriptRegex = /<script[^>]+type="module"[^>]+src="([^"]+)"[^>]*><\/script>/g;
+  const scriptRegex =
+    /<script[^>]+type="module"[^>]+src="([^"]+)"[^>]*><\/script>/g;
 
   for (const match of indexHtml.matchAll(cssRegex)) {
     cssTags.push(`<link rel="stylesheet" href="${match[1]}">`);
   }
 
   for (const match of indexHtml.matchAll(scriptRegex)) {
-    scriptTags.push(`<script type="module" crossorigin src="${match[1]}"></script>`);
+    scriptTags.push(
+      `<script type="module" crossorigin src="${match[1]}"></script>`,
+    );
   }
 
   return { cssTags, scriptTags };
@@ -227,6 +244,7 @@ function layoutHtml({
   keywords,
   robots = "index, follow",
   structuredData,
+  ogType = "website",
   cssTags,
   scriptTags,
 }) {
@@ -242,7 +260,7 @@ function layoutHtml({
     <meta name="keywords" content="${escapeHtml(keywords.join(", "))}" />
     <meta name="robots" content="${escapeHtml(robots)}" />
     <link rel="canonical" href="${canonical}" />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content="${escapeHtml(ogType)}" />
     <meta property="og:title" content="${escapeHtml(title)}" />
     <meta property="og:description" content="${escapeHtml(description)}" />
     <meta property="og:url" content="${canonical}" />
@@ -252,32 +270,33 @@ function layoutHtml({
     <meta name="twitter:description" content="${escapeHtml(description)}" />
     <meta name="twitter:image" content="${SITE_ORIGIN}/og-card.svg" />
     <meta name="prerender-source" content="seo-prerender" />
-    <script type="application/ld+json">${JSON.stringify(structuredData)}</script>
+    <script type="application/ld+json">${JSON.stringify(structuredData).replace(/</g, "\\u003c")}</script>
     ${cssTags.join("\n    ")}
     <style>
       :root { color-scheme: light dark; }
-      body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #fff; color: #0f172a; }
-      .page { max-width: 1120px; margin: 0 auto; padding: 40px 24px; }
-      .muted { color: #475569; }
-      .chip { display: inline-block; margin-right: 8px; margin-bottom: 8px; border: 1px solid #cbd5e1; border-radius: 9999px; padding: 4px 12px; font-size: 12px; color: #334155; }
-      .hero { border: 1px solid #c7d2fe; border-radius: 16px; padding: 24px; background: #eef2ff; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); gap: 12px; margin-top: 20px; }
-      .card { border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px; background: #fff; }
-      .card a { color: #1d4ed8; text-decoration: none; }
-      .card a:hover { text-decoration: underline; }
-      .cta { display: inline-block; margin-right: 10px; margin-top: 12px; background: #4f46e5; color: #fff; text-decoration: none; padding: 10px 16px; border-radius: 10px; font-weight: 600; }
-      .cta.secondary { background: transparent; color: #1e293b; border: 1px solid #cbd5e1; }
+      body { margin: 0; }
+      .seo-prerender { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #fff; color: #0f172a; min-height: 100vh; }
+      .seo-prerender .page { max-width: 1120px; margin: 0 auto; padding: 40px 24px; }
+      .seo-prerender .muted { color: #475569; }
+      .seo-prerender .chip { display: inline-block; margin-right: 8px; margin-bottom: 8px; border: 1px solid #cbd5e1; border-radius: 9999px; padding: 4px 12px; font-size: 12px; color: #334155; }
+      .seo-prerender .hero { border: 1px solid #c7d2fe; border-radius: 16px; padding: 24px; background: #eef2ff; }
+      .seo-prerender .grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); gap: 12px; margin-top: 20px; }
+      .seo-prerender .card { border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px; background: #fff; }
+      .seo-prerender .card a { color: #1d4ed8; text-decoration: none; }
+      .seo-prerender .card a:hover { text-decoration: underline; }
+      .seo-prerender .cta { display: inline-block; margin-right: 10px; margin-top: 12px; background: #4f46e5; color: #fff; text-decoration: none; padding: 10px 16px; border-radius: 10px; font-weight: 600; }
+      .seo-prerender .cta.secondary { background: transparent; color: #1e293b; border: 1px solid #cbd5e1; }
       @media (prefers-color-scheme: dark) {
-        body { background: #020617; color: #e2e8f0; }
-        .hero { background: #1e1b4b; border-color: #4338ca; }
-        .card { background: #0f172a; border-color: #1e293b; }
-        .muted, .chip { color: #cbd5e1; border-color: #334155; }
-        .card a, .cta.secondary { color: #c7d2fe; }
+        .seo-prerender { background: #020617; color: #e2e8f0; }
+        .seo-prerender .hero { background: #1e1b4b; border-color: #4338ca; }
+        .seo-prerender .card { background: #0f172a; border-color: #1e293b; }
+        .seo-prerender .muted, .seo-prerender .chip { color: #cbd5e1; border-color: #334155; }
+        .seo-prerender .card a, .seo-prerender .cta.secondary { color: #c7d2fe; }
       }
     </style>
   </head>
   <body>
-    <div id="root">${body}</div>
+    <div id="root"><div class="seo-prerender">${body}</div></div>
     ${scriptTags.join("\n    ")}
   </body>
 </html>
@@ -498,7 +517,10 @@ async function main() {
   const pages = JSON.parse(pagesRaw);
 
   const distDir = new URL("../dist/", import.meta.url);
-  const distIndexHtml = await readFile(new URL("./index.html", distDir), "utf8");
+  const distIndexHtml = await readFile(
+    new URL("./index.html", distDir),
+    "utf8",
+  );
   const { cssTags, scriptTags } = getAssetTags(distIndexHtml);
 
   const byFamily = {
@@ -628,6 +650,10 @@ async function main() {
         keywords: [page.keyword, page.entity, "customer health scoring"],
         body: buildDetailBody(page, byFamily),
         structuredData: detailStructuredData,
+        ogType:
+          page.family === "glossary" || page.family === "examples"
+            ? "article"
+            : "website",
         cssTags,
         scriptTags,
       });

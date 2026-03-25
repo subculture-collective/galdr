@@ -57,7 +57,7 @@ export default function ScoreHistoryChart({
 
   if (empty) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+      <div className="galdr-card p-6">
         <EmptyState
           icon={<TrendingUp className="h-12 w-12" />}
           title="No score history"
@@ -68,35 +68,55 @@ export default function ScoreHistoryChart({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
-      <h3 className="mb-4 text-sm font-medium text-gray-900 dark:text-gray-100">
+    <div className="galdr-card p-6">
+      <h3 className="mb-4 text-sm font-medium text-[var(--galdr-fg)]">
         Health Score History
       </h3>
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={data}>
-          <ReferenceArea y1={70} y2={100} fill="#22c55e" fillOpacity={0.08} />
-          <ReferenceArea y1={40} y2={70} fill="#eab308" fillOpacity={0.08} />
-          <ReferenceArea y1={0} y2={40} fill="#ef4444" fillOpacity={0.08} />
+          <ReferenceArea
+            y1={70}
+            y2={100}
+            fill="var(--chart-risk-healthy)"
+            fillOpacity={0.08}
+          />
+          <ReferenceArea
+            y1={40}
+            y2={70}
+            fill="var(--chart-risk-at-risk)"
+            fillOpacity={0.08}
+          />
+          <ReferenceArea
+            y1={0}
+            y2={40}
+            fill="var(--chart-risk-critical)"
+            fillOpacity={0.08}
+          />
           <XAxis
             dataKey="date"
             tickFormatter={formatDate}
             tick={{ fontSize: 12 }}
-            stroke="#9ca3af"
+            stroke="var(--chart-axis-stroke)"
           />
-          <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} stroke="#9ca3af" />
+          <YAxis
+            domain={[0, 100]}
+            tick={{ fontSize: 12 }}
+            stroke="var(--chart-axis-stroke)"
+          />
           <Tooltip
             formatter={(value) => [value, "Score"]}
             labelFormatter={(label) => formatDate(String(label))}
             contentStyle={{
-              backgroundColor: "var(--color-white, #fff)",
-              borderColor: "#e5e7eb",
+              backgroundColor: "var(--chart-tooltip-bg)",
+              borderColor: "var(--chart-tooltip-border)",
               borderRadius: 8,
+              color: "var(--chart-tooltip-text)",
             }}
           />
           <Line
             type="monotone"
             dataKey="score"
-            stroke="#6366f1"
+            stroke="var(--chart-series-primary)"
             strokeWidth={2}
             dot={{ r: data.length <= 10 ? 4 : 2 }}
             activeDot={{ r: 6 }}

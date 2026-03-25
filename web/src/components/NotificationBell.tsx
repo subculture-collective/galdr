@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell } from "lucide-react";
 import { notificationsApi, type AppNotification } from "@/lib/api";
+import { relativeTime } from "@/lib/format";
 
 const POLL_INTERVAL = 30_000;
 
@@ -39,6 +40,16 @@ export default function NotificationBell() {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return;
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [open]);
 
   async function toggleOpen() {
     if (!open) {
@@ -85,41 +96,31 @@ export default function NotificationBell() {
     }
   }
 
-  function timeAgo(dateStr: string): string {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
-  }
-
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={toggleOpen}
-        className="relative rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+        className="galdr-icon-button relative p-2"
         aria-label="Notifications"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-[var(--galdr-danger)] px-1 text-[10px] font-bold text-white">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
-          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <div className="galdr-panel absolute right-0 top-full z-50 mt-2 w-80 shadow-lg">
+          <div className="flex items-center justify-between border-b border-[var(--galdr-border)] px-4 py-3">
+            <h3 className="text-sm font-semibold text-[var(--galdr-fg)]">
               Notifications
             </h3>
             {unreadCount > 0 && (
               <button
                 onClick={handleMarkAllRead}
-                className="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300"
+                className="galdr-link text-xs"
               >
                 Mark all read
               </button>
@@ -128,11 +129,11 @@ export default function NotificationBell() {
 
           <div className="max-h-80 overflow-y-auto">
             {loading ? (
-              <div className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+              <div className="px-4 py-6 text-center text-sm text-[var(--galdr-fg-muted)]">
                 Loading...
               </div>
             ) : notifications.length === 0 ? (
-              <div className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+              <div className="px-4 py-6 text-center text-sm text-[var(--galdr-fg-muted)]">
                 No notifications
               </div>
             ) : (
@@ -140,23 +141,23 @@ export default function NotificationBell() {
                 <button
                   key={n.id}
                   onClick={() => handleNotificationClick(n)}
-                  className={`block w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
-                    !n.read_at ? "bg-indigo-50/50 dark:bg-indigo-900/10" : ""
+                  className={`block w-full px-4 py-3 text-left transition-colors hover:bg-[color:rgb(139_92_246_/_0.08)] ${
+                    !n.read_at ? "bg-[color:rgb(139_92_246_/_0.1)]" : ""
                   }`}
                 >
                   <div className="flex items-start gap-2">
                     {!n.read_at && (
-                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-indigo-500" />
+                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[var(--galdr-accent)]" />
                     )}
                     <div className={!n.read_at ? "" : "ml-4"}>
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      <p className="text-sm font-medium text-[var(--galdr-fg)]">
                         {n.title}
                       </p>
-                      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+                      <p className="mt-0.5 text-xs text-[var(--galdr-fg-muted)] line-clamp-2">
                         {n.message}
                       </p>
-                      <p className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
-                        {timeAgo(n.created_at)}
+                      <p className="mt-1 text-[10px] text-[color:rgb(168_168_188_/_0.86)]">
+                        {relativeTime(n.created_at)}
                       </p>
                     </div>
                   </div>
@@ -165,13 +166,13 @@ export default function NotificationBell() {
             )}
           </div>
 
-          <div className="border-t border-gray-200 dark:border-gray-700">
+          <div className="border-t border-[var(--galdr-border)]">
             <button
               onClick={() => {
                 setOpen(false);
                 navigate("/settings/notifications");
               }}
-              className="block w-full px-4 py-2.5 text-center text-xs text-indigo-600 hover:bg-gray-50 dark:text-indigo-400 dark:hover:bg-gray-700/50"
+              className="galdr-link block w-full px-4 py-2.5 text-center text-xs hover:bg-[color:rgb(139_92_246_/_0.08)]"
             >
               Notification settings
             </button>

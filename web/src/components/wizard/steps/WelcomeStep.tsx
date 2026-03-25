@@ -31,17 +31,17 @@ export default function WelcomeStep({
 }: WelcomeStepProps) {
   return (
     <WizardStep
-      title="Welcome to PulseScore"
+      title="Welcome to Galdr"
       description="Let’s configure your organization so we can personalize scoring and insights."
     >
-      <div className="mb-5 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-700">
+      <div className="galdr-panel mb-5 p-4 text-sm text-[var(--galdr-fg-muted)]">
         You’re about to connect customer data and generate your first health
         score preview. It usually takes just a few minutes.
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-gray-700">
+          <span className="mb-1 block text-sm font-medium text-[var(--galdr-fg-muted)]">
             Organization name *
           </span>
           <input
@@ -53,12 +53,12 @@ export default function WelcomeStep({
               })
             }
             placeholder={organizationName}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none ring-indigo-500 focus:ring"
+            className="galdr-input w-full px-3 py-2 text-sm"
           />
         </label>
 
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-gray-700">
+          <span className="mb-1 block text-sm font-medium text-[var(--galdr-fg-muted)]">
             Industry
           </span>
           <select
@@ -69,7 +69,7 @@ export default function WelcomeStep({
                 industry: e.target.value,
               })
             }
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none ring-indigo-500 focus:ring"
+            className="galdr-input w-full px-3 py-2 text-sm"
           >
             <option value="">Select an industry</option>
             {industries.map((industry) => (
@@ -81,7 +81,7 @@ export default function WelcomeStep({
         </label>
 
         <label className="block md:col-span-2">
-          <span className="mb-1 block text-sm font-medium text-gray-700">
+          <span className="mb-1 block text-sm font-medium text-[var(--galdr-fg-muted)]">
             Company size
           </span>
           <select
@@ -92,7 +92,7 @@ export default function WelcomeStep({
                 company_size: e.target.value,
               })
             }
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none ring-indigo-500 focus:ring"
+            className="galdr-input w-full px-3 py-2 text-sm"
           >
             <option value="">Select company size</option>
             {companySizes.map((size) => (

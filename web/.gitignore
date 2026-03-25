@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Legacy/accidental sitemap artifacts under public/ (current builds write sitemaps to dist/)
+public/sitemaps/
+public/sitemap*.xml
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -40,7 +40,7 @@ export default function IntegrationsTab() {
   if (loading) {
     return (
       <div className="flex justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--galdr-fg-muted)]" />
       </div>
     );
   }
@@ -56,21 +56,21 @@ export default function IntegrationsTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="mb-4 text-sm font-medium text-gray-900 dark:text-gray-100">
+        <h3 className="mb-4 text-sm font-medium text-[var(--galdr-fg)]">
           Stripe
         </h3>
         <StripeConnectionCard />
       </div>
 
       <div>
-        <h3 className="mb-4 text-sm font-medium text-gray-900 dark:text-gray-100">
+        <h3 className="mb-4 text-sm font-medium text-[var(--galdr-fg)]">
           HubSpot
         </h3>
         <HubSpotConnectionCard />
       </div>
 
       <div>
-        <h3 className="mb-4 text-sm font-medium text-gray-900 dark:text-gray-100">
+        <h3 className="mb-4 text-sm font-medium text-[var(--galdr-fg)]">
           Intercom
         </h3>
         <IntercomConnectionCard />
@@ -78,7 +78,7 @@ export default function IntegrationsTab() {
 
       {otherIntegrations.length > 0 && (
         <div>
-          <h3 className="mb-4 text-sm font-medium text-gray-900 dark:text-gray-100">
+          <h3 className="mb-4 text-sm font-medium text-[var(--galdr-fg)]">
             Other Integrations
           </h3>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

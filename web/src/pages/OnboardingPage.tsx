@@ -573,7 +573,7 @@ function OnboardingContent() {
     try {
       await onboardingApi.complete();
       setCompletedAt(new Date().toISOString());
-      toast.success("Onboarding complete! Welcome to PulseScore.");
+      toast.success("Onboarding complete! Welcome to Galdr.");
       navigate("/", { replace: true });
     } catch {
       throw new Error("Failed to complete onboarding.");
@@ -583,23 +583,21 @@ function OnboardingContent() {
   if (initialLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--galdr-accent)] border-t-transparent" />
       </div>
     );
   }
 
   if (initialError || !status) {
     return (
-      <div className="mx-auto max-w-xl rounded-lg border border-red-200 bg-red-50 p-6 text-center">
-        <h2 className="text-lg font-semibold text-red-800">
-          Unable to load onboarding
-        </h2>
-        <p className="mt-2 text-sm text-red-700">
+      <div className="galdr-alert-danger mx-auto max-w-xl p-6 text-center">
+        <h2 className="text-lg font-semibold">Unable to load onboarding</h2>
+        <p className="mt-2 text-sm">
           {initialError || "Something went wrong while loading onboarding."}
         </p>
         <button
           onClick={() => void loadOnboarding()}
-          className="mt-4 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+          className="galdr-button-danger-outline mt-4 px-4 py-2 text-sm font-medium"
         >
           Retry
         </button>
@@ -610,8 +608,10 @@ function OnboardingContent() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Onboarding Wizard</h1>
-        <p className="mt-1 text-sm text-gray-600">
+        <h1 className="text-2xl font-bold text-[var(--galdr-fg)]">
+          Onboarding Wizard
+        </h1>
+        <p className="mt-1 text-sm text-[var(--galdr-fg-muted)]">
           Complete setup to unlock customer health insights and alerts.
         </p>
       </div>

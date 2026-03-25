@@ -2,7 +2,7 @@
        migrate-up migrate-down migrate-down-all migrate-create seed \
        dev-db dev-db-down dev dev-stop \
        web-install web-dev web-build web-lint web-format web-format-check web-preview \
-       docker-build docker-up docker-down docker-logs \
+	docker-build docker-up deploy-prod docker-down docker-logs \
        check help
 
 # ---------------------------------------------------------------------------
@@ -105,6 +105,9 @@ docker-build: ## Build production Docker images
 
 docker-up: ## Start production stack
 	docker compose -f docker-compose.prod.yml up -d
+
+deploy-prod: ## Deploy production stack (build + remove orphan containers)
+	docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
 
 docker-down: ## Stop production stack
 	docker compose -f docker-compose.prod.yml down

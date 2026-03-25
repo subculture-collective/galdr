@@ -61,7 +61,8 @@ func (r *UserRepository) Create(ctx context.Context, tx pgx.Tx, user *User) erro
 // GetByEmail retrieves a user by email (case-insensitive via CITEXT).
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
-		SELECT id, email, password_hash, first_name, last_name, avatar_url,
+		SELECT id, email, password_hash,
+			   COALESCE(first_name, ''), COALESCE(last_name, ''), COALESCE(avatar_url, ''),
 			   email_verified, created_at, updated_at
 		FROM users
 		WHERE email = $1 AND deleted_at IS NULL`
@@ -94,7 +95,8 @@ func (r *UserRepository) EmailExists(ctx context.Context, email string) (bool, e
 // GetByID retrieves a user by ID.
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
 	query := `
-		SELECT id, email, password_hash, first_name, last_name, avatar_url,
+		SELECT id, email, password_hash,
+			   COALESCE(first_name, ''), COALESCE(last_name, ''), COALESCE(avatar_url, ''),
 			   email_verified, created_at, updated_at
 		FROM users
 		WHERE id = $1 AND deleted_at IS NULL`

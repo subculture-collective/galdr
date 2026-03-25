@@ -35,7 +35,7 @@ export default function OrganizationTab() {
   if (loading) {
     return (
       <div className="flex justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--galdr-fg-muted)]" />
       </div>
     );
   }
@@ -58,41 +58,39 @@ export default function OrganizationTab() {
   return (
     <div className="max-w-lg space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="block text-sm font-medium text-[var(--galdr-fg-muted)]">
           Organization Name
         </label>
-        <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">
-          {org.name}
-        </p>
+        <p className="mt-1 text-sm text-[var(--galdr-fg)]">{org.name}</p>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="block text-sm font-medium text-[var(--galdr-fg-muted)]">
           Slug
         </label>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          {org.slug}
-        </p>
+        <p className="mt-1 text-sm text-[var(--galdr-fg-muted)]">{org.slug}</p>
       </div>
       {org.plan && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label className="block text-sm font-medium text-[var(--galdr-fg-muted)]">
             Plan
           </label>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm text-[var(--galdr-fg-muted)]">
             {org.plan}
           </p>
         </div>
       )}
 
-      <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
-        <h3 className="text-sm font-semibold text-indigo-800">Onboarding</h3>
-        <p className="mt-1 text-sm text-indigo-700">
+      <div className="galdr-panel p-4">
+        <h3 className="text-sm font-semibold text-[var(--galdr-fg)]">
+          Onboarding
+        </h3>
+        <p className="mt-1 text-sm text-[var(--galdr-fg-muted)]">
           Need to revisit setup? You can restart the onboarding wizard anytime.
         </p>
         <button
           onClick={rerunOnboarding}
           disabled={resetting}
-          className="mt-3 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          className="galdr-button-primary mt-3 px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {resetting ? "Resetting..." : "Re-run onboarding"}
         </button>

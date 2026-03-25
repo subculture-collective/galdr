@@ -32,15 +32,17 @@ export default function ScorePreviewStep({
       description="We’ll run an initial sync and show a quick snapshot of customer health."
     >
       {connectedProviders.length === 0 ? (
-        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">
+        <div className="galdr-alert-warning p-4 text-sm">
           No integrations connected yet. You can finish onboarding now and
           connect data sources later from Settings.
         </div>
       ) : (
         <>
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <h3 className="text-sm font-semibold text-gray-800">Sync status</h3>
-            <ul className="mt-2 space-y-1 text-sm text-gray-700">
+          <div className="galdr-panel p-4">
+            <h3 className="text-sm font-semibold text-[var(--galdr-fg)]">
+              Sync status
+            </h3>
+            <ul className="mt-2 space-y-1 text-sm text-[var(--galdr-fg-muted)]">
               {connectedProviders.map((provider) => (
                 <li
                   key={provider}
@@ -56,31 +58,31 @@ export default function ScorePreviewStep({
           </div>
 
           {loading && (
-            <p className="mt-3 text-sm text-gray-600">
+            <p className="mt-3 text-sm text-[var(--galdr-fg-muted)]">
               Fetching preview data... this can take a minute.
             </p>
           )}
 
           {!loading && distribution.length > 0 && (
-            <div className="mt-5 rounded-lg border border-gray-200 p-4">
-              <h4 className="text-sm font-semibold text-gray-800">
+            <div className="galdr-panel mt-5 p-4">
+              <h4 className="text-sm font-semibold text-[var(--galdr-fg)]">
                 Score distribution preview
               </h4>
               <div className="mt-3 space-y-2">
                 {distribution.map((bucket) => (
                   <div key={bucket.range} className="flex items-center gap-3">
-                    <span className="w-16 text-xs text-gray-500">
+                    <span className="w-16 text-xs text-[var(--galdr-fg-muted)]">
                       {bucket.range}
                     </span>
-                    <div className="h-2 flex-1 rounded bg-gray-100">
+                    <div className="h-2 flex-1 rounded bg-[var(--galdr-surface-soft)]">
                       <div
-                        className="h-2 rounded bg-indigo-500"
+                        className="h-2 rounded bg-[var(--chart-series-primary)]"
                         style={{
                           width: `${Math.min(100, bucket.count * 12)}%`,
                         }}
                       />
                     </div>
-                    <span className="w-8 text-right text-xs text-gray-600">
+                    <span className="w-8 text-right text-xs text-[var(--galdr-fg-muted)]">
                       {bucket.count}
                     </span>
                   </div>
@@ -90,11 +92,9 @@ export default function ScorePreviewStep({
           )}
 
           {!loading && atRiskCustomers.length > 0 && (
-            <div className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4">
-              <h4 className="text-sm font-semibold text-red-800">
-                Top at-risk customers
-              </h4>
-              <ul className="mt-2 space-y-1 text-sm text-red-700">
+            <div className="galdr-alert-danger mt-5 p-4">
+              <h4 className="text-sm font-semibold">Top at-risk customers</h4>
+              <ul className="mt-2 space-y-1 text-sm">
                 {atRiskCustomers.map((customer) => (
                   <li
                     key={customer.id}

@@ -10,7 +10,7 @@ const landingStructuredData = [
   {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: "PulseScore",
+    name: "Galdr",
     url: "https://pulsescore.app",
     logo: "https://pulsescore.app/og-card.svg",
     sameAs: ["https://github.com/subculture-collective/pulse-score"],
@@ -18,7 +18,7 @@ const landingStructuredData = [
   {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: "PulseScore",
+    name: "Galdr",
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
     offers: [
@@ -27,16 +27,16 @@ const landingStructuredData = [
       { "@type": "Offer", name: "Scale", price: "149", priceCurrency: "USD" },
     ],
     description:
-      "PulseScore helps B2B SaaS teams detect churn risk early with customer health scoring.",
+      "Galdr helps B2B SaaS teams detect churn risk early with customer health intelligence.",
   },
 ];
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+    <div className="galdr-noise min-h-screen bg-[var(--galdr-bg)] text-[var(--galdr-fg)]">
       <SeoMeta
-        title="PulseScore | Know Customer Health Before They Churn"
-        description="Connect Stripe, HubSpot, and Intercom to monitor customer health and reduce churn with proactive alerts."
+        title="Galdr | Cast Customer Insight Into Action"
+        description="Connect Stripe, HubSpot, and Intercom to cast retention signals into clear customer health intelligence."
         keywords={[
           "customer health score",
           "churn prevention",
@@ -49,25 +49,25 @@ export default function LandingPage() {
         structuredData={landingStructuredData}
       />
 
-      <header className="sticky top-0 z-20 border-b border-gray-200/80 bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-gray-950/90">
+      <header className="sticky top-0 z-20 border-b border-[var(--galdr-border)]/90 bg-[rgb(11_11_18_/_0.9)] backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3 sm:px-10 lg:px-14">
           <Link
             to="/"
-            className="text-lg font-bold text-indigo-600 dark:text-indigo-300"
+            className="text-lg font-bold tracking-tight text-[var(--galdr-fg)]"
           >
-            PulseScore
+            Galdr
           </Link>
 
-          <nav className="hidden items-center gap-6 text-sm text-gray-600 md:flex dark:text-gray-300">
+          <nav className="hidden items-center gap-6 text-sm text-[var(--galdr-fg-muted)] md:flex">
             <a
               href="#features"
-              className="hover:text-indigo-600 dark:hover:text-indigo-300"
+              className="hover:text-[var(--galdr-accent)]"
             >
               Features
             </a>
             <a
               href="#pricing"
-              className="hover:text-indigo-600 dark:hover:text-indigo-300"
+              className="hover:text-[var(--galdr-accent)]"
             >
               Pricing
             </a>
@@ -76,13 +76,13 @@ export default function LandingPage() {
           <div className="flex items-center gap-2">
             <Link
               to="/login"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+              className="galdr-button-secondary px-3 py-2 text-sm font-medium"
             >
               Sign in
             </Link>
             <Link
               to="/register"
-              className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+              className="galdr-button-primary px-3 py-2 text-sm font-semibold"
             >
               Start free
             </Link>

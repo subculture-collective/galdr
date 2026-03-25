@@ -69,17 +69,14 @@ export default function PricingSection({
   }, []);
 
   return (
-    <section
-      id="pricing"
-      className="bg-white px-6 py-16 dark:bg-gray-950 sm:px-10 lg:px-14 lg:py-24"
-    >
+    <section id="pricing" className="px-6 py-16 sm:px-10 lg:px-14 lg:py-24">
       <div className="mx-auto max-w-7xl">
         {showStandaloneHeader && (
           <div className="mb-8">
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 sm:text-4xl">
+            <h1 className="text-3xl font-bold tracking-tight text-[var(--galdr-fg)] sm:text-4xl">
               Choose the right PulseScore plan
             </h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-300">
+            <p className="mt-2 text-[var(--galdr-fg-muted)]">
               Start on Free and upgrade when your customer health workflow
               scales.
             </p>
@@ -88,22 +85,22 @@ export default function PricingSection({
 
         <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-end">
           <div className="max-w-3xl">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 sm:text-4xl">
+            <h2 className="text-3xl font-bold tracking-tight text-[var(--galdr-fg)] sm:text-4xl">
               Pricing that fits the gap between spreadsheets and $10K tools.
             </h2>
-            <p className="mt-3 text-gray-600 dark:text-gray-300">
+            <p className="mt-3 text-[var(--galdr-fg-muted)]">
               Transparent tiers. No setup fees. Upgrade when your customer base
               grows.
             </p>
           </div>
 
-          <div className="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-900">
+          <div className="galdr-panel inline-flex items-center p-1">
             <button
               onClick={() => setCycle("monthly")}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                 cycle === "monthly"
-                  ? "bg-white text-gray-900 shadow-sm dark:bg-gray-800 dark:text-gray-100"
-                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  ? "galdr-button-secondary text-[var(--galdr-fg)]"
+                  : "text-[var(--galdr-fg-muted)] hover:text-[var(--galdr-fg)]"
               }`}
             >
               Monthly
@@ -112,14 +109,14 @@ export default function PricingSection({
               onClick={() => setCycle("annual")}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                 cycle === "annual"
-                  ? "bg-white text-gray-900 shadow-sm dark:bg-gray-800 dark:text-gray-100"
-                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  ? "galdr-button-secondary text-[var(--galdr-fg)]"
+                  : "text-[var(--galdr-fg-muted)] hover:text-[var(--galdr-fg)]"
               }`}
             >
               Annual
             </button>
             {cycle === "annual" && (
-              <span className="ml-2 inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+              <span className="galdr-alert-success ml-2 inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold">
                 <Sparkles className="mr-1 h-3 w-3" />
                 {annualSavingsText}
               </span>
@@ -148,42 +145,42 @@ export default function PricingSection({
             return (
               <article
                 key={plan.tier}
-                className={`relative rounded-2xl border p-6 shadow-sm ${
+                className={`relative rounded-2xl p-6 ${
                   isCurrentPlan
-                    ? "border-emerald-400 bg-emerald-50/40 dark:border-emerald-700 dark:bg-emerald-950/10"
+                    ? "galdr-card border-[color:rgb(52_211_153_/_0.52)]"
                     : plan.featured
-                      ? "border-indigo-300 bg-indigo-50/50 dark:border-indigo-700 dark:bg-indigo-950/20"
-                      : "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+                      ? "galdr-card border-[color-mix(in_srgb,var(--galdr-accent)_55%,var(--galdr-border)_45%)]"
+                      : "galdr-panel"
                 }`}
               >
                 {isCurrentPlan && (
-                  <span className="absolute -top-3 left-4 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">
+                  <span className="galdr-alert-success absolute -top-3 left-4 rounded-full px-3 py-1 text-xs font-semibold">
                     Current plan
                   </span>
                 )}
                 {plan.featured && (
-                  <span className="absolute -top-3 right-4 rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white">
+                  <span className="absolute -top-3 right-4 rounded-full bg-[var(--galdr-accent)] px-3 py-1 text-xs font-semibold text-white">
                     Most popular
                   </span>
                 )}
 
-                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                <h3 className="text-xl font-bold text-[var(--galdr-fg)]">
                   {plan.name}
                 </h3>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                <p className="mt-2 text-sm text-[var(--galdr-fg-muted)]">
                   {plan.description}
                 </p>
 
                 <div className="mt-5 flex items-baseline gap-1">
-                  <span className="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+                  <span className="text-4xl font-extrabold tracking-tight text-[var(--galdr-fg)]">
                     ${displayPrice}
                   </span>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                  <span className="text-sm text-[var(--galdr-fg-muted)]">
                     {period}
                   </span>
                 </div>
                 {isFree && (
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <p className="mt-1 text-xs text-[var(--galdr-fg-muted)]">
                     No credit card required
                   </p>
                 )}
@@ -194,8 +191,8 @@ export default function PricingSection({
                     disabled={loading}
                     className={`mt-5 inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                       plan.featured
-                        ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                        : "border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                        ? "galdr-button-primary"
+                        : "galdr-button-secondary"
                     }`}
                   >
                     {loading ? "Redirecting..." : ctaLabel}
@@ -209,18 +206,18 @@ export default function PricingSection({
                     }
                     className={`mt-5 inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
                       plan.featured
-                        ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                        : "border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                        ? "galdr-button-primary"
+                        : "galdr-button-secondary"
                     }`}
                   >
                     {ctaLabel}
                   </Link>
                 )}
 
-                <ul className="mt-5 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                <ul className="mt-5 space-y-2 text-sm text-[var(--galdr-fg-muted)]">
                   {Object.values(plan.limits).map((item) => (
                     <li key={item} className="flex items-start gap-2">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500" />
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--galdr-accent)]" />
                       {item}
                     </li>
                   ))}

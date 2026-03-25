@@ -38,6 +38,25 @@ export function useAuth(): AuthContextValue {
 
 // Store refresh token in memory (not localStorage, for XSS protection)
 let refreshTokenStore: string | null = null;
+let refreshInFlight: Promise<AuthResponse> | null = null;
+
+async function refreshSessionSingleFlight(): Promise<AuthResponse> {
+  if (!refreshTokenStore) {
+    throw new Error("No refresh token available");
+  }
+
+  if (!refreshInFlight) {
+    const token = refreshTokenStore;
+    refreshInFlight = authApi
+      .refresh(token)
+      .then(({ data }) => data)
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+
+  return refreshInFlight;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -52,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clearSession = useCallback(() => {
     setState({ user: null, organization: null, accessToken: null });
     refreshTokenStore = null;
+    refreshInFlight = null;
     if (refreshTimer.current) {
       clearTimeout(refreshTimer.current);
       refreshTimer.current = null;
@@ -59,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const scheduleRefresh = useCallback(
-    (accessToken: string, refreshToken: string) => {
+    (accessToken: string) => {
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
 
       // Decode JWT to get exp — schedule refresh 1 min before expiry
@@ -71,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (refreshAt > 0) {
           refreshTimer.current = setTimeout(async () => {
             try {
-              const { data } = await authApi.refresh(refreshToken);
+              const data = await refreshSessionSingleFlight();
               applySessionRef.current(data);
             } catch {
               clearSession();
@@ -93,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         accessToken: data.tokens.access_token,
       });
       refreshTokenStore = data.tokens.refresh_token;
-      scheduleRefresh(data.tokens.access_token, data.tokens.refresh_token);
+      scheduleRefresh(data.tokens.access_token);
     },
     [scheduleRefresh],
   );
@@ -110,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
-        const { data } = await authApi.refresh(refreshTokenStore);
+        const data = await refreshSessionSingleFlight();
         applySession(data);
       } catch {
         clearSession();
@@ -140,13 +160,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const responseId = api.interceptors.response.use(
       (response) => response,
       async (error) => {
-        if (error.response?.status === 401 && refreshTokenStore) {
+        const originalRequest = error.config;
+
+        if (
+          error.response?.status === 401 &&
+          refreshTokenStore &&
+          originalRequest &&
+          !originalRequest._retry
+        ) {
+          originalRequest._retry = true;
           try {
-            const { data } = await authApi.refresh(refreshTokenStore);
+            const data = await refreshSessionSingleFlight();
             applySession(data);
             // Retry original request with new token
-            error.config.headers.Authorization = `Bearer ${data.tokens.access_token}`;
-            return api.request(error.config);
+            originalRequest.headers = originalRequest.headers ?? {};
+            originalRequest.headers.Authorization = `Bearer ${data.tokens.access_token}`;
+            return api.request(originalRequest);
           } catch {
             clearSession();
           }

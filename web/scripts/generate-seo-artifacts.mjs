@@ -105,8 +105,8 @@ async function main() {
     byFamily[page.family].push(`${prefix}/${page.slug}`);
   }
 
-  const publicDir = new URL("../public/", import.meta.url);
-  const sitemapDir = new URL("../public/sitemaps/", import.meta.url);
+  const distDir = new URL("../dist/", import.meta.url);
+  const sitemapDir = new URL("../dist/sitemaps/", import.meta.url);
   await mkdir(sitemapDir, { recursive: true });
 
   const sitemapFiles = [
@@ -138,8 +138,8 @@ async function main() {
 
   const sitemapIndexXml = buildSitemapIndex(sitemapPaths, today);
 
-  await writeFile(new URL("./sitemap-index.xml", publicDir), sitemapIndexXml, "utf8");
-  await writeFile(new URL("./sitemap.xml", publicDir), sitemapIndexXml, "utf8");
+  await writeFile(new URL("./sitemap-index.xml", distDir), sitemapIndexXml, "utf8");
+  await writeFile(new URL("./sitemap.xml", distDir), sitemapIndexXml, "utf8");
 
   console.log("Generated sitemap artifacts:");
   for (const path of sitemapPaths) {

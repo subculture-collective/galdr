@@ -1,59 +1,73 @@
 services:
-  db:
-    image: postgres:16-alpine
-    container_name: pulsescore-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./scripts/init-db:/docker-entrypoint-initdb.d
-    networks:
-      - pulsescore-net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+    db:
+        image: postgres:16-alpine
+        container_name: pulsescore-db
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+            POSTGRES_DB: ${POSTGRES_DB}
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+            - ./scripts/init-db:/docker-entrypoint-initdb.d
+        networks:
+            - pulsescore-net
+        healthcheck:
+            test:
+                [
+                    'CMD-SHELL',
+                    'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}',
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 5
 
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: pulsescore-api
-    restart: unless-stopped
-    ports:
-      - "${PORT:-8080}:8080"
-    environment:
-      PORT: "8080"
-      ENVIRONMENT: production
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
-      RATE_LIMIT_RPM: ${RATE_LIMIT_RPM:-100}
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - pulsescore-net
+    api:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: pulsescore-api
+        restart: unless-stopped
+        environment:
+            PORT: '8080'
+            ENVIRONMENT: production
+            DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
+            CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+            RATE_LIMIT_RPM: ${RATE_LIMIT_RPM:-100}
+            JWT_SECRET: ${JWT_SECRET}
+            JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+            JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-168h}
+            STRIPE_BILLING_SECRET_KEY: ${STRIPE_BILLING_SECRET_KEY}
+            STRIPE_BILLING_PUBLISHABLE_KEY: ${STRIPE_BILLING_PUBLISHABLE_KEY}
+            STRIPE_BILLING_WEBHOOK_SECRET: ${STRIPE_BILLING_WEBHOOK_SECRET}
+            STRIPE_BILLING_PORTAL_RETURN_URL: ${STRIPE_BILLING_PORTAL_RETURN_URL}
+            STRIPE_BILLING_PRICE_GROWTH_MONTHLY: ${STRIPE_BILLING_PRICE_GROWTH_MONTHLY}
+            STRIPE_BILLING_PRICE_GROWTH_ANNUAL: ${STRIPE_BILLING_PRICE_GROWTH_ANNUAL}
+            STRIPE_BILLING_PRICE_SCALE_MONTHLY: ${STRIPE_BILLING_PRICE_SCALE_MONTHLY}
+            STRIPE_BILLING_PRICE_SCALE_ANNUAL: ${STRIPE_BILLING_PRICE_SCALE_ANNUAL}
+        depends_on:
+            db:
+                condition: service_healthy
+        networks:
+            - pulsescore-net
+            - web
 
-  web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-    container_name: pulsescore-web
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    depends_on:
-      - api
-    networks:
-      - pulsescore-net
+    web:
+        build:
+            context: ./web
+            dockerfile: Dockerfile
+        container_name: pulsescore-web
+        restart: unless-stopped
+        depends_on:
+            - api
+        networks:
+            - web
 
 volumes:
-  pgdata:
+    pgdata:
 
 networks:
-  pulsescore-net:
-    driver: bridge
+    pulsescore-net:
+        driver: bridge
+    web:
+        external: true

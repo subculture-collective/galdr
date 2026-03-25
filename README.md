@@ -72,6 +72,43 @@ npm run dev
 
 The frontend starts on http://localhost:5173.
 
+## Shipping to Production (VPS)
+
+PulseScore ships to production through a manual GitHub Actions workflow:
+
+- Workflow: `.github/workflows/deploy-prod.yml`
+- Trigger: **Actions → Deploy Production → Run workflow**
+- Inputs:
+    - `ref` (branch/tag/SHA to deploy)
+    - `run_migrations` (reserved; currently no-op)
+
+### Required GitHub repository secrets
+
+- `VPS_HOST` — production server hostname/IP
+- `VPS_USER` — SSH user on the VPS
+- `VPS_SSH_KEY` — private SSH key for deploy user
+- `VPS_APP_DIR` — absolute path to repo on VPS (example: `/opt/pulse-score`)
+
+Optional:
+
+- `VPS_PORT` — SSH port (defaults to `22` if omitted by your SSH client/server config)
+
+### What deployment does
+
+The deploy workflow SSHes into your VPS and:
+
+1. Checks out the requested `ref`
+2. Ensures the external Docker network `web` exists
+3. Pulls latest DB image and rebuilds API/Web images with `--pull`
+4. Runs `docker compose -f docker-compose.prod.yml up -d --remove-orphans`
+5. Verifies DB readiness (`pg_isready`) and API health (`/healthz`)
+
+### Manual deploy fallback (on VPS)
+
+If needed, you can run the same deploy logic directly on the server:
+
+`./scripts/deploy/vps-deploy.sh`
+
 ## Development Commands
 
 ### Backend (Makefile)
@@ -106,12 +143,12 @@ PulseScore now includes a dedicated Stripe billing domain (separate from Stripe 
 
 - Plan catalog: `free`, `growth`, `scale` (`internal/billing/plans.go`)
 - Protected billing APIs:
-	- `GET /api/v1/billing/subscription`
-	- `POST /api/v1/billing/checkout` (admin)
-	- `POST /api/v1/billing/portal-session` (admin)
-	- `POST /api/v1/billing/cancel` (admin)
+    - `GET /api/v1/billing/subscription`
+    - `POST /api/v1/billing/checkout` (admin)
+    - `POST /api/v1/billing/portal-session` (admin)
+    - `POST /api/v1/billing/cancel` (admin)
 - Public billing webhook:
-	- `POST /api/v1/webhooks/stripe-billing`
+    - `POST /api/v1/webhooks/stripe-billing`
 
 ### Required production billing env vars
 

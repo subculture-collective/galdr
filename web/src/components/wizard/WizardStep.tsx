@@ -12,13 +12,13 @@ export default function WizardStep({
   children,
 }: WizardStepProps) {
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+    <section className="galdr-card p-6">
       <header className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+        <h2 className="text-xl font-semibold text-[var(--galdr-fg)]">
           {title}
         </h2>
         {description && (
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+          <p className="mt-2 text-sm text-[var(--galdr-fg-muted)]">
             {description}
           </p>
         )}

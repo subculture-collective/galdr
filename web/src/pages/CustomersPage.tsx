@@ -85,9 +85,7 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-        Customers
-      </h1>
+      <h1 className="text-2xl font-bold text-[var(--galdr-fg)]">Customers</h1>
 
       <CustomerFilters />
 
@@ -109,7 +107,7 @@ export default function CustomersPage() {
           />
 
           {/* Pagination */}
-          <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+          <div className="flex items-center justify-between text-sm text-[var(--galdr-fg-muted)]">
             <span>
               Page {data.page} of {data.total_pages} ({data.total} total)
             </span>
@@ -117,7 +115,7 @@ export default function CustomersPage() {
               <button
                 onClick={() => goToPage(page - 1)}
                 disabled={page <= 1}
-                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:hover:bg-gray-800"
+                className="galdr-button-secondary inline-flex items-center gap-1 px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <ChevronLeft className="h-4 w-4" />
                 Previous
@@ -125,7 +123,7 @@ export default function CustomersPage() {
               <button
                 onClick={() => goToPage(page + 1)}
                 disabled={page >= (data.total_pages ?? 1)}
-                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:hover:bg-gray-800"
+                className="galdr-button-secondary inline-flex items-center gap-1 px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next
                 <ChevronRight className="h-4 w-4" />

@@ -118,7 +118,7 @@ export default function SubscriptionManager({
   if (loading) {
     return (
       <div className="flex justify-center py-10">
-        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--galdr-fg-muted)]" />
       </div>
     );
   }
@@ -129,30 +129,30 @@ export default function SubscriptionManager({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+      <section className="galdr-panel p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            <h3 className="text-lg font-semibold text-[var(--galdr-fg)]">
               {currentTier[0].toUpperCase() + currentTier.slice(1)} plan
             </h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-sm text-[var(--galdr-fg-muted)]">
               Status:{" "}
-              <span className="font-medium text-gray-700 dark:text-gray-200">
+              <span className="font-medium text-[var(--galdr-fg)]">
                 {subscription.status}
               </span>
               {" · "}
               Cycle:{" "}
-              <span className="font-medium text-gray-700 dark:text-gray-200">
+              <span className="font-medium text-[var(--galdr-fg)]">
                 {cycle}
               </span>
               {" · "}
               Renewal:{" "}
-              <span className="font-medium text-gray-700 dark:text-gray-200">
+              <span className="font-medium text-[var(--galdr-fg)]">
                 {formatRenewalDate(subscription.renewal_date)}
               </span>
             </p>
             {subscription.cancel_at_period_end && (
-              <p className="mt-2 text-xs font-medium text-amber-600 dark:text-amber-300">
+              <p className="mt-2 text-xs font-medium text-[var(--galdr-at-risk)]">
                 This subscription is scheduled to cancel at period end.
               </p>
             )}
@@ -162,7 +162,7 @@ export default function SubscriptionManager({
             <button
               onClick={handleOpenPortal}
               disabled={openingPortal}
-              className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              className="galdr-button-secondary inline-flex items-center gap-1 px-3 py-2 text-sm font-medium disabled:opacity-60"
             >
               {openingPortal ? "Opening..." : "Open customer portal"}
               <ExternalLink className="h-4 w-4" />
@@ -171,7 +171,7 @@ export default function SubscriptionManager({
               <button
                 onClick={handleCancelAtPeriodEnd}
                 disabled={cancelling}
-                className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-60 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                className="galdr-button-danger-outline px-3 py-2 text-sm font-medium disabled:opacity-60"
               >
                 {cancelling ? "Cancelling..." : "Cancel at period end"}
               </button>
@@ -180,10 +180,8 @@ export default function SubscriptionManager({
         </div>
       </section>
 
-      <section className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-        <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-          Usage
-        </h4>
+      <section className="galdr-panel p-5">
+        <h4 className="text-sm font-semibold text-[var(--galdr-fg)]">Usage</h4>
         <div className="mt-4 space-y-4">
           {[
             {
@@ -198,15 +196,15 @@ export default function SubscriptionManager({
             },
           ].map((item) => (
             <div key={item.label}>
-              <div className="mb-1 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+              <div className="mb-1 flex items-center justify-between text-sm text-[var(--galdr-fg-muted)]">
                 <span>{item.label}</span>
                 <span>
                   {item.used} / {formatLimit(item.limit)}
                 </span>
               </div>
-              <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-700">
+              <div className="h-2 rounded-full bg-[color-mix(in_srgb,var(--galdr-fg-muted)_30%,transparent)]">
                 <div
-                  className="h-2 rounded-full bg-indigo-500"
+                  className="h-2 rounded-full bg-[var(--galdr-accent)]"
                   style={{ width: `${usagePercent(item.used, item.limit)}%` }}
                 />
               </div>
@@ -215,8 +213,8 @@ export default function SubscriptionManager({
         </div>
       </section>
 
-      <section className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-        <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+      <section className="galdr-panel p-5">
+        <h4 className="text-sm font-semibold text-[var(--galdr-fg)]">
           Change plan
         </h4>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -227,20 +225,20 @@ export default function SubscriptionManager({
                 key={plan.tier}
                 className={`rounded-lg border p-4 ${
                   isCurrent
-                    ? "border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/20"
-                    : "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50"
+                    ? "border-[color:rgb(52_211_153_/_0.45)] bg-[color:rgb(52_211_153_/_0.12)]"
+                    : "border-[var(--galdr-border)] bg-[color-mix(in_srgb,var(--galdr-surface-soft)_80%,black_20%)]"
                 }`}
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="font-semibold text-gray-900 dark:text-gray-100">
+                    <p className="font-semibold text-[var(--galdr-fg)]">
                       {plan.name}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-[var(--galdr-fg-muted)]">
                       {plan.description}
                     </p>
                   </div>
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                  <p className="text-sm font-medium text-[var(--galdr-fg-muted)]">
                     $
                     {cycle === "monthly" ? plan.monthlyPrice : plan.annualPrice}
                     /{cycle === "monthly" ? "mo" : "yr"}
@@ -249,7 +247,7 @@ export default function SubscriptionManager({
                 <button
                   disabled={checkoutLoading || isCurrent}
                   onClick={() => startCheckout({ tier: plan.tier, cycle })}
-                  className="mt-3 w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="galdr-button-primary mt-3 w-full px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isCurrent
                     ? "Current plan"

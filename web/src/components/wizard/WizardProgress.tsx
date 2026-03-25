@@ -11,11 +11,11 @@ function statusFor(
   index: number,
   stepId: OnboardingStepId,
   currentStepIndex: number,
-  completedSteps: OnboardingStepId[],
-  skippedSteps: OnboardingStepId[],
+  completedSteps: Set<OnboardingStepId>,
+  skippedSteps: Set<OnboardingStepId>,
 ) {
-  if (completedSteps.includes(stepId)) return "completed";
-  if (skippedSteps.includes(stepId)) return "skipped";
+  if (completedSteps.has(stepId)) return "completed";
+  if (skippedSteps.has(stepId)) return "skipped";
   if (index === currentStepIndex) return "active";
   if (index < currentStepIndex) return "past";
   return "upcoming";
@@ -27,6 +27,9 @@ export default function WizardProgress({
   completedSteps,
   skippedSteps,
 }: WizardProgressProps) {
+  const completedStepSet = new Set(completedSteps);
+  const skippedStepSet = new Set(skippedSteps);
+
   return (
     <ol className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-5">
       {steps.map((step, idx) => {
@@ -34,20 +37,20 @@ export default function WizardProgress({
           idx,
           step.id,
           currentStepIndex,
-          completedSteps,
-          skippedSteps,
+          completedStepSet,
+          skippedStepSet,
         );
 
         const tone =
           status === "completed"
-            ? "border-green-300 bg-green-50 text-green-700"
+            ? "border-[color:rgb(52_211_153_/_0.45)] bg-[color:rgb(52_211_153_/_0.14)] text-[var(--galdr-success)]"
             : status === "skipped"
-              ? "border-yellow-300 bg-yellow-50 text-yellow-700"
+              ? "border-[color:rgb(245_158_11_/_0.45)] bg-[color:rgb(245_158_11_/_0.14)] text-[var(--galdr-at-risk)]"
               : status === "active"
-                ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                ? "border-[color:rgb(139_92_246_/_0.45)] bg-[color:rgb(139_92_246_/_0.16)] text-[var(--galdr-accent)]"
                 : status === "past"
-                  ? "border-gray-300 bg-gray-50 text-gray-600"
-                  : "border-gray-200 bg-white text-gray-500";
+                  ? "border-[var(--galdr-border)] bg-[color-mix(in_srgb,var(--galdr-surface-soft)_82%,black_18%)] text-[var(--galdr-fg-muted)]"
+                  : "border-[var(--galdr-border)] bg-[color-mix(in_srgb,var(--galdr-bg-elevated)_82%,black_18%)] text-[var(--galdr-fg-muted)]";
 
         return (
           <li

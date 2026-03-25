@@ -6,7 +6,6 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Menu,
   X,
 } from "lucide-react";
 
@@ -49,11 +48,7 @@ export default function Sidebar({
             to={item.to}
             onClick={onCloseMobile}
             title={collapsed ? item.label : undefined}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              active
-                ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
-                : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-            } ${collapsed ? "justify-center" : ""}`}
+            className={`galdr-nav-item flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${active ? "galdr-nav-item-active" : ""} ${collapsed ? "justify-center" : ""}`}
           >
             <Icon className="h-5 w-5 shrink-0" />
             {!collapsed && <span>{item.label}</span>}
@@ -68,24 +63,25 @@ export default function Sidebar({
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          className="fixed inset-0 z-40 bg-black/60 md:hidden"
           onClick={onCloseMobile}
         />
       )}
 
       {/* Mobile drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-gray-200 bg-white transition-transform duration-300 dark:border-gray-700 dark:bg-gray-900 md:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-[var(--galdr-border)] bg-[color:rgb(18_18_26_/_0.98)] transition-transform duration-300 md:hidden ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-700">
-          <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-            PulseScore
+        <div className="flex h-16 items-center justify-between border-b border-[var(--galdr-border)] px-4">
+          <span className="text-lg font-bold tracking-tight text-[var(--galdr-fg)]">
+            Galdr
           </span>
           <button
             onClick={onCloseMobile}
-            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+            className="galdr-icon-button p-1.5"
+            aria-label="Close navigation"
           >
             <X className="h-5 w-5" />
           </button>
@@ -95,32 +91,33 @@ export default function Sidebar({
 
       {/* Desktop sidebar */}
       <aside
-        className={`hidden flex-col border-r border-gray-200 bg-white transition-all duration-300 dark:border-gray-700 dark:bg-gray-900 md:flex ${
+        className={`hidden flex-col border-r border-[var(--galdr-border)] bg-[color:rgb(18_18_26_/_0.98)] transition-all duration-300 md:flex ${
           collapsed ? "w-16" : "w-64"
         }`}
       >
         <div
-          className={`flex h-16 items-center border-b border-gray-200 dark:border-gray-700 ${
+          className={`flex h-16 items-center border-b border-[var(--galdr-border)] ${
             collapsed ? "justify-center px-2" : "px-4"
           }`}
         >
           {!collapsed && (
-            <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-              PulseScore
+            <span className="text-lg font-bold tracking-tight text-[var(--galdr-fg)]">
+              Galdr
             </span>
           )}
           {collapsed && (
-            <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-              PS
+            <span className="text-lg font-bold tracking-tight text-[var(--galdr-fg)]">
+              GL
             </span>
           )}
         </div>
         {nav}
-        <div className="border-t border-gray-200 p-3 dark:border-gray-700">
+        <div className="border-t border-[var(--galdr-border)] p-3">
           <button
             onClick={onToggleCollapse}
-            className="flex w-full items-center justify-center rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+            className="galdr-icon-button flex w-full items-center justify-center p-2"
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {collapsed ? (
               <ChevronRight className="h-4 w-4" />
@@ -130,15 +127,6 @@ export default function Sidebar({
           </button>
         </div>
       </aside>
-
-      {/* Mobile hamburger (rendered in header area but controlled here) */}
-      <button
-        onClick={() => (mobileOpen ? onCloseMobile() : onToggleCollapse())}
-        className="fixed left-4 top-4 z-30 rounded-lg bg-white p-2 shadow-md dark:bg-gray-800 md:hidden"
-        aria-label="Toggle navigation"
-      >
-        <Menu className="h-5 w-5 text-gray-700 dark:text-gray-300" />
-      </button>
     </>
   );
 }

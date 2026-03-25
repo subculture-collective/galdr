@@ -33,16 +33,16 @@ export default function TeamTab() {
   if (loading) {
     return (
       <div className="flex justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--galdr-fg-muted)]" />
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+      <div className="galdr-card overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+          <thead className="border-b border-[var(--galdr-border)] bg-[color:rgb(31_31_46_/_0.72)] text-xs uppercase text-[var(--galdr-fg-muted)]">
             <tr>
               <th className="px-6 py-3">Name</th>
               <th className="px-6 py-3">Email</th>
@@ -53,16 +53,16 @@ export default function TeamTab() {
             {members.map((m) => (
               <tr
                 key={m.id}
-                className="border-b border-gray-100 bg-white dark:border-gray-800 dark:bg-gray-900"
+                className="border-b border-[var(--galdr-border)]/70"
               >
-                <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">
+                <td className="px-6 py-4 font-medium text-[var(--galdr-fg)]">
                   {m.first_name} {m.last_name}
                 </td>
-                <td className="px-6 py-4 text-gray-500 dark:text-gray-400">
+                <td className="px-6 py-4 text-[var(--galdr-fg-muted)]">
                   {m.email}
                 </td>
                 <td className="px-6 py-4">
-                  <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium capitalize text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                  <span className="galdr-pill inline-flex px-2.5 py-0.5 text-xs font-medium capitalize">
                     {m.role}
                   </span>
                 </td>

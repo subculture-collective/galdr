@@ -68,8 +68,10 @@ export default function StripeConnectionCard() {
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white p-6">
-        <p className="text-sm text-gray-500">Loading Stripe status...</p>
+      <div className="galdr-card p-6">
+        <p className="text-sm text-[var(--galdr-fg-muted)]">
+          Loading Stripe status...
+        </p>
       </div>
     );
   }
@@ -78,12 +80,12 @@ export default function StripeConnectionCard() {
     status?.status === "active" || status?.status === "syncing";
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-6">
+    <div className="galdr-card p-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[color:rgb(139_92_246_/_0.35)] bg-[color:rgb(139_92_246_/_0.12)]">
             <svg
-              className="h-6 w-6 text-indigo-600"
+              className="h-6 w-6 text-[var(--galdr-accent)]"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
@@ -97,8 +99,10 @@ export default function StripeConnectionCard() {
             </svg>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-900">Stripe</h3>
-            <p className="text-sm text-gray-500">
+            <h3 className="text-sm font-semibold text-[var(--galdr-fg)]">
+              Stripe
+            </h3>
+            <p className="text-sm text-[var(--galdr-fg-muted)]">
               Payment and subscription data
             </p>
           </div>
@@ -108,18 +112,14 @@ export default function StripeConnectionCard() {
       </div>
 
       {error && (
-        <div className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
+        <div className="galdr-alert-danger mt-4 p-3 text-sm">{error}</div>
       )}
       {message && (
-        <div className="mt-4 rounded-md bg-green-50 p-3 text-sm text-green-700">
-          {message}
-        </div>
+        <div className="galdr-alert-success mt-4 p-3 text-sm">{message}</div>
       )}
 
       {isConnected && status && (
-        <div className="mt-4 space-y-2 text-sm text-gray-600">
+        <div className="galdr-panel mt-4 space-y-2 p-3 text-sm text-[var(--galdr-fg-muted)]">
           {status.account_id && (
             <p>
               Account: <span className="font-mono">{status.account_id}</span>
@@ -132,7 +132,9 @@ export default function StripeConnectionCard() {
             <p>Customers synced: {status.customer_count}</p>
           )}
           {status.last_sync_error && (
-            <p className="text-red-600">Last error: {status.last_sync_error}</p>
+            <p className="text-[var(--galdr-danger)]">
+              Last error: {status.last_sync_error}
+            </p>
           )}
         </div>
       )}
@@ -143,14 +145,14 @@ export default function StripeConnectionCard() {
             <button
               onClick={handleSync}
               disabled={actionLoading}
-              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              className="galdr-button-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {actionLoading ? "..." : "Sync Now"}
             </button>
             <button
               onClick={handleDisconnect}
               disabled={actionLoading}
-              className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+              className="galdr-button-danger-outline px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               Disconnect
             </button>
@@ -159,7 +161,7 @@ export default function StripeConnectionCard() {
           <button
             onClick={handleConnect}
             disabled={actionLoading}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="galdr-button-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             {actionLoading ? "Connecting..." : "Connect Stripe"}
           </button>
@@ -172,34 +174,34 @@ export default function StripeConnectionCard() {
 function StatusBadge({ status }: { status?: string }) {
   if (!status || status === "disconnected") {
     return (
-      <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+      <span className="galdr-pill inline-flex items-center px-2.5 py-0.5 text-xs font-medium">
         Not connected
       </span>
     );
   }
   if (status === "active") {
     return (
-      <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
+      <span className="inline-flex items-center rounded-full border border-[color:rgb(52_211_153_/_0.35)] bg-[color:rgb(52_211_153_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-success)]">
         Connected
       </span>
     );
   }
   if (status === "syncing") {
     return (
-      <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+      <span className="inline-flex items-center rounded-full border border-[color:rgb(34_211_238_/_0.35)] bg-[color:rgb(34_211_238_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-accent-2)]">
         Syncing
       </span>
     );
   }
   if (status === "error") {
     return (
-      <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
+      <span className="inline-flex items-center rounded-full border border-[color:rgb(244_63_94_/_0.35)] bg-[color:rgb(244_63_94_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-danger)]">
         Error
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700">
+    <span className="inline-flex items-center rounded-full border border-[color:rgb(245_158_11_/_0.35)] bg-[color:rgb(245_158_11_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-at-risk)]">
       {status}
     </span>
   );

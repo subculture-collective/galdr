@@ -10,7 +10,9 @@ import AppLayout from "@/layouts/AppLayout";
 const LandingPage = lazy(() => import("@/pages/LandingPage"));
 const PricingPage = lazy(() => import("@/pages/PricingPage"));
 const SeoHubPage = lazy(() => import("@/pages/seo/SeoHubPage"));
-const SeoProgrammaticPage = lazy(() => import("@/pages/seo/SeoProgrammaticPage"));
+const SeoProgrammaticPage = lazy(
+  () => import("@/pages/seo/SeoProgrammaticPage"),
+);
 const LoginPage = lazy(() => import("@/pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("@/pages/auth/RegisterPage"));
 const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
@@ -24,7 +26,7 @@ const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 
 function RouteLoadingFallback() {
   return (
-    <div className="flex min-h-[30vh] items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+    <div className="flex min-h-[30vh] items-center justify-center text-sm text-[var(--galdr-fg-muted)]">
       Loading…
     </div>
   );
@@ -42,7 +44,10 @@ function App() {
                   {/* Public marketing + auth routes */}
                   <Route path="/" element={<LandingPage />} />
                   <Route path="/pricing" element={<PricingPage />} />
-                  <Route path="/templates" element={<SeoHubPage family="templates" />} />
+                  <Route
+                    path="/templates"
+                    element={<SeoHubPage family="templates" />}
+                  />
                   <Route
                     path="/templates/:slug"
                     element={<SeoProgrammaticPage family="templates" />}
@@ -55,7 +60,10 @@ function App() {
                     path="/integrations/:slug"
                     element={<SeoProgrammaticPage family="integrations" />}
                   />
-                  <Route path="/for" element={<SeoHubPage family="personas" />} />
+                  <Route
+                    path="/for"
+                    element={<SeoHubPage family="personas" />}
+                  />
                   <Route
                     path="/for/:slug"
                     element={<SeoProgrammaticPage family="personas" />}
@@ -84,7 +92,10 @@ function App() {
                     path="/examples/:slug"
                     element={<SeoProgrammaticPage family="examples" />}
                   />
-                  <Route path="/best" element={<SeoHubPage family="curation" />} />
+                  <Route
+                    path="/best"
+                    element={<SeoHubPage family="curation" />}
+                  />
                   <Route
                     path="/best/:slug"
                     element={<SeoProgrammaticPage family="curation" />}

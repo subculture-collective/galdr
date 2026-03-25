@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import {
   Navigate,
   Route,
@@ -5,17 +6,34 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
-import OrganizationTab from "@/pages/settings/OrganizationTab";
-import ProfileTab from "@/pages/settings/ProfileTab";
-import IntegrationsTab from "@/pages/settings/IntegrationsTab";
-import ScoringTab from "@/pages/settings/ScoringTab";
-import BillingTab from "@/pages/settings/BillingTab";
-import TeamTab from "@/pages/settings/TeamTab";
-import AlertsTab from "@/pages/settings/AlertsTab";
-import NotificationsTab from "@/pages/settings/NotificationsTab";
-import StripeCallbackPage from "@/pages/settings/StripeCallbackPage";
-import HubSpotCallbackPage from "@/pages/settings/HubSpotCallbackPage";
-import IntercomCallbackPage from "@/pages/settings/IntercomCallbackPage";
+
+const OrganizationTab = lazy(() => import("@/pages/settings/OrganizationTab"));
+const ProfileTab = lazy(() => import("@/pages/settings/ProfileTab"));
+const IntegrationsTab = lazy(() => import("@/pages/settings/IntegrationsTab"));
+const ScoringTab = lazy(() => import("@/pages/settings/ScoringTab"));
+const BillingTab = lazy(() => import("@/pages/settings/BillingTab"));
+const TeamTab = lazy(() => import("@/pages/settings/TeamTab"));
+const AlertsTab = lazy(() => import("@/pages/settings/AlertsTab"));
+const NotificationsTab = lazy(
+  () => import("@/pages/settings/NotificationsTab"),
+);
+const StripeCallbackPage = lazy(
+  () => import("@/pages/settings/StripeCallbackPage"),
+);
+const HubSpotCallbackPage = lazy(
+  () => import("@/pages/settings/HubSpotCallbackPage"),
+);
+const IntercomCallbackPage = lazy(
+  () => import("@/pages/settings/IntercomCallbackPage"),
+);
+
+function SettingsTabFallback() {
+  return (
+    <div className="flex min-h-[20vh] items-center justify-center text-sm text-[var(--galdr-fg-muted)]">
+      Loading settings…
+    </div>
+  );
+}
 
 const tabs = [
   { path: "organization", label: "Organization" },
@@ -39,16 +57,14 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-          Settings
-        </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <h1 className="text-2xl font-bold text-[var(--galdr-fg)]">Settings</h1>
+        <p className="mt-1 text-sm text-[var(--galdr-fg-muted)]">
           Manage your organization, profile, and integrations.
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700">
+      <div className="border-b border-[var(--galdr-border)]">
         <nav className="-mb-px flex gap-4 overflow-x-auto">
           {tabs.map((tab) => (
             <button
@@ -56,8 +72,8 @@ export default function SettingsPage() {
               onClick={() => navigate(`/settings/${tab.path}`)}
               className={`whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-medium transition-colors ${
                 currentTab === tab.path
-                  ? "border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400"
-                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  ? "border-[var(--galdr-accent)] text-[var(--galdr-accent)]"
+                  : "border-transparent text-[var(--galdr-fg-muted)] hover:text-[var(--galdr-fg)]"
               }`}
             >
               {tab.label}
@@ -67,20 +83,22 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab content */}
-      <Routes>
-        <Route path="organization" element={<OrganizationTab />} />
-        <Route path="profile" element={<ProfileTab />} />
-        <Route path="integrations" element={<IntegrationsTab />} />
-        <Route path="scoring" element={<ScoringTab />} />
-        <Route path="billing" element={<BillingTab />} />
-        <Route path="team" element={<TeamTab />} />
-        <Route path="alerts" element={<AlertsTab />} />
-        <Route path="notifications" element={<NotificationsTab />} />
-        <Route path="stripe/callback" element={<StripeCallbackPage />} />
-        <Route path="hubspot/callback" element={<HubSpotCallbackPage />} />
-        <Route path="intercom/callback" element={<IntercomCallbackPage />} />
-        <Route index element={<Navigate to="organization" replace />} />
-      </Routes>
+      <Suspense fallback={<SettingsTabFallback />}>
+        <Routes>
+          <Route path="organization" element={<OrganizationTab />} />
+          <Route path="profile" element={<ProfileTab />} />
+          <Route path="integrations" element={<IntegrationsTab />} />
+          <Route path="scoring" element={<ScoringTab />} />
+          <Route path="billing" element={<BillingTab />} />
+          <Route path="team" element={<TeamTab />} />
+          <Route path="alerts" element={<AlertsTab />} />
+          <Route path="notifications" element={<NotificationsTab />} />
+          <Route path="stripe/callback" element={<StripeCallbackPage />} />
+          <Route path="hubspot/callback" element={<HubSpotCallbackPage />} />
+          <Route path="intercom/callback" element={<IntercomCallbackPage />} />
+          <Route index element={<Navigate to="organization" replace />} />
+        </Routes>
+      </Suspense>
     </div>
   );
 }

@@ -4,23 +4,23 @@ interface IntegrationStatusBadgeProps {
 
 const statusStyles = {
   connected: {
-    dot: "bg-green-500",
-    text: "text-green-700 dark:text-green-300",
+    dot: "bg-[var(--galdr-success)]",
+    text: "text-[var(--galdr-success)]",
     label: "Connected",
   },
   syncing: {
-    dot: "bg-blue-500 animate-pulse",
-    text: "text-blue-700 dark:text-blue-300",
+    dot: "bg-[var(--galdr-accent-2)] animate-pulse",
+    text: "text-[var(--galdr-accent-2)]",
     label: "Syncing",
   },
   error: {
-    dot: "bg-red-500",
-    text: "text-red-700 dark:text-red-300",
+    dot: "bg-[var(--galdr-danger)]",
+    text: "text-[var(--galdr-danger)]",
     label: "Error",
   },
   disconnected: {
-    dot: "bg-gray-400 dark:bg-gray-500",
-    text: "text-gray-500 dark:text-gray-400",
+    dot: "bg-[var(--galdr-fg-muted)]",
+    text: "text-[var(--galdr-fg-muted)]",
     label: "Disconnected",
   },
 };
