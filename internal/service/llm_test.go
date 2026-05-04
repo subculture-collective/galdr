@@ -12,9 +12,12 @@ import (
 )
 
 type stubLLMProvider struct {
-	lastPrompt string
-	err        error
-	name       string
+	lastPrompt   string
+	err          error
+	name         string
+	inputTokens  int
+	outputTokens int
+	tokenCount   int
 }
 
 func (p *stubLLMProvider) Complete(ctx context.Context, req LLMProviderRequest) (*LLMProviderResponse, error) {
@@ -25,17 +28,36 @@ func (p *stubLLMProvider) Complete(ctx context.Context, req LLMProviderRequest) 
 	return &LLMProviderResponse{
 		Text:         "Customer is healthy.",
 		Model:        req.Model,
-		InputTokens:  12,
-		OutputTokens: 4,
+		InputTokens:  p.responseInputTokens(),
+		OutputTokens: p.responseOutputTokens(),
 	}, nil
 }
 
-func (p *stubLLMProvider) CountTokens(text string) int { return len(text) / 4 }
+func (p *stubLLMProvider) CountTokens(text string) int {
+	if p.tokenCount > 0 {
+		return p.tokenCount
+	}
+	return len(text) / 4
+}
 func (p *stubLLMProvider) Name() string {
 	if p.name != "" {
 		return p.name
 	}
 	return "stub"
+}
+
+func (p *stubLLMProvider) responseInputTokens() int {
+	if p.inputTokens > 0 {
+		return p.inputTokens
+	}
+	return 12
+}
+
+func (p *stubLLMProvider) responseOutputTokens() int {
+	if p.outputTokens > 0 {
+		return p.outputTokens
+	}
+	return 4
 }
 
 func TestLLMServiceCompleteRendersTemplateAndTracksUsage(t *testing.T) {
@@ -115,6 +137,34 @@ func TestLLMServiceCompleteEnforcesOrgLimits(t *testing.T) {
 	})
 	if err != ErrLLMTokenBudgetExceeded {
 		t.Fatalf("expected token budget error, got %v", err)
+	}
+}
+
+func TestLLMServiceCompleteReconcilesActualTokenUsage(t *testing.T) {
+	provider := &stubLLMProvider{tokenCount: 1, inputTokens: 400, outputTokens: 50}
+	svc := NewLLMService(provider, LLMServiceConfig{
+		Model:             "gpt-4o-mini",
+		RequestsPerMinute: 60,
+		MaxTokensPerDay:   500,
+	})
+
+	orgID := uuid.New()
+	_, err := svc.Complete(context.Background(), LLMCompletionRequest{
+		OrgID:     orgID,
+		Prompt:    "Summarize Acme.",
+		MaxTokens: 10,
+	})
+	if err != nil {
+		t.Fatalf("first completion returned error: %v", err)
+	}
+
+	_, err = svc.Complete(context.Background(), LLMCompletionRequest{
+		OrgID:     orgID,
+		Prompt:    "Summarize Beta.",
+		MaxTokens: 60,
+	})
+	if err != ErrLLMTokenBudgetExceeded {
+		t.Fatalf("expected actual usage to exhaust token budget, got %v", err)
 	}
 }
 

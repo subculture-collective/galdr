@@ -140,8 +140,9 @@ func (s *LLMService) Complete(ctx context.Context, req LLMCompletionRequest) (*L
 	if maxTokens <= 0 {
 		maxTokens = s.maxTokens
 	}
+	budgetAt := time.Now()
 	estimatedTokens := s.provider.CountTokens(prompt) + maxTokens
-	if !s.tokens.Consume(req.OrgID, estimatedTokens, time.Now()) {
+	if !s.tokens.Consume(req.OrgID, estimatedTokens, budgetAt) {
 		return nil, ErrLLMTokenBudgetExceeded
 	}
 
@@ -152,6 +153,7 @@ func (s *LLMService) Complete(ctx context.Context, req LLMCompletionRequest) (*L
 		MaxTokens: maxTokens,
 	})
 	if err != nil {
+		s.tokens.Adjust(req.OrgID, -estimatedTokens, budgetAt)
 		return nil, fmt.Errorf("llm provider complete: %w", err)
 	}
 
@@ -166,6 +168,7 @@ func (s *LLMService) Complete(ctx context.Context, req LLMCompletionRequest) (*L
 		Timestamp:    time.Now().UTC(),
 	}
 	usage.CostUSD = calculateLLMCostUSD(usage.Model, usage.InputTokens, usage.OutputTokens)
+	s.tokens.Adjust(req.OrgID, usage.TotalTokens-estimatedTokens, budgetAt)
 
 	slog.Info("llm request complete",
 		"org_id", usage.OrgID,
@@ -297,4 +300,23 @@ func (b *orgTokenBudget) Consume(orgID uuid.UUID, tokens int, now time.Time) boo
 	window.used += tokens
 	b.usage[orgID] = window
 	return true
+}
+
+func (b *orgTokenBudget) Adjust(orgID uuid.UUID, delta int, now time.Time) {
+	if delta == 0 {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	day := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	window := b.usage[orgID]
+	if window.day.IsZero() || !window.day.Equal(day) {
+		window = tokenWindow{day: day}
+	}
+	window.used += delta
+	if window.used < 0 {
+		window.used = 0
+	}
+	b.usage[orgID] = window
 }
