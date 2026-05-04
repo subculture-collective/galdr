@@ -3,6 +3,7 @@
 .env
 .env.*
 !.env.example
+opencode/auth.json
 web
 node_modules
 bin

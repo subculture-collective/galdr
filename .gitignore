@@ -172,6 +172,10 @@ go.work.sum
 # env file
 .env
 
+# Local OpenCode credentials for Sandcastle containers
+opencode/auth.json
+.sandcastle/bin/rtk
+
 # Go build output
 bin/
 

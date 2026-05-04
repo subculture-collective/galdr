@@ -15,6 +15,11 @@ type Args = {
   help: boolean;
 };
 
+type OpenCodeModel = {
+  providerID: string;
+  modelID: string;
+};
+
 const baseUrl = "http://127.0.0.1:4096";
 const stateDir = "/tmp/sandcastle-opencode";
 const pidFile = path.join(stateDir, "opencode.pid");
@@ -244,7 +249,7 @@ async function sendPrompt(sessionId: string, role: Role, prompt: string): Promis
     parts: [{ type: "text", text: prompt }],
   };
 
-  const model = process.env[modelEnvByRole[role]]?.trim();
+  const model = parseModelEnv(role);
   if (model) {
     body.model = model;
   }
@@ -259,7 +264,33 @@ async function sendPrompt(sessionId: string, role: Role, prompt: string): Promis
     throw new Error(`OpenCode prompt failed: ${response.status} ${await response.text()}`);
   }
 
-  return response.json();
+  const text = await response.text();
+  if (!text.trim()) {
+    throw new Error("OpenCode prompt returned an empty response. Check the OpenCode service log.");
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`OpenCode prompt returned invalid JSON: ${detail}. Body: ${text.slice(0, 500)}`);
+  }
+}
+
+function parseModelEnv(role: Role): OpenCodeModel | undefined {
+  const envName = modelEnvByRole[role];
+  const value = process.env[envName]?.trim();
+  if (!value) return undefined;
+
+  const separatorIndex = value.indexOf("/");
+  if (separatorIndex <= 0 || separatorIndex === value.length - 1) {
+    throw new Error(`${envName} must be an exact OpenCode model id in <provider>/<model> format.`);
+  }
+
+  return {
+    providerID: value.slice(0, separatorIndex),
+    modelID: value.slice(separatorIndex + 1),
+  };
 }
 
 function extractText(payload: unknown): string | undefined {

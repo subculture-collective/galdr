@@ -4,11 +4,6 @@
   "model": "openai/gpt-5.5",
   "small_model": "openai/gpt-5.4-mini",
   "mcp": {
-    "github": {
-      "type": "local",
-      "command": ["/home/onnwee/.agents/scripts/github_mcp_stdio.sh"],
-      "enabled": true
-    },
     "playwright": {
       "type": "local",
       "command": ["npx", "-y", "@playwright/mcp@latest", "--isolated", "--headless"],
@@ -32,7 +27,7 @@
       "enabled": true
     }
   },
-  "plugin": ["opencode-agent-skills"],
+  "plugin": ["opencode-agent-skills", "@tarquinen/opencode-dcp@latest"],
   "permission": "allow",
   "compaction": {
     "auto": false,

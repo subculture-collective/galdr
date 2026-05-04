@@ -35,7 +35,15 @@ const MAX_ITERATIONS = 100;
 // Hooks run inside the sandbox before the agent starts each iteration.
 // npm install ensures the sandbox always has fresh dependencies.
 const hooks = {
-  sandbox: { onSandboxReady: [{ command: "npm install" }] },
+  sandbox: {
+    onSandboxReady: [
+      { command: "npm install" },
+      {
+        command:
+          "mkdir -p ~/.config/opencode ~/.local/share/opencode && cp -a opencode/. ~/.config/opencode/ && rm -f ~/.config/opencode/auth.json && if [ -f opencode/auth.json ]; then cp opencode/auth.json ~/.local/share/opencode/auth.json && chmod 600 ~/.local/share/opencode/auth.json; fi && opencode plugin @tarquinen/opencode-dcp@latest --global --force --pure",
+      },
+    ],
+  },
 };
 
 // Copy node_modules from the host into the worktree before each sandbox
@@ -60,6 +68,7 @@ function opencodeService(opts: {
     buildPrintCommand({ prompt }) {
       const args = [
         "npx",
+        "--yes",
         "tsx",
         ".sandcastle/opencode-service-agent.mts",
         "--role",

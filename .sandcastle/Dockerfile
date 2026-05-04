@@ -1,4 +1,4 @@
-FROM node:22-bookworm
+FROM node:22-trixie
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -22,6 +22,11 @@ RUN usermod -d /home/agent -m -l agent node
 
 # Install OpenCode CLI (run as root before USER agent)
 RUN npm install -g opencode-ai@latest
+
+# Install RTK for the OpenCode rtk plugin.
+# The binary is a local development artifact copied from the host by setup.
+COPY .sandcastle/bin/rtk /usr/local/bin/rtk
+RUN chmod 0755 /usr/local/bin/rtk
 
 USER agent
 
