@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
 	"text/template"
 	"time"
@@ -294,7 +295,7 @@ func (s *LLMService) completeWithRetry(ctx context.Context, provider LLMProvider
 		lastErr = err
 
 		var providerErr *LLMProviderError
-		if !errors.As(err, &providerErr) || providerErr.StatusCode != 429 || attempt == len(s.cfg.RetryDelays) {
+		if !errors.As(err, &providerErr) || providerErr.StatusCode != http.StatusTooManyRequests || attempt == len(s.cfg.RetryDelays) {
 			return nil, err
 		}
 

@@ -188,16 +188,7 @@ func TestValidateProductionRequiresBillingStripeConfig(t *testing.T) {
 
 func TestValidateProductionRequiresOpenAIConfig(t *testing.T) {
 	clearEnv()
-	os.Setenv("ENVIRONMENT", "production")
-	os.Setenv("DATABASE_URL", "postgres://prod-db")
-	os.Setenv("JWT_SECRET", "prod-super-secret")
-	os.Setenv("STRIPE_BILLING_SECRET_KEY", "sk_live_123")
-	os.Setenv("STRIPE_BILLING_PUBLISHABLE_KEY", "pk_live_123")
-	os.Setenv("STRIPE_BILLING_WEBHOOK_SECRET", "whsec_live_123")
-	os.Setenv("STRIPE_BILLING_PRICE_GROWTH_MONTHLY", "price_growth_monthly")
-	os.Setenv("STRIPE_BILLING_PRICE_GROWTH_ANNUAL", "price_growth_annual")
-	os.Setenv("STRIPE_BILLING_PRICE_SCALE_MONTHLY", "price_scale_monthly")
-	os.Setenv("STRIPE_BILLING_PRICE_SCALE_ANNUAL", "price_scale_annual")
+	setProductionBillingEnv()
 	defer clearEnv()
 
 	cfg := Load()
@@ -209,17 +200,8 @@ func TestValidateProductionRequiresOpenAIConfig(t *testing.T) {
 
 func TestValidateProductionWithBillingStripeConfig(t *testing.T) {
 	clearEnv()
-	os.Setenv("ENVIRONMENT", "production")
-	os.Setenv("DATABASE_URL", "postgres://prod-db")
-	os.Setenv("JWT_SECRET", "prod-super-secret")
+	setProductionBillingEnv()
 	os.Setenv("OPENAI_API_KEY", "sk-live-openai")
-	os.Setenv("STRIPE_BILLING_SECRET_KEY", "sk_live_123")
-	os.Setenv("STRIPE_BILLING_PUBLISHABLE_KEY", "pk_live_123")
-	os.Setenv("STRIPE_BILLING_WEBHOOK_SECRET", "whsec_live_123")
-	os.Setenv("STRIPE_BILLING_PRICE_GROWTH_MONTHLY", "price_growth_monthly")
-	os.Setenv("STRIPE_BILLING_PRICE_GROWTH_ANNUAL", "price_growth_annual")
-	os.Setenv("STRIPE_BILLING_PRICE_SCALE_MONTHLY", "price_scale_monthly")
-	os.Setenv("STRIPE_BILLING_PRICE_SCALE_ANNUAL", "price_scale_annual")
 	defer clearEnv()
 
 	cfg := Load()
@@ -227,6 +209,19 @@ func TestValidateProductionWithBillingStripeConfig(t *testing.T) {
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("expected production validation to pass, got %v", err)
 	}
+}
+
+func setProductionBillingEnv() {
+	os.Setenv("ENVIRONMENT", "production")
+	os.Setenv("DATABASE_URL", "postgres://prod-db")
+	os.Setenv("JWT_SECRET", "prod-super-secret")
+	os.Setenv("STRIPE_BILLING_SECRET_KEY", "sk_live_123")
+	os.Setenv("STRIPE_BILLING_PUBLISHABLE_KEY", "pk_live_123")
+	os.Setenv("STRIPE_BILLING_WEBHOOK_SECRET", "whsec_live_123")
+	os.Setenv("STRIPE_BILLING_PRICE_GROWTH_MONTHLY", "price_growth_monthly")
+	os.Setenv("STRIPE_BILLING_PRICE_GROWTH_ANNUAL", "price_growth_annual")
+	os.Setenv("STRIPE_BILLING_PRICE_SCALE_MONTHLY", "price_scale_monthly")
+	os.Setenv("STRIPE_BILLING_PRICE_SCALE_ANNUAL", "price_scale_annual")
 }
 
 func TestIsProd(t *testing.T) {
