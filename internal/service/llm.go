@@ -289,7 +289,7 @@ func (b *orgTokenBudget) Consume(orgID uuid.UUID, tokens int, now time.Time) boo
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	day := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	day := tokenBudgetDay(now)
 	window := b.usage[orgID]
 	if window.day.IsZero() || !window.day.Equal(day) {
 		window = tokenWindow{day: day}
@@ -309,7 +309,7 @@ func (b *orgTokenBudget) Adjust(orgID uuid.UUID, delta int, now time.Time) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	day := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	day := tokenBudgetDay(now)
 	window := b.usage[orgID]
 	if window.day.IsZero() || !window.day.Equal(day) {
 		window = tokenWindow{day: day}
@@ -319,4 +319,8 @@ func (b *orgTokenBudget) Adjust(orgID uuid.UUID, delta int, now time.Time) {
 		window.used = 0
 	}
 	b.usage[orgID] = window
+}
+
+func tokenBudgetDay(now time.Time) time.Time {
+	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 }
