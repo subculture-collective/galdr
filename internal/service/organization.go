@@ -29,9 +29,19 @@ var allowedIndustries = map[string]struct{}{
 	"Other":       {},
 }
 
+const industryValidationMessage = "industry must be one of the predefined options"
+
 func isAllowedIndustry(industry string) bool {
 	_, ok := allowedIndustries[industry]
 	return ok
+}
+
+func validateIndustry(industry string) (string, error) {
+	industry = strings.TrimSpace(industry)
+	if industry != "" && !isAllowedIndustry(industry) {
+		return "", &ValidationError{Field: "industry", Message: industryValidationMessage}
+	}
+	return industry, nil
 }
 
 // OrgResponse is the response for organization operations.
@@ -98,9 +108,9 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 	if name == "" {
 		return nil, &ValidationError{Field: "name", Message: "organization name is required"}
 	}
-	industry := strings.TrimSpace(req.Industry)
-	if industry != "" && !isAllowedIndustry(industry) {
-		return nil, &ValidationError{Field: "industry", Message: "industry must be one of the predefined options"}
+	industry, err := validateIndustry(req.Industry)
+	if err != nil {
+		return nil, err
 	}
 
 	slug := generateSlug(name)
@@ -137,9 +147,9 @@ func (s *OrganizationService) Create(ctx context.Context, userID uuid.UUID, req 
 	if name == "" {
 		return nil, &ValidationError{Field: "name", Message: "organization name is required"}
 	}
-	industry := strings.TrimSpace(req.Industry)
-	if industry != "" && !isAllowedIndustry(industry) {
-		return nil, &ValidationError{Field: "industry", Message: "industry must be one of the predefined options"}
+	industry, err := validateIndustry(req.Industry)
+	if err != nil {
+		return nil, err
 	}
 
 	slug := generateSlug(name)
