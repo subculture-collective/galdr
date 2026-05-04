@@ -54,7 +54,20 @@ func TestAllTemplatesRenderParseableJSONInstructionsWithinBudget(t *testing.T) {
 	}
 }
 
-func TestParseStructuredOutputRejectsInvalidInsight(t *testing.T) {
+func TestTemplatesReturnsSystemPromptPrefixedTemplateText(t *testing.T) {
+	templates, err := Templates()
+	if err != nil {
+		t.Fatalf("expected templates load success, got %v", err)
+	}
+
+	if len(templates) != len(TemplateNames()) {
+		t.Fatalf("expected %d templates, got %d", len(TemplateNames()), len(templates))
+	}
+	assertContains(t, templates[string(CustomerAnalysisTemplate)], SystemPrompt)
+	assertContains(t, templates[string(CustomerAnalysisTemplate)], "Use the customer health context below")
+}
+
+func TestParseStructuredOutputValidatesInsight(t *testing.T) {
 	valid := `{
 		"insight_type":"risk_assessment",
 		"summary":"Acme is at high churn risk because payments failed and engagement dropped.",

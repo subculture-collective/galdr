@@ -140,11 +140,11 @@ func Templates() (map[string]string, error) {
 	out := make(map[string]string, len(specs))
 	for _, name := range TemplateNames() {
 		spec := specs[name]
-		body, err := loadTemplate(spec)
+		text, err := promptTemplateText(spec)
 		if err != nil {
 			return nil, err
 		}
-		out[string(name)] = SystemPrompt + "\n\n" + body
+		out[string(name)] = text
 	}
 	return out, nil
 }
@@ -157,11 +157,11 @@ func Render(name TemplateName, data CustomerAnalysisData) (*RenderedPrompt, erro
 	if !ok {
 		return nil, fmt.Errorf("unknown prompt template %q", name)
 	}
-	body, err := loadTemplate(spec)
+	text, err := promptTemplateText(spec)
 	if err != nil {
 		return nil, err
 	}
-	tmpl, err := template.New(spec.Filename).Option("missingkey=error").Funcs(funcs()).Parse(SystemPrompt + "\n\n" + body)
+	tmpl, err := template.New(spec.Filename).Option("missingkey=error").Funcs(funcs()).Parse(text)
 	if err != nil {
 		return nil, fmt.Errorf("parse prompt template: %w", err)
 	}
@@ -241,6 +241,14 @@ func loadTemplate(spec TemplateSpec) (string, error) {
 		return "", fmt.Errorf("load prompt template %s: %w", spec.Filename, err)
 	}
 	return string(content), nil
+}
+
+func promptTemplateText(spec TemplateSpec) (string, error) {
+	body, err := loadTemplate(spec)
+	if err != nil {
+		return "", err
+	}
+	return SystemPrompt + "\n\n" + body, nil
 }
 
 func validateData(data CustomerAnalysisData) error {
