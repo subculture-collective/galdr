@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "sandcastle": "npx tsx .sandcastle/main.mts"
+  },
+  "dependencies": {
+    "@ai-hero/sandcastle": "^0.5.7"
+  }
+}
