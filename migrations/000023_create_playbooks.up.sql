@@ -27,7 +27,7 @@ CREATE TABLE playbook_actions (
     order_index   INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE INDEX idx_playbook_actions_playbook_id ON playbook_actions (playbook_id);
+CREATE INDEX idx_playbook_actions_playbook_order ON playbook_actions (playbook_id, order_index);
 
 -- Create playbook_executions table
 CREATE TABLE playbook_executions (
@@ -41,4 +41,4 @@ CREATE TABLE playbook_executions (
 );
 
 CREATE INDEX idx_playbook_executions_playbook_id ON playbook_executions (playbook_id);
-CREATE INDEX idx_playbook_executions_triggered_at ON playbook_executions (triggered_at DESC);
+CREATE INDEX idx_playbook_executions_playbook_triggered ON playbook_executions (playbook_id, triggered_at DESC);

@@ -185,9 +185,9 @@ func TestPlaybookMigrationUpFileContainsIndexes(t *testing.T) {
 
 	requiredIndexes := []string{
 		"idx_playbooks_org_id",
-		"idx_playbook_actions_playbook_id",
+		"idx_playbook_actions_playbook_order",
 		"idx_playbook_executions_playbook_id",
-		"idx_playbook_executions_triggered_at",
+		"idx_playbook_executions_playbook_triggered",
 	}
 	for _, idx := range requiredIndexes {
 		if !strings.Contains(sql, idx) {
@@ -204,10 +204,14 @@ func TestPlaybookMigrationDownFileDropsTables(t *testing.T) {
 	}
 	sql := string(data)
 
-	requiredDrops := []string{"playbooks", "playbook_actions", "playbook_executions"}
-	for _, table := range requiredDrops {
-		if !strings.Contains(sql, table) {
-			t.Errorf("migration down file missing reference to %s", table)
+	requiredDrops := []string{
+		"DROP TABLE IF EXISTS playbook_executions",
+		"DROP TABLE IF EXISTS playbook_actions",
+		"DROP TABLE IF EXISTS playbooks",
+	}
+	for _, stmt := range requiredDrops {
+		if !strings.Contains(sql, stmt) {
+			t.Errorf("migration down file missing statement: %s", stmt)
 		}
 	}
 }

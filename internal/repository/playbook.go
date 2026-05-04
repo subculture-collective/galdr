@@ -100,6 +100,9 @@ func (r *PlaybookRepository) List(ctx context.Context, orgID uuid.UUID) ([]*Play
 		}
 		playbooks = append(playbooks, p)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate playbooks: %w", err)
+	}
 	return playbooks, nil
 }
 
@@ -195,6 +198,9 @@ func (r *PlaybookActionRepository) ListByPlaybook(ctx context.Context, playbookI
 		}
 		actions = append(actions, a)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate playbook actions: %w", err)
+	}
 	return actions, nil
 }
 
@@ -238,6 +244,9 @@ func (r *PlaybookExecutionRepository) ListByPlaybook(ctx context.Context, playbo
 			return nil, fmt.Errorf("scan playbook execution: %w", err)
 		}
 		executions = append(executions, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate playbook executions: %w", err)
 	}
 	return executions, nil
 }
