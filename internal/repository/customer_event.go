@@ -137,6 +137,35 @@ func (r *CustomerEventRepository) ListByCustomer(ctx context.Context, customerID
 	return events, rows.Err()
 }
 
+// ListByCustomerSince returns events for a customer since a given time.
+func (r *CustomerEventRepository) ListByCustomerSince(ctx context.Context, customerID uuid.UUID, since time.Time) ([]*CustomerEvent, error) {
+	query := `
+		SELECT id, org_id, customer_id, event_type, source, COALESCE(external_event_id, ''),
+			occurred_at, COALESCE(data, '{}'), created_at
+		FROM customer_events
+		WHERE customer_id = $1 AND occurred_at >= $2
+		ORDER BY occurred_at DESC`
+
+	rows, err := r.pool.Query(ctx, query, customerID, since)
+	if err != nil {
+		return nil, fmt.Errorf("list customer events since: %w", err)
+	}
+	defer rows.Close()
+
+	var events []*CustomerEvent
+	for rows.Next() {
+		e := &CustomerEvent{}
+		if err := rows.Scan(
+			&e.ID, &e.OrgID, &e.CustomerID, &e.EventType, &e.Source, &e.ExternalEventID,
+			&e.OccurredAt, &e.Data, &e.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan customer event: %w", err)
+		}
+		events = append(events, e)
+	}
+	return events, rows.Err()
+}
+
 // EventListParams holds pagination and filter params for event listing.
 type EventListParams struct {
 	CustomerID uuid.UUID

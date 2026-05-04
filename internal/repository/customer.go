@@ -135,6 +135,30 @@ func (r *CustomerRepository) GetByID(ctx context.Context, id uuid.UUID) (*Custom
 	return c, nil
 }
 
+// GetByIDAndOrg retrieves a customer by ID within an organization.
+func (r *CustomerRepository) GetByIDAndOrg(ctx context.Context, customerID, orgID uuid.UUID) (*Customer, error) {
+	query := `
+		SELECT id, org_id, external_id, source, COALESCE(email, ''), COALESCE(name, ''),
+			COALESCE(company_name, ''), mrr_cents, currency,
+			first_seen_at, last_seen_at, COALESCE(metadata, '{}'), created_at, updated_at, deleted_at
+		FROM customers
+		WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`
+
+	c := &Customer{}
+	err := r.pool.QueryRow(ctx, query, customerID, orgID).Scan(
+		&c.ID, &c.OrgID, &c.ExternalID, &c.Source, &c.Email, &c.Name,
+		&c.CompanyName, &c.MRRCents, &c.Currency,
+		&c.FirstSeenAt, &c.LastSeenAt, &c.Metadata, &c.CreatedAt, &c.UpdatedAt, &c.DeletedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get customer by id and org: %w", err)
+	}
+	return c, nil
+}
+
 // SoftDelete marks a customer as deleted.
 func (r *CustomerRepository) SoftDelete(ctx context.Context, orgID uuid.UUID, source, externalID string) error {
 	query := `UPDATE customers SET deleted_at = NOW() WHERE org_id = $1 AND source = $2 AND external_id = $3 AND deleted_at IS NULL`
