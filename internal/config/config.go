@@ -20,6 +20,7 @@ type Config struct {
 	BillingStripe BillingStripeConfig
 	HubSpot       HubSpotConfig
 	Intercom      IntercomConfig
+	OpenAI        OpenAIConfig
 	Scoring       ScoringConfig
 	Alert         AlertConfig
 }
@@ -78,6 +79,15 @@ type IntercomConfig struct {
 	EncryptionKey    string // 32-byte hex-encoded AES key for token encryption
 	WebhookSecret    string
 	SyncIntervalMin  int
+}
+
+// OpenAIConfig holds LLM provider and safety limit settings.
+type OpenAIConfig struct {
+	APIKey            string
+	Model             string
+	MaxTokens         int
+	RequestsPerMinute int
+	MaxTokensPerDay   int
 }
 
 // SendGridConfig holds email sending settings.
@@ -198,6 +208,13 @@ func Load() *Config {
 			EncryptionKey:    getEnv("INTERCOM_ENCRYPTION_KEY", ""),
 			WebhookSecret:    getEnv("INTERCOM_WEBHOOK_SECRET", ""),
 			SyncIntervalMin:  getInt("INTERCOM_SYNC_INTERVAL_MIN", 15),
+		},
+		OpenAI: OpenAIConfig{
+			APIKey:            getEnv("OPENAI_API_KEY", ""),
+			Model:             getEnv("OPENAI_MODEL", "gpt-4o-mini"),
+			MaxTokens:         getInt("OPENAI_MAX_TOKENS", 1000),
+			RequestsPerMinute: getInt("OPENAI_REQUESTS_PER_MINUTE", 60),
+			MaxTokensPerDay:   getInt("OPENAI_MAX_TOKENS_PER_DAY", 100000),
 		},
 		Scoring: ScoringConfig{
 			RecalcIntervalMin: getInt("SCORE_RECALC_INTERVAL_MIN", 60),
