@@ -41,6 +41,44 @@ func TestRegistryRegisterValidConnector(t *testing.T) {
 	}
 }
 
+func TestRegistryGetReturnsRegisteredConnector(t *testing.T) {
+	registry := NewRegistry()
+	connector := testConnector{manifest: validManifest()}
+
+	if _, err := registry.Register(connector); err != nil {
+		t.Fatalf("register connector: %v", err)
+	}
+
+	registered, ok := registry.Get("mock-crm")
+	if !ok {
+		t.Fatal("expected registered connector")
+	}
+	if registered.Manifest.Name != "Mock CRM" {
+		t.Fatalf("expected connector name Mock CRM, got %q", registered.Manifest.Name)
+	}
+
+	if _, ok := registry.Get("missing"); ok {
+		t.Fatal("expected missing connector lookup to fail")
+	}
+}
+
+func TestRegistryListOrdersConnectorsByManifestID(t *testing.T) {
+	registry := NewRegistry()
+	for _, manifest := range []ConnectorManifest{validManifestWithID("zendesk"), validManifestWithID("hubspot")} {
+		if _, err := registry.Register(testConnector{manifest: manifest}); err != nil {
+			t.Fatalf("register connector %q: %v", manifest.ID, err)
+		}
+	}
+
+	registered := registry.List()
+	if len(registered) != 2 {
+		t.Fatalf("expected 2 registered connectors, got %d", len(registered))
+	}
+	if registered[0].Manifest.ID != "hubspot" || registered[1].Manifest.ID != "zendesk" {
+		t.Fatalf("expected sorted connector IDs, got %#v", registered)
+	}
+}
+
 func TestValidateManifestRejectsInvalidConnectorMetadata(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -83,9 +121,7 @@ func TestValidateManifestRejectsInvalidConnectorMetadata(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected validation error")
 			}
-			if !strings.Contains(err.Error(), tt.wantError) {
-				t.Fatalf("expected error containing %q, got %q", tt.wantError, err.Error())
-			}
+			assertErrorContains(t, err, tt.wantError)
 		})
 	}
 }
@@ -120,8 +156,12 @@ func TestConnectorLifecycle(t *testing.T) {
 }
 
 func validManifest() ConnectorManifest {
+	return validManifestWithID("mock-crm")
+}
+
+func validManifestWithID(id string) ConnectorManifest {
 	return ConnectorManifest{
-		ID:          "mock-crm",
+		ID:          id,
 		Name:        "Mock CRM",
 		Version:     "1.2.3",
 		Description: "Reference connector for SDK developers.",
@@ -142,5 +182,12 @@ func validManifest() ConnectorManifest {
 		Webhooks: []WebhookConfig{
 			{Path: "/webhooks/mock-crm", EventTypes: []string{"customer.updated"}, SigningSecretHeader: "X-Mock-Signature"},
 		},
+	}
+}
+
+func assertErrorContains(t *testing.T, err error, want string) {
+	t.Helper()
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("expected error containing %q, got %q", want, err.Error())
 	}
 }

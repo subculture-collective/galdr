@@ -279,12 +279,19 @@ func ValidateManifest(manifest ConnectorManifest) error {
 		return err
 	}
 	for _, webhook := range manifest.Webhooks {
-		if strings.TrimSpace(webhook.Path) == "" {
-			return errors.New("webhook path is required")
+		if err := validateWebhook(webhook); err != nil {
+			return err
 		}
-		if len(webhook.EventTypes) == 0 {
-			return fmt.Errorf("webhook %q must declare event types", webhook.Path)
-		}
+	}
+	return nil
+}
+
+func validateWebhook(webhook WebhookConfig) error {
+	if strings.TrimSpace(webhook.Path) == "" {
+		return errors.New("webhook path is required")
+	}
+	if len(webhook.EventTypes) == 0 {
+		return fmt.Errorf("webhook %q must declare event types", webhook.Path)
 	}
 	return nil
 }
