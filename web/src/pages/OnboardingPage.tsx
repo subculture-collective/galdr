@@ -217,7 +217,7 @@ function OnboardingContent() {
         industry:
           typeof welcomePayload?.industry === "string"
             ? welcomePayload.industry
-            : "",
+            : (organization?.industry ?? ""),
         company_size:
           typeof welcomePayload?.company_size === "string"
             ? welcomePayload.company_size
@@ -238,6 +238,7 @@ function OnboardingContent() {
     navigate,
     hydrateFromStatus,
     organization?.name,
+    organization?.industry,
     fetchStripeStatus,
     fetchHubSpotStatus,
     fetchIntercomStatus,
@@ -387,7 +388,10 @@ function OnboardingContent() {
     }
 
     try {
-      await api.patch("/organizations/current", { name: orgName });
+      await api.patch("/organizations/current", {
+        name: orgName,
+        industry: welcomeValue.industry,
+      });
     } catch {
       throw new Error("Failed to save organization setup.");
     }
@@ -452,7 +456,8 @@ function OnboardingContent() {
     {
       id: "welcome",
       label: "Welcome",
-      canProceed: welcomeValue.name.trim().length > 0,
+      canProceed:
+        welcomeValue.name.trim().length > 0 && welcomeValue.industry.length > 0,
       content: (
         <WelcomeStep
           value={welcomeValue}

@@ -1,4 +1,5 @@
 import WizardStep from "@/components/wizard/WizardStep";
+import { ORGANIZATION_INDUSTRIES } from "@/lib/industries";
 
 export interface WelcomeFormValue {
   name: string;
@@ -11,16 +12,6 @@ interface WelcomeStepProps {
   organizationName: string;
   onChange: (value: WelcomeFormValue) => void;
 }
-
-const industries = [
-  "SaaS",
-  "E-commerce",
-  "FinTech",
-  "Healthcare",
-  "Education",
-  "Professional Services",
-  "Other",
-];
 
 const companySizes = ["1-10", "11-50", "51-200", "201-500", "500+"];
 
@@ -59,7 +50,7 @@ export default function WelcomeStep({
 
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-[var(--galdr-fg-muted)]">
-            Industry
+            Industry *
           </span>
           <select
             value={value.industry}
@@ -72,7 +63,7 @@ export default function WelcomeStep({
             className="galdr-input w-full px-3 py-2 text-sm"
           >
             <option value="">Select an industry</option>
-            {industries.map((industry) => (
+            {ORGANIZATION_INDUSTRIES.map((industry) => (
               <option key={industry} value={industry}>
                 {industry}
               </option>

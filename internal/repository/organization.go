@@ -16,6 +16,7 @@ type Organization struct {
 	ID               uuid.UUID
 	Name             string
 	Slug             string
+	Industry         string
 	Plan             string
 	StripeCustomerID string
 	CreatedAt        time.Time
@@ -70,14 +71,14 @@ func (r *OrganizationRepository) AddMember(ctx context.Context, tx pgx.Tx, userI
 // GetByID retrieves an organization by ID.
 func (r *OrganizationRepository) GetByID(ctx context.Context, id uuid.UUID) (*Organization, error) {
 	query := `
-		SELECT id, name, slug, plan, COALESCE(stripe_customer_id, ''),
+		SELECT id, name, slug, COALESCE(industry, ''), plan, COALESCE(stripe_customer_id, ''),
 			   created_at, updated_at
 		FROM organizations
 		WHERE id = $1 AND deleted_at IS NULL`
 
 	o := &Organization{}
 	err := r.pool.QueryRow(ctx, query, id).Scan(
-		&o.ID, &o.Name, &o.Slug, &o.Plan, &o.StripeCustomerID,
+		&o.ID, &o.Name, &o.Slug, &o.Industry, &o.Plan, &o.StripeCustomerID,
 		&o.CreatedAt, &o.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -110,7 +111,7 @@ type OrganizationWithStats struct {
 // GetWithStats retrieves an org with member and customer counts.
 func (r *OrganizationRepository) GetWithStats(ctx context.Context, orgID uuid.UUID) (*OrganizationWithStats, error) {
 	query := `
-		SELECT o.id, o.name, o.slug, o.plan, COALESCE(o.stripe_customer_id, ''),
+		SELECT o.id, o.name, o.slug, COALESCE(o.industry, ''), o.plan, COALESCE(o.stripe_customer_id, ''),
 			o.created_at, o.updated_at,
 			(SELECT COUNT(*) FROM user_organizations WHERE org_id = o.id) AS member_count,
 			(SELECT COUNT(*) FROM customers WHERE org_id = o.id AND deleted_at IS NULL) AS customer_count
@@ -119,7 +120,7 @@ func (r *OrganizationRepository) GetWithStats(ctx context.Context, orgID uuid.UU
 
 	ows := &OrganizationWithStats{}
 	err := r.pool.QueryRow(ctx, query, orgID).Scan(
-		&ows.ID, &ows.Name, &ows.Slug, &ows.Plan, &ows.StripeCustomerID,
+		&ows.ID, &ows.Name, &ows.Slug, &ows.Industry, &ows.Plan, &ows.StripeCustomerID,
 		&ows.CreatedAt, &ows.UpdatedAt,
 		&ows.MemberCount, &ows.CustomerCount,
 	)
@@ -132,10 +133,10 @@ func (r *OrganizationRepository) GetWithStats(ctx context.Context, orgID uuid.UU
 	return ows, nil
 }
 
-// Update updates an org's name and slug.
-func (r *OrganizationRepository) Update(ctx context.Context, orgID uuid.UUID, name, slug string) error {
-	query := `UPDATE organizations SET name = $2, slug = $3 WHERE id = $1 AND deleted_at IS NULL`
-	_, err := r.pool.Exec(ctx, query, orgID, name, slug)
+// Update updates an org's profile fields.
+func (r *OrganizationRepository) Update(ctx context.Context, orgID uuid.UUID, name, slug, industry string) error {
+	query := `UPDATE organizations SET name = $2, slug = $3, industry = NULLIF($4, '') WHERE id = $1 AND deleted_at IS NULL`
+	_, err := r.pool.Exec(ctx, query, orgID, name, slug, industry)
 	if err != nil {
 		return fmt.Errorf("update org: %w", err)
 	}
@@ -185,7 +186,7 @@ func (r *OrganizationRepository) UpdateStripeCustomerIDTx(ctx context.Context, t
 // GetByStripeCustomerID retrieves an organization by Stripe customer ID.
 func (r *OrganizationRepository) GetByStripeCustomerID(ctx context.Context, stripeCustomerID string) (*Organization, error) {
 	query := `
-		SELECT id, name, slug, plan, COALESCE(stripe_customer_id, ''), created_at, updated_at
+		SELECT id, name, slug, COALESCE(industry, ''), plan, COALESCE(stripe_customer_id, ''), created_at, updated_at
 		FROM organizations
 		WHERE stripe_customer_id = $1 AND deleted_at IS NULL
 		LIMIT 1`
@@ -195,6 +196,7 @@ func (r *OrganizationRepository) GetByStripeCustomerID(ctx context.Context, stri
 		&o.ID,
 		&o.Name,
 		&o.Slug,
+		&o.Industry,
 		&o.Plan,
 		&o.StripeCustomerID,
 		&o.CreatedAt,

@@ -56,6 +56,7 @@ func TestOrganizationGetCurrent_Success(t *testing.T) {
 				ID:            orgID,
 				Name:          "Test Org",
 				Slug:          "test-org",
+				Industry:      "Fintech",
 				Plan:          "free",
 				MemberCount:   3,
 				CustomerCount: 100,
@@ -80,6 +81,9 @@ func TestOrganizationGetCurrent_Success(t *testing.T) {
 	}
 	if resp.Name != "Test Org" {
 		t.Errorf("expected name 'Test Org', got %s", resp.Name)
+	}
+	if resp.Industry != "Fintech" {
+		t.Errorf("expected industry 'Fintech', got %s", resp.Industry)
 	}
 	if resp.MemberCount != 3 {
 		t.Errorf("expected 3 members, got %d", resp.MemberCount)
@@ -142,16 +146,20 @@ func TestOrganizationUpdateCurrent_Success(t *testing.T) {
 			if req.Name != "New Name" {
 				t.Errorf("expected name 'New Name', got %s", req.Name)
 			}
+			if req.Industry != "SaaS" {
+				t.Errorf("expected industry 'SaaS', got %s", req.Industry)
+			}
 			return &service.OrgDetailResponse{
-				ID:   orgID,
-				Name: "New Name",
-				Slug: "new-name",
+				ID:       orgID,
+				Name:     "New Name",
+				Slug:     "new-name",
+				Industry: "SaaS",
 			}, nil
 		},
 	}
 
 	h := NewOrganizationHandler(mock)
-	body, _ := json.Marshal(map[string]string{"name": "New Name"})
+	body, _ := json.Marshal(map[string]string{"name": "New Name", "industry": "SaaS"})
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/organizations/current", bytes.NewReader(body))
 	req = req.WithContext(auth.WithOrgID(req.Context(), orgID))
 	rr := httptest.NewRecorder()
@@ -160,6 +168,14 @@ func TestOrganizationUpdateCurrent_Success(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var resp service.OrgDetailResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Industry != "SaaS" {
+		t.Errorf("expected industry 'SaaS', got %s", resp.Industry)
 	}
 }
 

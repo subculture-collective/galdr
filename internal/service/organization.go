@@ -16,12 +16,25 @@ type CreateOrgRequest struct {
 	Name string `json:"name"`
 }
 
+var allowedIndustries = map[string]struct{}{
+	"SaaS":        {},
+	"E-commerce":  {},
+	"Fintech":     {},
+	"Healthcare":  {},
+	"Education":   {},
+	"Media":       {},
+	"Marketplace": {},
+	"Agency":      {},
+	"Other":       {},
+}
+
 // OrgResponse is the response for organization operations.
 type OrgResponse struct {
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
-	Slug string    `json:"slug"`
-	Plan string    `json:"plan"`
+	ID       uuid.UUID `json:"id"`
+	Name     string    `json:"name"`
+	Slug     string    `json:"slug"`
+	Industry string    `json:"industry"`
+	Plan     string    `json:"plan"`
 }
 
 // OrganizationService handles organization logic.
@@ -37,7 +50,8 @@ func NewOrganizationService(pool *pgxpool.Pool, orgs *repository.OrganizationRep
 
 // UpdateOrgRequest holds input for updating an organization.
 type UpdateOrgRequest struct {
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	Industry string `json:"industry"`
 }
 
 // OrgDetailResponse is the response for organization detail.
@@ -45,6 +59,7 @@ type OrgDetailResponse struct {
 	ID            uuid.UUID `json:"id"`
 	Name          string    `json:"name"`
 	Slug          string    `json:"slug"`
+	Industry      string    `json:"industry"`
 	Plan          string    `json:"plan"`
 	MemberCount   int       `json:"member_count"`
 	CustomerCount int       `json:"customer_count"`
@@ -64,6 +79,7 @@ func (s *OrganizationService) GetCurrent(ctx context.Context, orgID uuid.UUID) (
 		ID:            org.ID,
 		Name:          org.Name,
 		Slug:          org.Slug,
+		Industry:      org.Industry,
 		Plan:          org.Plan,
 		MemberCount:   org.MemberCount,
 		CustomerCount: org.CustomerCount,
@@ -75,6 +91,12 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		return nil, &ValidationError{Field: "name", Message: "organization name is required"}
+	}
+	industry := strings.TrimSpace(req.Industry)
+	if industry != "" {
+		if _, ok := allowedIndustries[industry]; !ok {
+			return nil, &ValidationError{Field: "industry", Message: "industry must be one of the predefined options"}
+		}
 	}
 
 	slug := generateSlug(name)
@@ -98,7 +120,7 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 		slug = fmt.Sprintf("%s-%d", baseSlug, i)
 	}
 
-	if err := s.orgs.Update(ctx, orgID, name, slug); err != nil {
+	if err := s.orgs.Update(ctx, orgID, name, slug, industry); err != nil {
 		return nil, fmt.Errorf("update org: %w", err)
 	}
 
@@ -149,9 +171,10 @@ func (s *OrganizationService) Create(ctx context.Context, userID uuid.UUID, req 
 	}
 
 	return &OrgResponse{
-		ID:   org.ID,
-		Name: org.Name,
-		Slug: org.Slug,
-		Plan: "free",
+		ID:       org.ID,
+		Name:     org.Name,
+		Slug:     org.Slug,
+		Industry: org.Industry,
+		Plan:     "free",
 	}, nil
 }

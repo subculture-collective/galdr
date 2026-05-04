@@ -279,10 +279,12 @@ func (s *InvitationService) Accept(ctx context.Context, req AcceptInvitationRequ
 			LastName:  user.LastName,
 		},
 		Organization: AuthOrg{
-			ID:   org.ID,
-			Name: org.Name,
-			Slug: org.Slug,
-			Role: inv.Role,
+			ID:       org.ID,
+			Name:     org.Name,
+			Slug:     org.Slug,
+			Industry: org.Industry,
+			Role:     inv.Role,
+			Plan:     org.Plan,
 		},
 		Tokens: tokens,
 	}, nil
