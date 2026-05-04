@@ -162,14 +162,14 @@ func (s *LLMService) Complete(ctx context.Context, req LLMCompletionRequest) (*L
 		return nil, err
 	}
 	if !s.allowRequest(req.OrgID) {
-		s.releaseTokens(req.OrgID, estimatedTokens)
+		s.releaseTokenReservation(req.OrgID, estimatedTokens)
 		return nil, ErrLLMRateLimited
 	}
 
 	start := time.Now()
 	providerRes, providerName, err := s.completeWithFallback(ctx, LLMProviderRequest{Prompt: prompt, MaxTokens: maxTokens})
 	if err != nil {
-		s.releaseTokens(req.OrgID, estimatedTokens)
+		s.releaseTokenReservation(req.OrgID, estimatedTokens)
 		return nil, err
 	}
 
@@ -257,7 +257,7 @@ func (s *LLMService) reserveTokens(orgID uuid.UUID, tokens int) error {
 	return nil
 }
 
-func (s *LLMService) releaseTokens(orgID uuid.UUID, tokens int) {
+func (s *LLMService) releaseTokenReservation(orgID uuid.UUID, tokens int) {
 	s.adjustTokenReservation(orgID, tokens, 0)
 }
 
