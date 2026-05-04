@@ -272,18 +272,8 @@ func (s *InvitationService) Accept(ctx context.Context, req AcceptInvitationRequ
 	}
 
 	return &AuthResponse{
-		User: AuthUser{
-			ID:        user.ID,
-			Email:     user.Email,
-			FirstName: user.FirstName,
-			LastName:  user.LastName,
-		},
-		Organization: AuthOrg{
-			ID:   org.ID,
-			Name: org.Name,
-			Slug: org.Slug,
-			Role: inv.Role,
-		},
+		User:         authUserResponse(user),
+		Organization: authOrgResponse(org, inv.Role),
 		Tokens: tokens,
 	}, nil
 }

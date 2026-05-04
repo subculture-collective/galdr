@@ -18,6 +18,7 @@ export interface AuthOrg {
   id: string;
   name: string;
   slug: string;
+  industry: string;
   role: string;
   plan: string;
 }

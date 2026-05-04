@@ -337,6 +337,18 @@ paths:
                   type: string
                   minLength: 2
                   maxLength: 100
+                industry:
+                  type: string
+                  enum:
+                    - SaaS
+                    - E-commerce
+                    - Fintech
+                    - Healthcare
+                    - Education
+                    - Media
+                    - Marketplace
+                    - Agency
+                    - Other
       responses:
         "200":
           description: Organization updated
@@ -1365,6 +1377,18 @@ components:
           type: string
         slug:
           type: string
+        industry:
+          type: string
+          enum:
+            - SaaS
+            - E-commerce
+            - Fintech
+            - Healthcare
+            - Education
+            - Media
+            - Marketplace
+            - Agency
+            - Other
         plan:
           type: string
 

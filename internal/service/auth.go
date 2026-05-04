@@ -54,11 +54,32 @@ type AuthUser struct {
 
 // AuthOrg is the organization portion of an auth response.
 type AuthOrg struct {
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
-	Slug string    `json:"slug"`
-	Role string    `json:"role"`
-	Plan string    `json:"plan"`
+	ID       uuid.UUID `json:"id"`
+	Name     string    `json:"name"`
+	Slug     string    `json:"slug"`
+	Industry string    `json:"industry"`
+	Role     string    `json:"role"`
+	Plan     string    `json:"plan"`
+}
+
+func authUserResponse(user *repository.User) AuthUser {
+	return AuthUser{
+		ID:        user.ID,
+		Email:     user.Email,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+	}
+}
+
+func authOrgResponse(org *repository.Organization, role string) AuthOrg {
+	return AuthOrg{
+		ID:       org.ID,
+		Name:     org.Name,
+		Slug:     org.Slug,
+		Industry: org.Industry,
+		Role:     role,
+		Plan:     org.Plan,
+	}
 }
 
 // RefreshRequest holds the input for token refresh.
@@ -179,19 +200,8 @@ func (s *AuthService) Register(ctx context.Context, req RegisterRequest) (*AuthR
 	}
 
 	return &AuthResponse{
-		User: AuthUser{
-			ID:        user.ID,
-			Email:     user.Email,
-			FirstName: user.FirstName,
-			LastName:  user.LastName,
-		},
-		Organization: AuthOrg{
-			ID:   org.ID,
-			Name: org.Name,
-			Slug: org.Slug,
-			Role: "owner",
-			Plan: "free",
-		},
+		User:         authUserResponse(user),
+		Organization: authOrgResponse(org, "owner"),
 		Tokens: tokens,
 	}, nil
 }
@@ -273,19 +283,8 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*AuthRespons
 	}
 
 	return &AuthResponse{
-		User: AuthUser{
-			ID:        user.ID,
-			Email:     user.Email,
-			FirstName: user.FirstName,
-			LastName:  user.LastName,
-		},
-		Organization: AuthOrg{
-			ID:   orgDetails.ID,
-			Name: orgDetails.Name,
-			Slug: orgDetails.Slug,
-			Role: defaultOrg.Role,
-			Plan: orgDetails.Plan,
-		},
+		User:         authUserResponse(user),
+		Organization: authOrgResponse(orgDetails, defaultOrg.Role),
 		Tokens: tokens,
 	}, nil
 }
@@ -403,19 +402,8 @@ func (s *AuthService) Refresh(ctx context.Context, req RefreshRequest) (*AuthRes
 	}
 
 	return &AuthResponse{
-		User: AuthUser{
-			ID:        user.ID,
-			Email:     user.Email,
-			FirstName: user.FirstName,
-			LastName:  user.LastName,
-		},
-		Organization: AuthOrg{
-			ID:   orgDetails.ID,
-			Name: orgDetails.Name,
-			Slug: orgDetails.Slug,
-			Role: defaultOrg.Role,
-			Plan: orgDetails.Plan,
-		},
+		User:         authUserResponse(user),
+		Organization: authOrgResponse(orgDetails, defaultOrg.Role),
 		Tokens: tokens,
 	}, nil
 }
