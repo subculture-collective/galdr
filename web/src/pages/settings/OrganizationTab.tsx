@@ -24,7 +24,7 @@ export default function OrganizationTab() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    async function fetch() {
+    async function fetchOrganization() {
       try {
         const { data } = await api.get<Organization>("/organizations/current");
         setOrg(data);
@@ -36,7 +36,7 @@ export default function OrganizationTab() {
         setLoading(false);
       }
     }
-    fetch();
+    fetchOrganization();
   }, [toast]);
 
   if (loading) {

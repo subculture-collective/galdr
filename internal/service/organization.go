@@ -28,6 +28,11 @@ var allowedIndustries = map[string]struct{}{
 	"Other":       {},
 }
 
+func isAllowedIndustry(industry string) bool {
+	_, ok := allowedIndustries[industry]
+	return ok
+}
+
 // OrgResponse is the response for organization operations.
 type OrgResponse struct {
 	ID       uuid.UUID `json:"id"`
@@ -93,10 +98,8 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 		return nil, &ValidationError{Field: "name", Message: "organization name is required"}
 	}
 	industry := strings.TrimSpace(req.Industry)
-	if industry != "" {
-		if _, ok := allowedIndustries[industry]; !ok {
-			return nil, &ValidationError{Field: "industry", Message: "industry must be one of the predefined options"}
-		}
+	if industry != "" && !isAllowedIndustry(industry) {
+		return nil, &ValidationError{Field: "industry", Message: "industry must be one of the predefined options"}
 	}
 
 	slug := generateSlug(name)

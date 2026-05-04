@@ -6,12 +6,18 @@ import (
 	"testing"
 )
 
-func TestOrganizationIndustryMigrationAddsNullableColumn(t *testing.T) {
-	data, err := os.ReadFile("../../migrations/000024_add_organization_industry.up.sql")
+func readMigrationSQL(t *testing.T, path string) string {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read migration file: %v", err)
 	}
-	sql := string(data)
+	return string(data)
+}
+
+func TestOrganizationIndustryMigrationAddsNullableColumn(t *testing.T) {
+	sql := readMigrationSQL(t, "../../migrations/000024_add_organization_industry.up.sql")
 
 	if !strings.Contains(sql, "ADD COLUMN IF NOT EXISTS industry VARCHAR(50)") {
 		t.Error("migration up file must add nullable organizations.industry column")
@@ -22,11 +28,7 @@ func TestOrganizationIndustryMigrationAddsNullableColumn(t *testing.T) {
 }
 
 func TestOrganizationIndustryMigrationAddsSegmentationIndex(t *testing.T) {
-	data, err := os.ReadFile("../../migrations/000024_add_organization_industry.up.sql")
-	if err != nil {
-		t.Fatalf("failed to read migration file: %v", err)
-	}
-	sql := string(data)
+	sql := readMigrationSQL(t, "../../migrations/000024_add_organization_industry.up.sql")
 
 	if !strings.Contains(sql, "idx_organizations_industry") {
 		t.Error("migration up file must add industry index for benchmark segmentation")
@@ -37,11 +39,7 @@ func TestOrganizationIndustryMigrationAddsSegmentationIndex(t *testing.T) {
 }
 
 func TestOrganizationIndustryMigrationRestrictsPredefinedOptions(t *testing.T) {
-	data, err := os.ReadFile("../../migrations/000024_add_organization_industry.up.sql")
-	if err != nil {
-		t.Fatalf("failed to read migration file: %v", err)
-	}
-	sql := string(data)
+	sql := readMigrationSQL(t, "../../migrations/000024_add_organization_industry.up.sql")
 
 	for _, industry := range []string{"SaaS", "E-commerce", "Fintech", "Healthcare", "Education", "Media", "Marketplace", "Agency", "Other"} {
 		if !strings.Contains(sql, "'"+industry+"'") {
@@ -54,11 +52,7 @@ func TestOrganizationIndustryMigrationRestrictsPredefinedOptions(t *testing.T) {
 }
 
 func TestOrganizationIndustryMigrationDownRemovesIndexAndColumn(t *testing.T) {
-	data, err := os.ReadFile("../../migrations/000024_add_organization_industry.down.sql")
-	if err != nil {
-		t.Fatalf("failed to read migration file: %v", err)
-	}
-	sql := string(data)
+	sql := readMigrationSQL(t, "../../migrations/000024_add_organization_industry.down.sql")
 
 	requiredStatements := []string{
 		"DROP INDEX IF EXISTS idx_organizations_industry",
