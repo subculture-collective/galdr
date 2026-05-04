@@ -1,6 +1,8 @@
 {
   "scripts": {
-    "sandcastle": "npx tsx .sandcastle/main.mts"
+    "sandcastle": "npx tsx .sandcastle/main.mts",
+    "test": "node scripts/validate-roadmap.mjs",
+    "typecheck": "npm --prefix web run typecheck"
   },
   "dependencies": {
     "@ai-hero/sandcastle": "^0.5.7"
