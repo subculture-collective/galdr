@@ -145,20 +145,20 @@ func TestConnectorLifecycle(t *testing.T) {
 		t.Fatalf("expected external account acct_123, got %q", auth.ExternalAccountID)
 	}
 
-	sync, err := connector.Sync(ctx, SyncRequest{OrgID: "org_123", ExternalAccountID: auth.ExternalAccountID, Mode: SyncModeFull})
+	syncResult, err := connector.Sync(ctx, SyncRequest{OrgID: "org_123", ExternalAccountID: auth.ExternalAccountID, Mode: SyncModeFull})
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
-	if len(sync.Resources) != 1 || sync.Resources[0].Synced != 2 {
-		t.Fatalf("expected one resource with 2 synced records, got %#v", sync.Resources)
+	if len(syncResult.Resources) != 1 || syncResult.Resources[0].Synced != 2 {
+		t.Fatalf("expected one resource with 2 synced records, got %#v", syncResult.Resources)
 	}
 
-	event, err := connector.HandleEvent(ctx, EventRequest{OrgID: "org_123", EventType: "customer.updated"})
+	eventResult, err := connector.HandleEvent(ctx, EventRequest{OrgID: "org_123", EventType: "customer.updated"})
 	if err != nil {
 		t.Fatalf("handle event: %v", err)
 	}
-	if !event.Accepted || len(event.Events) != 1 {
-		t.Fatalf("expected accepted event result, got %#v", event)
+	if !eventResult.Accepted || len(eventResult.Events) != 1 {
+		t.Fatalf("expected accepted event result, got %#v", eventResult)
 	}
 }
 
