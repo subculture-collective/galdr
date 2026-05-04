@@ -186,11 +186,23 @@ func usageFrequencyChange(events []*repository.CustomerEvent, now time.Time) flo
 }
 
 func mrrChangeRate(events []*repository.CustomerEvent, now time.Time) float64 {
-	latest := latestEvent(events, "mrr.changed", now.AddDate(0, 0, -90), now)
-	if latest == nil {
+	var oldest, latest *repository.CustomerEvent
+	start := now.AddDate(0, 0, -90)
+	for _, event := range events {
+		if event == nil || event.EventType != "mrr.changed" || event.OccurredAt.Before(start) || event.OccurredAt.After(now) {
+			continue
+		}
+		if oldest == nil || event.OccurredAt.Before(oldest.OccurredAt) {
+			oldest = event
+		}
+		if latest == nil || event.OccurredAt.After(latest.OccurredAt) {
+			latest = event
+		}
+	}
+	if oldest == nil || latest == nil {
 		return 0.5
 	}
-	oldMRR := numberFromEvent(latest, "old_mrr_cents")
+	oldMRR := numberFromEvent(oldest, "old_mrr_cents")
 	newMRR := numberFromEvent(latest, "new_mrr_cents")
 	if oldMRR <= 0 {
 		return 0.5
