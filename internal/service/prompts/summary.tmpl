@@ -1,0 +1,23 @@
+Create a brief dashboard summary for this customer.
+
+Customer: {{.Customer.Name}}
+MRR: {{formatMoney .Customer.MRRCents .Customer.Currency}}
+Risk level: {{.HealthScore.RiskLevel}}
+Overall score: {{.HealthScore.OverallScore}}
+Score change, 7d: {{formatSignedInt .HealthScore.ScoreChange7d}}
+Score change, 30d: {{formatSignedInt .HealthScore.ScoreChange30d}}
+
+Top factors:
+{{- range .HealthScore.Factors}}
+- {{.Name}}: {{formatFloat .Score}} ({{.Explanation}})
+{{- end}}
+
+Return only valid JSON matching this schema:
+{
+  "insight_type": "summary",
+  "summary": "one sentence dashboard-ready summary",
+  "risk_level": "green|yellow|red",
+  "confidence": "high|medium|low",
+  "signals": [{"name":"main signal","evidence":"specific evidence","impact":"positive|negative|neutral"}],
+  "recommendations": [{"action":"single next step","owner":"customer_success|sales|support|billing","priority":"high|medium|low","rationale":"why this matters"}]
+}

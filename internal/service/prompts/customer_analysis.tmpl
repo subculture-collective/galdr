@@ -1,0 +1,35 @@
+Use the customer health context below to produce a comprehensive customer analysis.
+
+Customer:
+- Name: {{.Customer.Name}}
+- Email: {{.Customer.Email}}
+- Company: {{.Customer.CompanyName}}
+- Source: {{.Customer.Source}}
+- MRR: {{formatMoney .Customer.MRRCents .Customer.Currency}}
+- Tenure: {{formatTenure .Customer.Tenure}}
+
+Health:
+- Overall score: {{.HealthScore.OverallScore}}
+- Risk level: {{.HealthScore.RiskLevel}}
+- Score change, 7d: {{formatSignedInt .HealthScore.ScoreChange7d}}
+- Score change, 30d: {{formatSignedInt .HealthScore.ScoreChange30d}}
+
+Score factors:
+{{- range .HealthScore.Factors}}
+- {{.Name}}: {{formatFloat .Score}} ({{.Explanation}})
+{{- end}}
+
+Recent events:
+{{- range .Events}}
+- {{.Type}} from {{.Source}}, {{.AgeDays}} days ago: {{.Summary}}
+{{- end}}
+
+Return only valid JSON matching this schema:
+{
+  "insight_type": "customer_analysis",
+  "summary": "2-4 sentence customer health analysis",
+  "risk_level": "green|yellow|red",
+  "confidence": "high|medium|low",
+  "signals": [{"name":"signal name","evidence":"specific evidence","impact":"positive|negative|neutral"}],
+  "recommendations": [{"action":"specific action","owner":"customer_success|sales|support|billing","priority":"high|medium|low","rationale":"why this action helps"}]
+}
