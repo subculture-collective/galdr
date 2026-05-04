@@ -259,6 +259,10 @@ func (c *Config) Validate() error {
 				return fmt.Errorf("%s is required in production", name)
 			}
 		}
+
+		if strings.TrimSpace(c.OpenAI.APIKey) == "" {
+			return fmt.Errorf("OPENAI_API_KEY is required in production")
+		}
 	}
 	return nil
 }
