@@ -415,5 +415,6 @@ async function main(): Promise<void> {
 
 main().catch(async (error) => {
   console.error(`[sandcastle-opencode] ${(error as Error).message}`);
+  console.error(await logTail());
   process.exit(1);
 });

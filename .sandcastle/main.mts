@@ -33,11 +33,12 @@ import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 const MAX_ITERATIONS = 100;
 
 // Hooks run inside the sandbox before the agent starts each iteration.
-// npm install ensures the sandbox always has fresh dependencies.
+// npm ci installs from the lockfile without mutating package-lock.json, which
+// keeps reusable Sandcastle worktrees clean between runs.
 const hooks = {
   sandbox: {
     onSandboxReady: [
-      { command: "npm install" },
+      { command: "npm ci" },
       {
         command:
           "mkdir -p ~/.config/opencode ~/.local/share/opencode && cp -a opencode/. ~/.config/opencode/ && rm -f ~/.config/opencode/auth.json && if [ -f opencode/auth.json ]; then cp opencode/auth.json ~/.local/share/opencode/auth.json && chmod 600 ~/.local/share/opencode/auth.json; fi && opencode plugin @tarquinen/opencode-dcp@latest --global --force --pure",
