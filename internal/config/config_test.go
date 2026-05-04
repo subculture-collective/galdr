@@ -17,8 +17,42 @@ func clearEnv() {
 		"STRIPE_BILLING_WEBHOOK_SECRET", "STRIPE_BILLING_PORTAL_RETURN_URL",
 		"STRIPE_BILLING_PRICE_GROWTH_MONTHLY", "STRIPE_BILLING_PRICE_GROWTH_ANNUAL",
 		"STRIPE_BILLING_PRICE_SCALE_MONTHLY", "STRIPE_BILLING_PRICE_SCALE_ANNUAL",
+		"OPENAI_API_KEY", "LLM_MODEL", "LLM_MAX_TOKENS", "LLM_REQUESTS_PER_MINUTE",
+		"LLM_MAX_TOKENS_PER_DAY", "LLM_MAX_RETRIES",
 	} {
 		os.Unsetenv(key)
+	}
+}
+
+func TestLoadLLMFromEnv(t *testing.T) {
+	clearEnv()
+	os.Setenv("OPENAI_API_KEY", "sk_test_123")
+	os.Setenv("LLM_MODEL", "gpt-4o-mini")
+	os.Setenv("LLM_MAX_TOKENS", "700")
+	os.Setenv("LLM_REQUESTS_PER_MINUTE", "30")
+	os.Setenv("LLM_MAX_TOKENS_PER_DAY", "50000")
+	os.Setenv("LLM_MAX_RETRIES", "3")
+	defer clearEnv()
+
+	cfg := Load()
+
+	if cfg.LLM.OpenAIAPIKey != "sk_test_123" {
+		t.Errorf("expected OpenAI API key to load from env")
+	}
+	if cfg.LLM.Model != "gpt-4o-mini" {
+		t.Errorf("expected LLM model to load from env")
+	}
+	if cfg.LLM.MaxTokens != 700 {
+		t.Errorf("expected LLM max tokens to load from env")
+	}
+	if cfg.LLM.RequestsPerMinute != 30 {
+		t.Errorf("expected LLM request limit to load from env")
+	}
+	if cfg.LLM.MaxTokensPerDay != 50000 {
+		t.Errorf("expected LLM token budget to load from env")
+	}
+	if cfg.LLM.MaxRetries != 3 {
+		t.Errorf("expected LLM retry count to load from env")
 	}
 }
 

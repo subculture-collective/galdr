@@ -20,8 +20,19 @@ type Config struct {
 	BillingStripe BillingStripeConfig
 	HubSpot       HubSpotConfig
 	Intercom      IntercomConfig
+	LLM           LLMConfig
 	Scoring       ScoringConfig
 	Alert         AlertConfig
+}
+
+// LLMConfig holds OpenAI-backed LLM service settings.
+type LLMConfig struct {
+	OpenAIAPIKey       string
+	Model              string
+	MaxTokens          int
+	RequestsPerMinute  int
+	MaxTokensPerDay    int
+	MaxRetries         int
 }
 
 // AlertConfig holds alert engine settings.
@@ -198,6 +209,14 @@ func Load() *Config {
 			EncryptionKey:    getEnv("INTERCOM_ENCRYPTION_KEY", ""),
 			WebhookSecret:    getEnv("INTERCOM_WEBHOOK_SECRET", ""),
 			SyncIntervalMin:  getInt("INTERCOM_SYNC_INTERVAL_MIN", 15),
+		},
+		LLM: LLMConfig{
+			OpenAIAPIKey:      getEnv("OPENAI_API_KEY", ""),
+			Model:             getEnv("LLM_MODEL", "gpt-4o-mini"),
+			MaxTokens:         getInt("LLM_MAX_TOKENS", 512),
+			RequestsPerMinute: getInt("LLM_REQUESTS_PER_MINUTE", 60),
+			MaxTokensPerDay:   getInt("LLM_MAX_TOKENS_PER_DAY", 100000),
+			MaxRetries:        getInt("LLM_MAX_RETRIES", 2),
 		},
 		Scoring: ScoringConfig{
 			RecalcIntervalMin: getInt("SCORE_RECALC_INTERVAL_MIN", 60),
