@@ -13,7 +13,12 @@ import (
 	"time"
 )
 
-const openAIBaseURL = "https://api.openai.com"
+const (
+	openAIBaseURL            = "https://api.openai.com"
+	defaultOpenAIHTTPTimeout = 30 * time.Second
+	defaultOpenAIRetryBackoff = 100 * time.Millisecond
+	defaultOpenAIMaxRetries   = 2
+)
 
 // OpenAIConfig holds OpenAI provider settings.
 type OpenAIConfig struct {
@@ -47,28 +52,28 @@ func NewOpenAIProvider(cfg OpenAIConfig) *OpenAIProvider {
 	}
 	client := cfg.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = &http.Client{Timeout: defaultOpenAIHTTPTimeout}
 	}
 	retryBackoff := cfg.RetryBackoff
 	if retryBackoff <= 0 {
-		retryBackoff = 100 * time.Millisecond
-	}
-	maxRetries := cfg.MaxRetries
-	if maxRetries < 0 {
-		maxRetries = 0
-	}
-	if maxRetries == 0 {
-		maxRetries = 2
+		retryBackoff = defaultOpenAIRetryBackoff
 	}
 
 	return &OpenAIProvider{
 		apiKey:       cfg.APIKey,
 		model:        model,
-		maxRetries:   maxRetries,
+		maxRetries:   normalizeOpenAIMaxRetries(cfg.MaxRetries),
 		retryBackoff: retryBackoff,
 		baseURL:      baseURL,
 		client:       client,
 	}
+}
+
+func normalizeOpenAIMaxRetries(maxRetries int) int {
+	if maxRetries <= 0 {
+		return defaultOpenAIMaxRetries
+	}
+	return maxRetries
 }
 
 // Name returns the provider identifier.
@@ -99,7 +104,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req LLMProviderRequest) (
 	}
 	maxTokens := req.MaxTokens
 	if maxTokens <= 0 {
-		maxTokens = 512
+		maxTokens = defaultLLMMaxTokens
 	}
 
 	payload := openAIChatCompletionRequest{

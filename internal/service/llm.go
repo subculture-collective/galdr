@@ -12,7 +12,15 @@ import (
 	"github.com/google/uuid"
 )
 
-const defaultLLMModel = "gpt-4o-mini"
+const (
+	defaultLLMModel             = "gpt-4o-mini"
+	defaultLLMMaxTokens         = 512
+	defaultLLMRequestsPerMinute = 60
+	defaultLLMMaxTokensPerDay   = 100_000
+	llmCostTokenDivisor         = 1_000_000
+	gpt4oMiniInputPerMillion    = 0.15
+	gpt4oMiniOutputPerMillion   = 0.60
+)
 
 var (
 	// ErrLLMRateLimited is returned when an organization exceeds its request budget.
@@ -101,7 +109,7 @@ func NewLLMService(provider LLMProvider, cfg LLMServiceConfig) *LLMService {
 	}
 	maxTokens := cfg.MaxTokens
 	if maxTokens <= 0 {
-		maxTokens = 512
+		maxTokens = defaultLLMMaxTokens
 	}
 
 	return &LLMService{
@@ -218,9 +226,7 @@ func cloneTemplates(templates map[string]string) map[string]string {
 }
 
 func calculateLLMCostUSD(model string, inputTokens, outputTokens int) float64 {
-	inputPerMillion := 0.15
-	outputPerMillion := 0.60
-	return (float64(inputTokens)*inputPerMillion + float64(outputTokens)*outputPerMillion) / 1_000_000
+	return (float64(inputTokens)*gpt4oMiniInputPerMillion + float64(outputTokens)*gpt4oMiniOutputPerMillion) / llmCostTokenDivisor
 }
 
 type orgRequestLimiter struct {
@@ -236,7 +242,7 @@ type requestWindow struct {
 
 func newOrgRequestLimiter(limit int) *orgRequestLimiter {
 	if limit <= 0 {
-		limit = 60
+		limit = defaultLLMRequestsPerMinute
 	}
 	return &orgRequestLimiter{limit: limit, requests: make(map[uuid.UUID]requestWindow)}
 }
@@ -271,7 +277,7 @@ type tokenWindow struct {
 
 func newOrgTokenBudget(limit int) *orgTokenBudget {
 	if limit <= 0 {
-		limit = 100_000
+		limit = defaultLLMMaxTokensPerDay
 	}
 	return &orgTokenBudget{limit: limit, usage: make(map[uuid.UUID]tokenWindow)}
 }
