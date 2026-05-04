@@ -27,6 +27,10 @@ type billingSubscriptionServicer interface {
 	GetSubscriptionSummary(ctx context.Context, orgID uuid.UUID) (*billing.SubscriptionSummary, error)
 }
 
+type billingPlanChangeServicer interface {
+	ChangePlan(ctx context.Context, orgID, userID uuid.UUID, req billing.ChangePlanRequest) (*billing.ChangePlanResponse, error)
+}
+
 type billingWebhookServicer interface {
 	HandleEvent(ctx context.Context, payload []byte, sigHeader string) error
 }
@@ -36,17 +40,20 @@ type BillingHandler struct {
 	checkoutSvc     billingCheckoutServicer
 	portalSvc       billingPortalServicer
 	subscriptionSvc billingSubscriptionServicer
+	planChangeSvc   billingPlanChangeServicer
 }
 
 func NewBillingHandler(
 	checkoutSvc billingCheckoutServicer,
 	portalSvc billingPortalServicer,
 	subscriptionSvc billingSubscriptionServicer,
+	planChangeSvc billingPlanChangeServicer,
 ) *BillingHandler {
 	return &BillingHandler{
 		checkoutSvc:     checkoutSvc,
 		portalSvc:       portalSvc,
 		subscriptionSvc: subscriptionSvc,
+		planChangeSvc:   planChangeSvc,
 	}
 }
 
@@ -127,6 +134,35 @@ func (h *BillingHandler) CancelSubscription(w http.ResponseWriter, r *http.Reque
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "cancel_at_period_end"})
+}
+
+// ChangePlan handles POST /api/v1/billing/change-plan.
+func (h *BillingHandler) ChangePlan(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := auth.GetOrgID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	userID, ok := auth.GetUserID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	var req billing.ChangePlanRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse("invalid request body"))
+		return
+	}
+
+	resp, err := h.planChangeSvc.ChangePlan(r.Context(), orgID, userID, req)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // WebhookStripeBillingHandler handles Stripe billing webhooks.

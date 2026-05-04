@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 
+import PlanChangeDialog from "@/components/billing/PlanChangeDialog";
 import { useToast } from "@/contexts/ToastContext";
-import { useCheckout } from "@/hooks/useCheckout";
 import { billingApi, type BillingSubscriptionResponse } from "@/lib/api";
 import {
   billingPlans,
@@ -44,8 +44,10 @@ export default function SubscriptionManager({
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [openingPortal, setOpeningPortal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<
+    (typeof billingPlans)[number] | null
+  >(null);
 
-  const { loading: checkoutLoading, startCheckout } = useCheckout();
   const toast = useToast();
 
   const currentTier = normalizeTier(subscription?.tier);
@@ -77,10 +79,7 @@ export default function SubscriptionManager({
     }
   }, [checkoutState, fetchSubscription, toast]);
 
-  const recommendedPlans = useMemo(
-    () => billingPlans.filter((plan) => plan.tier !== "free"),
-    [],
-  );
+  const recommendedPlans = billingPlans.filter((plan) => plan.tier !== "free");
 
   async function handleOpenPortal() {
     setOpeningPortal(true);
@@ -129,6 +128,19 @@ export default function SubscriptionManager({
 
   return (
     <div className="space-y-6">
+      {selectedPlan && (
+        <PlanChangeDialog
+          plan={selectedPlan}
+          cycle={cycle}
+          currentTier={currentTier}
+          onClose={() => setSelectedPlan(null)}
+          onChanged={async () => {
+            setSelectedPlan(null);
+            await fetchSubscription();
+          }}
+        />
+      )}
+
       <section className="galdr-panel p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -245,15 +257,11 @@ export default function SubscriptionManager({
                   </p>
                 </div>
                 <button
-                  disabled={checkoutLoading || isCurrent}
-                  onClick={() => startCheckout({ tier: plan.tier, cycle })}
+                  disabled={isCurrent}
+                  onClick={() => setSelectedPlan(plan)}
                   className="galdr-button-primary mt-3 w-full px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isCurrent
-                    ? "Current plan"
-                    : checkoutLoading
-                      ? "Redirecting..."
-                      : `Switch to ${plan.name}`}
+                  {isCurrent ? "Current plan" : `Review switch to ${plan.name}`}
                 </button>
               </div>
             );

@@ -91,12 +91,41 @@ export interface CheckoutPayload {
   annual?: boolean;
 }
 
+export interface PlanChangePayload {
+  tier: string;
+  cycle: "monthly" | "annual";
+}
+
+export interface PlanChangeResponse {
+  action: "upgrade" | "downgrade";
+  status: "checkout_required" | "scheduled" | "active";
+  current_tier: string;
+  current_cycle: "monthly" | "annual";
+  target_tier: string;
+  target_cycle: "monthly" | "annual";
+  checkout_url?: string;
+  effective_at?: string;
+  effective_at_period_end: boolean;
+  proration_cents: number;
+  limits: {
+    current: { customer_limit: number; integration_limit: number };
+    target: { customer_limit: number; integration_limit: number };
+  };
+  features: {
+    current: Record<string, boolean>;
+    target: Record<string, boolean>;
+  };
+}
+
 export const billingApi = {
   getSubscription: () =>
     api.get<BillingSubscriptionResponse>("/billing/subscription"),
 
   createCheckout: (payload: CheckoutPayload) =>
     api.post<{ url: string }>("/billing/checkout", payload),
+
+  changePlan: (payload: PlanChangePayload) =>
+    api.post<PlanChangeResponse>("/billing/change-plan", payload),
 
   createPortalSession: () =>
     api.post<{ url: string }>("/billing/portal-session"),
