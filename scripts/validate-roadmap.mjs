@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 
-const roadmap = readFileSync(new URL("../docs/roadmap.md", import.meta.url), "utf8");
+const roadmapPath = new URL("../docs/roadmap.md", import.meta.url);
+const roadmap = readFileSync(roadmapPath, "utf8");
+
+const firstImplementationIssue = 32;
+const lastRoadmapIssue = 240;
+const omittedIssueRefs = new Set([104, 105]);
+const expectedEpicCount = 23;
 
 const requiredText = [
   "# PulseScore Master Roadmap",
@@ -22,19 +28,19 @@ for (const text of requiredText) {
   }
 }
 
-const issueRefs = [...roadmap.matchAll(/#\d+/g)].map(([match]) => Number(match.slice(1)));
-for (let issue = 32; issue <= 240; issue += 1) {
-  if (issue >= 104 && issue <= 105) {
+const issueRefs = new Set([...roadmap.matchAll(/#\d+/g)].map(([match]) => Number(match.slice(1))));
+for (let issue = firstImplementationIssue; issue <= lastRoadmapIssue; issue += 1) {
+  if (omittedIssueRefs.has(issue)) {
     continue;
   }
-  if (!issueRefs.includes(issue)) {
+  if (!issueRefs.has(issue)) {
     throw new Error(`roadmap missing issue reference: #${issue}`);
   }
 }
 
 const epicHeadings = roadmap.match(/^### \d+\. /gm) ?? [];
-if (epicHeadings.length !== 23) {
-  throw new Error(`expected 23 epic headings, found ${epicHeadings.length}`);
+if (epicHeadings.length !== expectedEpicCount) {
+  throw new Error(`expected ${expectedEpicCount} epic headings, found ${epicHeadings.length}`);
 }
 
 console.log("roadmap validation passed");
