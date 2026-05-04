@@ -322,6 +322,11 @@ func validateSync(syncConfig SyncConfig) error {
 	if len(syncConfig.SupportedModes) == 0 {
 		return errors.New("sync supported_modes is required")
 	}
+	for _, mode := range syncConfig.SupportedModes {
+		if !isSupportedSyncMode(mode) {
+			return fmt.Errorf("unsupported sync mode %q", mode)
+		}
+	}
 	if syncConfig.DefaultMode == "" {
 		return errors.New("sync default_mode is required")
 	}
@@ -340,4 +345,8 @@ func validateSync(syncConfig SyncConfig) error {
 		return errors.New("sync schedule interval_minutes must be positive")
 	}
 	return nil
+}
+
+func isSupportedSyncMode(mode SyncMode) bool {
+	return mode == SyncModeFull || mode == SyncModeIncremental
 }

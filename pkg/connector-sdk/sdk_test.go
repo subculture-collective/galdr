@@ -106,6 +106,13 @@ func TestValidateManifestRejectsInvalidConnectorMetadata(t *testing.T) {
 			wantError: "supported_modes",
 		},
 		{
+			name: "supported mode unknown",
+			mutate: func(m *ConnectorManifest) {
+				m.Sync.SupportedModes = []SyncMode{SyncModeFull, "delta"}
+			},
+			wantError: "unsupported sync mode",
+		},
+		{
 			name:      "webhook without events",
 			mutate:    func(m *ConnectorManifest) { m.Webhooks[0].EventTypes = nil },
 			wantError: "event types",
