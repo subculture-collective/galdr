@@ -17,9 +17,11 @@ const (
 	// SDKVersion follows semantic versioning and changes when public connector
 	// contracts change.
 	SDKVersion = "0.1.0"
+
+	semanticVersionPattern = `^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`
 )
 
-var semverPattern = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`)
+var semverPattern = regexp.MustCompile(semanticVersionPattern)
 
 // Connector is the public lifecycle contract for marketplace integrations.
 type Connector interface {
@@ -263,6 +265,19 @@ func (r *Registry) List() []RegisteredConnector {
 
 // ValidateManifest verifies the connector manifest is complete and versioned.
 func ValidateManifest(manifest ConnectorManifest) error {
+	if err := validateConnectorMetadata(manifest); err != nil {
+		return err
+	}
+	if err := validateAuth(manifest.Auth); err != nil {
+		return err
+	}
+	if err := validateSync(manifest.Sync); err != nil {
+		return err
+	}
+	return validateWebhooks(manifest.Webhooks)
+}
+
+func validateConnectorMetadata(manifest ConnectorManifest) error {
 	if strings.TrimSpace(manifest.ID) == "" {
 		return errors.New("manifest id is required")
 	}
@@ -272,26 +287,17 @@ func ValidateManifest(manifest ConnectorManifest) error {
 	if !semverPattern.MatchString(manifest.Version) {
 		return fmt.Errorf("manifest version %q must be semantic version", manifest.Version)
 	}
-	if err := validateAuth(manifest.Auth); err != nil {
-		return err
-	}
-	if err := validateSync(manifest.Sync); err != nil {
-		return err
-	}
-	for _, webhook := range manifest.Webhooks {
-		if err := validateWebhook(webhook); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
-func validateWebhook(webhook WebhookConfig) error {
-	if strings.TrimSpace(webhook.Path) == "" {
-		return errors.New("webhook path is required")
-	}
-	if len(webhook.EventTypes) == 0 {
-		return fmt.Errorf("webhook %q must declare event types", webhook.Path)
+func validateWebhooks(webhooks []WebhookConfig) error {
+	for _, webhook := range webhooks {
+		if strings.TrimSpace(webhook.Path) == "" {
+			return errors.New("webhook path is required")
+		}
+		if len(webhook.EventTypes) == 0 {
+			return fmt.Errorf("webhook %q must declare event types", webhook.Path)
+		}
 	}
 	return nil
 }
@@ -319,8 +325,8 @@ func validateAuth(auth AuthConfig) error {
 }
 
 func validateSync(syncConfig SyncConfig) error {
-	if len(syncConfig.SupportedModes) == 0 {
-		return errors.New("sync supported_modes is required")
+	if err := validateSupportedSyncModes(syncConfig.SupportedModes); err != nil {
+		return err
 	}
 	if syncConfig.DefaultMode == "" {
 		return errors.New("sync default_mode is required")
@@ -328,16 +334,39 @@ func validateSync(syncConfig SyncConfig) error {
 	if !slices.Contains(syncConfig.SupportedModes, syncConfig.DefaultMode) {
 		return fmt.Errorf("sync default_mode %q must be in supported_modes", syncConfig.DefaultMode)
 	}
-	if len(syncConfig.Resources) == 0 {
-		return errors.New("sync resources is required")
-	}
-	for _, resource := range syncConfig.Resources {
-		if strings.TrimSpace(resource.Name) == "" {
-			return errors.New("sync resource name is required")
-		}
+	if err := validateSyncResources(syncConfig.Resources); err != nil {
+		return err
 	}
 	if syncConfig.Schedule != nil && syncConfig.Schedule.IntervalMinutes <= 0 {
 		return errors.New("sync schedule interval_minutes must be positive")
 	}
 	return nil
+}
+
+func validateSupportedSyncModes(modes []SyncMode) error {
+	if len(modes) == 0 {
+		return errors.New("sync supported_modes is required")
+	}
+	for _, mode := range modes {
+		if !isSupportedSyncMode(mode) {
+			return fmt.Errorf("unsupported sync mode %q", mode)
+		}
+	}
+	return nil
+}
+
+func validateSyncResources(resources []ResourceConfig) error {
+	if len(resources) == 0 {
+		return errors.New("sync resources is required")
+	}
+	for _, resource := range resources {
+		if strings.TrimSpace(resource.Name) == "" {
+			return errors.New("sync resource name is required")
+		}
+	}
+	return nil
+}
+
+func isSupportedSyncMode(mode SyncMode) bool {
+	return mode == SyncModeFull || mode == SyncModeIncremental
 }
