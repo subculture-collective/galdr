@@ -47,10 +47,14 @@ const hooks = {
   },
 };
 
-// Copy node_modules and local OpenCode auth from the host into the worktree
-// before each sandbox starts. auth.json is git-ignored but needed so the
-// sandbox hook can install it into OpenCode's credential directory.
-const copyToWorktree = ["node_modules", "opencode/auth.json"];
+// Copy runtime-only files from the host into each worktree before the sandbox
+// starts. The wrapper may be ahead of stale Sandcastle issue branches, and the
+// auth file is git-ignored but needed by the sandbox hook when present.
+const copyToWorktree = [
+  "node_modules",
+  ".sandcastle/opencode-service-agent.mts",
+  "opencode/auth.json",
+];
 
 type OpenCodeServiceRole = "planner" | "implementer" | "reviewer" | "merger";
 
@@ -74,6 +78,7 @@ function opencodeService(opts: {
         ".sandcastle/opencode-service-agent.mts",
         "--role",
         opts.role,
+        "--jsonl",
       ];
 
       if (opts.title) {
@@ -85,7 +90,21 @@ function opencodeService(opts: {
         stdin: prompt,
       };
     },
-    parseStreamLine() {
+    parseStreamLine(line) {
+      try {
+        const event = JSON.parse(line) as Record<string, unknown>;
+
+        if (event.type === "result" && typeof event.result === "string") {
+          return [{ type: "result", result: event.result }];
+        }
+
+        if (event.type === "text" && typeof event.text === "string") {
+          return [{ type: "text", text: event.text }];
+        }
+      } catch {
+        // Ignore non-JSON output. The wrapper writes diagnostics to stderr.
+      }
+
       return [];
     },
   };

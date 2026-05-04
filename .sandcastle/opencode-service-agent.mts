@@ -12,6 +12,7 @@ type Args = {
   role?: Role;
   title?: string;
   healthcheckOnly: boolean;
+  jsonl: boolean;
   help: boolean;
 };
 
@@ -33,13 +34,14 @@ const modelEnvByRole: Record<Role, string> = {
   merger: "SANDCASTLE_OPENCODE_MERGER_MODEL",
 };
 
-const usage = `Usage: npx tsx .sandcastle/opencode-service-agent.mts --role <planner|implementer|reviewer|merger> [--title <title>] [--healthcheck-only]
+const usage = `Usage: npx tsx .sandcastle/opencode-service-agent.mts --role <planner|implementer|reviewer|merger> [--title <title>] [--healthcheck-only] [--jsonl]
 
 Reads prompt from stdin, starts/reuses a sandbox-local OpenCode service, and prints final assistant text to stdout.
+Use --jsonl to emit heartbeat/result events for Sandcastle stream parsing.
 `;
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { healthcheckOnly: false, help: false };
+  const args: Args = { healthcheckOnly: false, jsonl: false, help: false };
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -51,6 +53,11 @@ function parseArgs(argv: string[]): Args {
 
     if (arg === "--healthcheck-only") {
       args.healthcheckOnly = true;
+      continue;
+    }
+
+    if (arg === "--jsonl") {
+      args.jsonl = true;
       continue;
     }
 
@@ -379,6 +386,10 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function writeJsonlEvent(event: Record<string, unknown>): void {
+  process.stdout.write(`${JSON.stringify(event)}\n`);
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
@@ -401,7 +412,23 @@ async function main(): Promise<void> {
 
   const prompt = await readStdin();
   const sessionId = await createSession(args.role, args.title);
-  const payload = await sendPrompt(sessionId, args.role, prompt);
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+
+  if (args.jsonl) {
+    writeJsonlEvent({ type: "status", message: "opencode session created", sessionId });
+    heartbeat = setInterval(() => {
+      writeJsonlEvent({ type: "heartbeat", message: "waiting for opencode" });
+    }, 30_000);
+  }
+
+  let payload: unknown;
+
+  try {
+    payload = await sendPrompt(sessionId, args.role, prompt);
+  } finally {
+    if (heartbeat) clearInterval(heartbeat);
+  }
+
   const opencodeError = findOpenCodeError(payload);
 
   if (opencodeError) {
@@ -409,6 +436,11 @@ async function main(): Promise<void> {
   }
 
   const text = extractText(payload);
+
+  if (args.jsonl) {
+    writeJsonlEvent({ type: "result", result: text || JSON.stringify(payload) });
+    return;
+  }
 
   process.stdout.write(text ? `${text}\n` : `${JSON.stringify(payload)}\n`);
 }
