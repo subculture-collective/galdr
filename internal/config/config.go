@@ -238,14 +238,14 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("JWT_SECRET must be set to a secure value in production")
 		}
 
-		if strings.TrimSpace(c.BillingStripe.SecretKey) == "" {
-			return fmt.Errorf("STRIPE_BILLING_SECRET_KEY is required in production")
+		if err := requireProductionValue("STRIPE_BILLING_SECRET_KEY", c.BillingStripe.SecretKey); err != nil {
+			return err
 		}
-		if strings.TrimSpace(c.BillingStripe.PublishableKey) == "" {
-			return fmt.Errorf("STRIPE_BILLING_PUBLISHABLE_KEY is required in production")
+		if err := requireProductionValue("STRIPE_BILLING_PUBLISHABLE_KEY", c.BillingStripe.PublishableKey); err != nil {
+			return err
 		}
-		if strings.TrimSpace(c.BillingStripe.WebhookSecret) == "" {
-			return fmt.Errorf("STRIPE_BILLING_WEBHOOK_SECRET is required in production")
+		if err := requireProductionValue("STRIPE_BILLING_WEBHOOK_SECRET", c.BillingStripe.WebhookSecret); err != nil {
+			return err
 		}
 
 		requiredPriceIDs := map[string]string{
@@ -255,14 +255,21 @@ func (c *Config) Validate() error {
 			"STRIPE_BILLING_PRICE_SCALE_ANNUAL":   c.BillingStripe.PriceScaleAnnual,
 		}
 		for name, value := range requiredPriceIDs {
-			if strings.TrimSpace(value) == "" {
-				return fmt.Errorf("%s is required in production", name)
+			if err := requireProductionValue(name, value); err != nil {
+				return err
 			}
 		}
 
-		if strings.TrimSpace(c.OpenAI.APIKey) == "" {
-			return fmt.Errorf("OPENAI_API_KEY is required in production")
+		if err := requireProductionValue("OPENAI_API_KEY", c.OpenAI.APIKey); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+func requireProductionValue(name, value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("%s is required in production", name)
 	}
 	return nil
 }
