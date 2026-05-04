@@ -61,6 +61,30 @@ func TestLLMServiceEnforcesDailyTokenBudget(t *testing.T) {
 	}
 }
 
+func TestLLMServiceDoesNotSpendRequestLimitWhenTokenBudgetFails(t *testing.T) {
+	orgID := uuid.New()
+	provider := &fakeLLMProvider{countTokensFn: func(text string) int {
+		if text == "too much" {
+			return 90
+		}
+		return 1
+	}}
+	svc := NewLLMService(provider, nil, LLMServiceConfig{
+		RequestsPerMinute: 1,
+		MaxTokensPerDay:   100,
+	})
+
+	_, err := svc.Complete(context.Background(), LLMCompletionRequest{OrgID: orgID, Prompt: "too much", MaxTokens: 20})
+	if !errors.Is(err, ErrLLMTokenBudgetExceeded) {
+		t.Fatalf("expected token budget error, got %v", err)
+	}
+
+	_, err = svc.Complete(context.Background(), LLMCompletionRequest{OrgID: orgID, Prompt: "small", MaxTokens: 1})
+	if err != nil {
+		t.Fatalf("expected small request to keep request limit after budget failure, got %v", err)
+	}
+}
+
 func TestLLMServiceRetriesProviderRateLimits(t *testing.T) {
 	orgID := uuid.New()
 	provider := &fakeLLMProvider{
