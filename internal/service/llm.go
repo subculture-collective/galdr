@@ -157,12 +157,13 @@ func (s *LLMService) Complete(ctx context.Context, req LLMCompletionRequest) (*L
 		maxTokens = s.cfg.DefaultMaxTokens
 	}
 
-	if !s.allowRequest(req.OrgID) {
-		return nil, ErrLLMRateLimited
-	}
 	estimatedTokens := s.providers[0].CountTokens(prompt) + maxTokens
 	if err := s.reserveTokens(req.OrgID, estimatedTokens); err != nil {
 		return nil, err
+	}
+	if !s.allowRequest(req.OrgID) {
+		s.releaseTokens(req.OrgID, estimatedTokens)
+		return nil, ErrLLMRateLimited
 	}
 
 	start := time.Now()
