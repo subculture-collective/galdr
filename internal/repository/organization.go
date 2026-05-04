@@ -13,13 +13,16 @@ import (
 
 // Organization represents an organizations row.
 type Organization struct {
-	ID               uuid.UUID
-	Name             string
-	Slug             string
-	Plan             string
-	StripeCustomerID string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID                  uuid.UUID
+	Name                string
+	Slug                string
+	Plan                string
+	StripeCustomerID    string
+	BenchmarkingEnabled bool
+	Industry            string
+	CompanySize         int
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // OrganizationRepository handles organization database operations.
@@ -71,6 +74,7 @@ func (r *OrganizationRepository) AddMember(ctx context.Context, tx pgx.Tx, userI
 func (r *OrganizationRepository) GetByID(ctx context.Context, id uuid.UUID) (*Organization, error) {
 	query := `
 		SELECT id, name, slug, plan, COALESCE(stripe_customer_id, ''),
+			   benchmarking_enabled, industry, company_size,
 			   created_at, updated_at
 		FROM organizations
 		WHERE id = $1 AND deleted_at IS NULL`
@@ -78,6 +82,7 @@ func (r *OrganizationRepository) GetByID(ctx context.Context, id uuid.UUID) (*Or
 	o := &Organization{}
 	err := r.pool.QueryRow(ctx, query, id).Scan(
 		&o.ID, &o.Name, &o.Slug, &o.Plan, &o.StripeCustomerID,
+		&o.BenchmarkingEnabled, &o.Industry, &o.CompanySize,
 		&o.CreatedAt, &o.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -111,6 +116,7 @@ type OrganizationWithStats struct {
 func (r *OrganizationRepository) GetWithStats(ctx context.Context, orgID uuid.UUID) (*OrganizationWithStats, error) {
 	query := `
 		SELECT o.id, o.name, o.slug, o.plan, COALESCE(o.stripe_customer_id, ''),
+			o.benchmarking_enabled, o.industry, o.company_size,
 			o.created_at, o.updated_at,
 			(SELECT COUNT(*) FROM user_organizations WHERE org_id = o.id) AS member_count,
 			(SELECT COUNT(*) FROM customers WHERE org_id = o.id AND deleted_at IS NULL) AS customer_count
@@ -120,6 +126,7 @@ func (r *OrganizationRepository) GetWithStats(ctx context.Context, orgID uuid.UU
 	ows := &OrganizationWithStats{}
 	err := r.pool.QueryRow(ctx, query, orgID).Scan(
 		&ows.ID, &ows.Name, &ows.Slug, &ows.Plan, &ows.StripeCustomerID,
+		&ows.BenchmarkingEnabled, &ows.Industry, &ows.CompanySize,
 		&ows.CreatedAt, &ows.UpdatedAt,
 		&ows.MemberCount, &ows.CustomerCount,
 	)
@@ -140,6 +147,49 @@ func (r *OrganizationRepository) Update(ctx context.Context, orgID uuid.UUID, na
 		return fmt.Errorf("update org: %w", err)
 	}
 	return nil
+}
+
+// UpdateBenchmarkSettings updates org profile fields used for benchmarking.
+func (r *OrganizationRepository) UpdateBenchmarkSettings(ctx context.Context, orgID uuid.UUID, benchmarkingEnabled bool, industry string, companySize int) error {
+	query := `
+		UPDATE organizations
+		SET benchmarking_enabled = $2, industry = $3, company_size = $4
+		WHERE id = $1 AND deleted_at IS NULL`
+	_, err := r.pool.Exec(ctx, query, orgID, benchmarkingEnabled, industry, companySize)
+	if err != nil {
+		return fmt.Errorf("update org benchmark settings: %w", err)
+	}
+	return nil
+}
+
+// ListBenchmarkingEnabled returns orgs that opted into benchmark contribution.
+func (r *OrganizationRepository) ListBenchmarkingEnabled(ctx context.Context) ([]Organization, error) {
+	query := `
+		SELECT id, name, slug, plan, COALESCE(stripe_customer_id, ''),
+			benchmarking_enabled, industry, company_size, created_at, updated_at
+		FROM organizations
+		WHERE benchmarking_enabled = true AND deleted_at IS NULL
+		ORDER BY id`
+
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list benchmark-enabled orgs: %w", err)
+	}
+	defer rows.Close()
+
+	var orgs []Organization
+	for rows.Next() {
+		var o Organization
+		if err := rows.Scan(
+			&o.ID, &o.Name, &o.Slug, &o.Plan, &o.StripeCustomerID,
+			&o.BenchmarkingEnabled, &o.Industry, &o.CompanySize,
+			&o.CreatedAt, &o.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan benchmark-enabled org: %w", err)
+		}
+		orgs = append(orgs, o)
+	}
+	return orgs, rows.Err()
 }
 
 // UpdatePlan updates an org's billing plan.

@@ -18,10 +18,13 @@ type CreateOrgRequest struct {
 
 // OrgResponse is the response for organization operations.
 type OrgResponse struct {
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
-	Slug string    `json:"slug"`
-	Plan string    `json:"plan"`
+	ID                  uuid.UUID `json:"id"`
+	Name                string    `json:"name"`
+	Slug                string    `json:"slug"`
+	Plan                string    `json:"plan"`
+	BenchmarkingEnabled bool      `json:"benchmarking_enabled"`
+	Industry            string    `json:"industry"`
+	CompanySize         int       `json:"company_size"`
 }
 
 // OrganizationService handles organization logic.
@@ -37,17 +40,23 @@ func NewOrganizationService(pool *pgxpool.Pool, orgs *repository.OrganizationRep
 
 // UpdateOrgRequest holds input for updating an organization.
 type UpdateOrgRequest struct {
-	Name string `json:"name"`
+	Name                *string `json:"name"`
+	BenchmarkingEnabled *bool   `json:"benchmarking_enabled"`
+	Industry            *string `json:"industry"`
+	CompanySize         *int    `json:"company_size"`
 }
 
 // OrgDetailResponse is the response for organization detail.
 type OrgDetailResponse struct {
-	ID            uuid.UUID `json:"id"`
-	Name          string    `json:"name"`
-	Slug          string    `json:"slug"`
-	Plan          string    `json:"plan"`
-	MemberCount   int       `json:"member_count"`
-	CustomerCount int       `json:"customer_count"`
+	ID                  uuid.UUID `json:"id"`
+	Name                string    `json:"name"`
+	Slug                string    `json:"slug"`
+	Plan                string    `json:"plan"`
+	BenchmarkingEnabled bool      `json:"benchmarking_enabled"`
+	Industry            string    `json:"industry"`
+	CompanySize         int       `json:"company_size"`
+	MemberCount         int       `json:"member_count"`
+	CustomerCount       int       `json:"customer_count"`
 }
 
 // GetCurrent returns the current org with stats.
@@ -61,20 +70,34 @@ func (s *OrganizationService) GetCurrent(ctx context.Context, orgID uuid.UUID) (
 	}
 
 	return &OrgDetailResponse{
-		ID:            org.ID,
-		Name:          org.Name,
-		Slug:          org.Slug,
-		Plan:          org.Plan,
-		MemberCount:   org.MemberCount,
-		CustomerCount: org.CustomerCount,
+		ID:                  org.ID,
+		Name:                org.Name,
+		Slug:                org.Slug,
+		Plan:                org.Plan,
+		BenchmarkingEnabled: org.BenchmarkingEnabled,
+		Industry:            org.Industry,
+		CompanySize:         org.CompanySize,
+		MemberCount:         org.MemberCount,
+		CustomerCount:       org.CustomerCount,
 	}, nil
 }
 
 // UpdateCurrent updates the current org settings.
 func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID, req UpdateOrgRequest) (*OrgDetailResponse, error) {
-	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		return nil, &ValidationError{Field: "name", Message: "organization name is required"}
+	org, err := s.orgs.GetByID(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("get org: %w", err)
+	}
+	if org == nil {
+		return nil, &NotFoundError{Resource: "organization", Message: "organization not found"}
+	}
+
+	name := org.Name
+	if req.Name != nil {
+		name = strings.TrimSpace(*req.Name)
+		if name == "" {
+			return nil, &ValidationError{Field: "name", Message: "organization name is required"}
+		}
 	}
 
 	slug := generateSlug(name)
@@ -88,10 +111,6 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 			break
 		}
 		// Check if it's the same org's slug
-		org, err := s.orgs.GetByID(ctx, orgID)
-		if err != nil {
-			return nil, fmt.Errorf("get org: %w", err)
-		}
 		if org.Slug == slug {
 			break
 		}
@@ -100,6 +119,28 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 
 	if err := s.orgs.Update(ctx, orgID, name, slug); err != nil {
 		return nil, fmt.Errorf("update org: %w", err)
+	}
+
+	benchmarkingEnabled := org.BenchmarkingEnabled
+	if req.BenchmarkingEnabled != nil {
+		benchmarkingEnabled = *req.BenchmarkingEnabled
+	}
+	industry := org.Industry
+	if req.Industry != nil {
+		industry = strings.ToLower(strings.TrimSpace(*req.Industry))
+		if industry == "" {
+			industry = "unknown"
+		}
+	}
+	companySize := org.CompanySize
+	if req.CompanySize != nil {
+		if *req.CompanySize < 0 {
+			return nil, &ValidationError{Field: "company_size", Message: "company size must be greater than or equal to 0"}
+		}
+		companySize = *req.CompanySize
+	}
+	if err := s.orgs.UpdateBenchmarkSettings(ctx, orgID, benchmarkingEnabled, industry, companySize); err != nil {
+		return nil, fmt.Errorf("update org benchmark settings: %w", err)
 	}
 
 	return s.GetCurrent(ctx, orgID)
@@ -149,9 +190,12 @@ func (s *OrganizationService) Create(ctx context.Context, userID uuid.UUID, req 
 	}
 
 	return &OrgResponse{
-		ID:   org.ID,
-		Name: org.Name,
-		Slug: org.Slug,
-		Plan: "free",
+		ID:                  org.ID,
+		Name:                org.Name,
+		Slug:                org.Slug,
+		Plan:                "free",
+		BenchmarkingEnabled: false,
+		Industry:            "unknown",
+		CompanySize:         0,
 	}, nil
 }

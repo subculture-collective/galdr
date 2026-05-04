@@ -304,6 +304,8 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			// Health scoring engine
 			scoringConfigRepo := repository.NewScoringConfigRepository(pool.P)
 			healthScoreRepo := repository.NewHealthScoreRepository(pool.P)
+			benchmarkRepo := repository.NewBenchmarkRepository(pool.P)
+			benchmarkMetricsRepo := repository.NewBenchmarkMetricsRepository(customerRepo, healthScoreRepo)
 
 			paymentRecencyFactor := scoring.NewPaymentRecencyFactor(paymentRecencySvc)
 			mrrTrendFactor := scoring.NewMRRTrendFactor(customerRepo, eventRepo)
@@ -413,6 +415,12 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 
 			if cfg.Alert.EvalIntervalMin > 0 {
 				go alertScheduler.Start(bgCtx)
+			}
+
+			if cfg.Benchmark.ContributionIntervalHr > 0 {
+				benchmarkPipeline := service.NewBenchmarkPipeline(orgRepo, benchmarkMetricsRepo, benchmarkRepo, service.NewBenchmarkAnonymizer())
+				benchmarkScheduler := service.NewBenchmarkScheduler(benchmarkPipeline, time.Duration(cfg.Benchmark.ContributionIntervalHr)*time.Hour)
+				go benchmarkScheduler.Start(bgCtx)
 			}
 
 			r.Post("/auth/register", authHandler.Register)

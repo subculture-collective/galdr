@@ -22,6 +22,12 @@ type Config struct {
 	Intercom      IntercomConfig
 	Scoring       ScoringConfig
 	Alert         AlertConfig
+	Benchmark     BenchmarkConfig
+}
+
+// BenchmarkConfig holds anonymized benchmarking job settings.
+type BenchmarkConfig struct {
+	ContributionIntervalHr int
 }
 
 // AlertConfig holds alert engine settings.
@@ -207,6 +213,9 @@ func Load() *Config {
 		Alert: AlertConfig{
 			EvalIntervalMin:   getInt("ALERT_EVAL_INTERVAL_MIN", 15),
 			DefaultCooldownHr: getInt("ALERT_DEFAULT_COOLDOWN_HR", 24),
+		},
+		Benchmark: BenchmarkConfig{
+			ContributionIntervalHr: getInt("BENCHMARK_CONTRIBUTION_INTERVAL_HR", 24),
 		},
 	}
 }
