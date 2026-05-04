@@ -139,8 +139,8 @@ func TestOrganizationUpdateCurrent_Success(t *testing.T) {
 			if oID != orgID {
 				t.Errorf("expected orgID %s, got %s", orgID, oID)
 			}
-			if req.Name != "New Name" {
-				t.Errorf("expected name 'New Name', got %s", req.Name)
+			if req.Name == nil || *req.Name != "New Name" {
+				t.Errorf("expected name 'New Name', got %v", req.Name)
 			}
 			return &service.OrgDetailResponse{
 				ID:   orgID,

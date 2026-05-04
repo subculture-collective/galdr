@@ -30,6 +30,23 @@ type BenchmarkOrgMetrics struct {
 	PIISamples     []BenchmarkPIISample
 }
 
+const unknownBenchmarkIndustry = "unknown"
+
+var benchmarkIndustryAliases = map[string]string{
+	"ai":                      "ai",
+	"artificial intelligence": "ai",
+	"consumer":                "consumer",
+	"e-commerce":              "e-commerce",
+	"ecommerce":               "e-commerce",
+	"education":               "education",
+	"fintech":                 "fintech",
+	"healthcare":              "healthcare",
+	"marketplace":             "marketplace",
+	"media":                   "media",
+	"saas":                    "saas",
+	"software":                "software",
+}
+
 type BenchmarkAnonymizer struct{}
 
 func NewBenchmarkAnonymizer() *BenchmarkAnonymizer {
@@ -72,27 +89,13 @@ func averageMRR(totalMRR int64, customerCount int) int64 {
 func NormalizeBenchmarkIndustry(industry string) string {
 	normalized := strings.ToLower(strings.TrimSpace(industry))
 	if normalized == "" || strings.Contains(normalized, "@") || strings.Contains(normalized, ".") {
-		return "unknown"
+		return unknownBenchmarkIndustry
 	}
 
-	allowed := map[string]string{
-		"ai":                      "ai",
-		"artificial intelligence": "ai",
-		"consumer":                "consumer",
-		"e-commerce":              "e-commerce",
-		"ecommerce":               "e-commerce",
-		"education":               "education",
-		"fintech":                 "fintech",
-		"healthcare":              "healthcare",
-		"marketplace":             "marketplace",
-		"media":                   "media",
-		"saas":                    "saas",
-		"software":                "software",
-	}
-	if canonical, ok := allowed[normalized]; ok {
+	if canonical, ok := benchmarkIndustryAliases[normalized]; ok {
 		return canonical
 	}
-	return "unknown"
+	return unknownBenchmarkIndustry
 }
 
 func BucketCompanySize(size int) string {

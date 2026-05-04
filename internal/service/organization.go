@@ -110,15 +110,10 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 		if !exists {
 			break
 		}
-		// Check if it's the same org's slug
 		if org.Slug == slug {
 			break
 		}
 		slug = fmt.Sprintf("%s-%d", baseSlug, i)
-	}
-
-	if err := s.orgs.Update(ctx, orgID, name, slug); err != nil {
-		return nil, fmt.Errorf("update org: %w", err)
 	}
 
 	benchmarkingEnabled := org.BenchmarkingEnabled
@@ -135,6 +130,10 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 			return nil, &ValidationError{Field: "company_size", Message: "company size must be greater than or equal to 0"}
 		}
 		companySize = *req.CompanySize
+	}
+
+	if err := s.orgs.Update(ctx, orgID, name, slug); err != nil {
+		return nil, fmt.Errorf("update org: %w", err)
 	}
 	if err := s.orgs.UpdateBenchmarkSettings(ctx, orgID, benchmarkingEnabled, industry, companySize); err != nil {
 		return nil, fmt.Errorf("update org benchmark settings: %w", err)
