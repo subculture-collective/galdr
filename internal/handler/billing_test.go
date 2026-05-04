@@ -43,6 +43,14 @@ func (m *mockBillingSubscriptionService) GetSubscriptionSummary(ctx context.Cont
 	return m.getFn(ctx, orgID)
 }
 
+type mockBillingPlanChangeService struct {
+	changeFn func(ctx context.Context, orgID, userID uuid.UUID, req billing.ChangePlanRequest) (*billing.ChangePlanResponse, error)
+}
+
+func (m *mockBillingPlanChangeService) ChangePlan(ctx context.Context, orgID, userID uuid.UUID, req billing.ChangePlanRequest) (*billing.ChangePlanResponse, error) {
+	return m.changeFn(ctx, orgID, userID, req)
+}
+
 type mockBillingWebhookService struct {
 	handleFn func(ctx context.Context, payload []byte, sigHeader string) error
 }
@@ -52,7 +60,7 @@ func (m *mockBillingWebhookService) HandleEvent(ctx context.Context, payload []b
 }
 
 func TestBillingCreateCheckout_Unauthorized(t *testing.T) {
-	h := NewBillingHandler(&mockBillingCheckoutService{}, &mockBillingPortalService{}, &mockBillingSubscriptionService{})
+	h := NewBillingHandler(&mockBillingCheckoutService{}, &mockBillingPortalService{}, &mockBillingSubscriptionService{}, &mockBillingPlanChangeService{})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/billing/checkout", strings.NewReader(`{"tier":"growth"}`))
 	rr := httptest.NewRecorder()
 
@@ -75,6 +83,7 @@ func TestBillingCreateCheckout_Success(t *testing.T) {
 		}},
 		&mockBillingPortalService{},
 		&mockBillingSubscriptionService{},
+		&mockBillingPlanChangeService{},
 	)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/billing/checkout", strings.NewReader(`{"tier":"growth","annual":true}`))
@@ -96,6 +105,7 @@ func TestBillingGetSubscription_Success(t *testing.T) {
 		&mockBillingSubscriptionService{getFn: func(context.Context, uuid.UUID) (*billing.SubscriptionSummary, error) {
 			return &billing.SubscriptionSummary{Tier: "free", Status: "free"}, nil
 		}},
+		&mockBillingPlanChangeService{},
 	)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/billing/subscription", nil)
@@ -115,6 +125,7 @@ func TestBillingCancelSubscription_Success(t *testing.T) {
 		&mockBillingCheckoutService{},
 		&mockBillingPortalService{cancelFn: func(context.Context, uuid.UUID) error { return nil }},
 		&mockBillingSubscriptionService{},
+		&mockBillingPlanChangeService{},
 	)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/billing/cancel", nil)
@@ -122,6 +133,35 @@ func TestBillingCancelSubscription_Success(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	h.CancelSubscription(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestBillingChangePlan_Success(t *testing.T) {
+	orgID := uuid.New()
+	userID := uuid.New()
+	h := NewBillingHandler(
+		&mockBillingCheckoutService{},
+		&mockBillingPortalService{},
+		&mockBillingSubscriptionService{},
+		&mockBillingPlanChangeService{changeFn: func(ctx context.Context, gotOrgID, gotUserID uuid.UUID, req billing.ChangePlanRequest) (*billing.ChangePlanResponse, error) {
+			if gotOrgID != orgID || gotUserID != userID {
+				t.Fatalf("unexpected org/user ids passed")
+			}
+			if req.Tier != "scale" || req.Cycle != "annual" {
+				t.Fatalf("unexpected request: %+v", req)
+			}
+			return &billing.ChangePlanResponse{Action: "upgrade", Status: "checkout_required", CheckoutURL: "https://checkout.stripe.test", ProrationCents: 1250}, nil
+		}},
+	)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/billing/change-plan", strings.NewReader(`{"tier":"scale","cycle":"annual"}`))
+	req = req.WithContext(auth.WithUserID(auth.WithOrgID(req.Context(), orgID), userID))
+	rr := httptest.NewRecorder()
+
+	h.ChangePlan(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)

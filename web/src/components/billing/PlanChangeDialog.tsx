@@ -1,0 +1,171 @@
+import { useState } from "react";
+import { Loader2 } from "lucide-react";
+
+import { useToast } from "@/contexts/ToastContext";
+import { billingApi, type PlanChangeResponse } from "@/lib/api";
+import type { BillingPlanDefinition, BillingCycle } from "@/lib/billingPlans";
+
+interface PlanChangeDialogProps {
+  plan: BillingPlanDefinition;
+  cycle: BillingCycle;
+  currentTier: string;
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+}
+
+function money(cents: number): string {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+  }).format(cents / 100);
+}
+
+function limitLabel(limit: number): string {
+  return limit < 0 ? "unlimited" : String(limit);
+}
+
+function effectiveLabel(response: PlanChangeResponse | null): string {
+  if (!response) return "Immediately after Stripe confirms checkout";
+  if (response.status === "active") return "Immediately after confirmation";
+  if (!response.effective_at_period_end) return "Immediately after checkout";
+  if (!response.effective_at) return "At current period end";
+  return new Date(response.effective_at).toLocaleDateString();
+}
+
+export default function PlanChangeDialog({
+  plan,
+  cycle,
+  currentTier,
+  onClose,
+  onChanged,
+}: PlanChangeDialogProps) {
+  const [submitting, setSubmitting] = useState(false);
+  const [response, setResponse] = useState<PlanChangeResponse | null>(null);
+  const toast = useToast();
+
+  const price = cycle === "monthly" ? plan.monthlyPrice : plan.annualPrice;
+  const isDowngrade = currentTier === "scale" && plan.tier === "growth";
+
+  async function confirmChange() {
+    setSubmitting(true);
+    try {
+      const { data } = await billingApi.changePlan({ tier: plan.tier, cycle });
+      setResponse(data);
+
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+        return;
+      }
+
+      toast.success(
+        data.status === "active"
+          ? "Plan upgraded immediately."
+          : "Plan downgrade scheduled for period end.",
+      );
+      await onChanged();
+    } catch {
+      toast.error("Unable to change plan. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-8"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="plan-change-title"
+    >
+      <div className="w-full max-w-lg rounded-2xl border border-[var(--galdr-border)] bg-[var(--galdr-surface)] p-5 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--galdr-fg-muted)]">
+              Confirm plan change
+            </p>
+            <h3
+              id="plan-change-title"
+              className="mt-1 text-xl font-semibold text-[var(--galdr-fg)]"
+            >
+              Switch to {plan.name}
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-md px-2 py-1 text-sm text-[var(--galdr-fg-muted)] hover:text-[var(--galdr-fg)]"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-3 text-sm text-[var(--galdr-fg-muted)]">
+          <div className="rounded-xl border border-[var(--galdr-border)] p-4">
+            <p className="font-medium text-[var(--galdr-fg)]">
+              ${price}/{cycle === "monthly" ? "mo" : "yr"}
+            </p>
+            <p className="mt-1">{plan.description}</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl bg-[color-mix(in_srgb,var(--galdr-surface-soft)_85%,black_15%)] p-3">
+              <p className="text-xs uppercase tracking-[0.16em]">Billing impact</p>
+              <p className="mt-2 text-[var(--galdr-fg)]">
+                {isDowngrade
+                  ? "No immediate credit. New lower limits apply at renewal."
+                  : `Estimated proration: ${response ? money(response.proration_cents) : "calculated at checkout"}`}
+              </p>
+            </div>
+            <div className="rounded-xl bg-[color-mix(in_srgb,var(--galdr-surface-soft)_85%,black_15%)] p-3">
+              <p className="text-xs uppercase tracking-[0.16em]">Effective</p>
+              <p className="mt-2 text-[var(--galdr-fg)]">
+                {effectiveLabel(response)}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[var(--galdr-border)] p-4">
+            <p className="font-medium text-[var(--galdr-fg)]">Limit impact</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <p>Customers: {plan.limits.customers}</p>
+              <p>Integrations: {plan.limits.integrations}</p>
+              {response && (
+                <>
+                  <p>
+                    Customer limit: {limitLabel(response.limits.current.customer_limit)} -&gt;{" "}
+                    {limitLabel(response.limits.target.customer_limit)}
+                  </p>
+                  <p>
+                    Integration limit: {limitLabel(response.limits.current.integration_limit)} -&gt;{" "}
+                    {limitLabel(response.limits.target.integration_limit)}
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+
+          <p className="text-xs">
+            Downgrades never delete data; after renewal, PulseScore blocks new
+            customers or integrations beyond the new limit.
+          </p>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="galdr-button-secondary px-4 py-2 text-sm font-medium"
+          >
+            Keep current plan
+          </button>
+          <button
+            onClick={confirmChange}
+            disabled={submitting}
+            className="galdr-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold disabled:opacity-60"
+          >
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            Confirm change
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -269,6 +269,13 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				orgSubRepo,
 			)
 
+			billingPlanChangeSvc := billingsvc.NewChangePlanService(
+				cfg.BillingStripe.SecretKey,
+				billingCheckoutSvc,
+				orgSubRepo,
+				planCatalog,
+			)
+
 			billingWebhookSvc := billingsvc.NewWebhookService(
 				cfg.BillingStripe.WebhookSecret,
 				pool.P,
@@ -460,12 +467,14 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 					billingCheckoutSvc,
 					billingPortalSvc,
 					billingSubscriptionSvc,
+					billingPlanChangeSvc,
 				)
 				r.Route("/billing", func(r chi.Router) {
 					r.Get("/subscription", billingHandler.GetSubscription)
 					r.Group(func(r chi.Router) {
 						r.Use(middleware.RequireRole("admin"))
 						r.Post("/checkout", billingHandler.CreateCheckout)
+						r.Post("/change-plan", billingHandler.ChangePlan)
 						r.Post("/portal-session", billingHandler.CreatePortalSession)
 						r.Post("/cancel", billingHandler.CancelSubscription)
 					})
