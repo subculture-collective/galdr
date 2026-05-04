@@ -8,6 +8,7 @@
     "seo:validate": "node scripts/validate-seo-pages.mjs",
     "seo:artifacts": "node scripts/generate-seo-artifacts.mjs",
     "seo:prerender": "node scripts/prerender-seo-pages.mjs",
+    "typecheck": "tsc -b --noEmit",
     "build": "npm run seo:validate && tsc -b && vite build && npm run seo:artifacts && npm run seo:prerender",
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
