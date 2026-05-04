@@ -21,6 +21,15 @@ type planChangeSubscriptionReader interface {
 	UpsertByOrg(ctx context.Context, sub *repository.OrgSubscription) error
 }
 
+const (
+	planChangeActionUpgrade   = "upgrade"
+	planChangeActionDowngrade = "downgrade"
+
+	planChangeStatusCheckoutRequired = "checkout_required"
+	planChangeStatusScheduled        = "scheduled"
+	planChangeStatusActive           = "active"
+)
+
 // ChangePlanRequest is the requested target plan and billing cycle.
 type ChangePlanRequest struct {
 	Tier   string `json:"tier"`
@@ -94,8 +103,8 @@ func (s *ChangePlanService) ChangePlan(ctx context.Context, orgID, userID uuid.U
 	}
 
 	switch resp.Action {
-	case "upgrade":
-		if sub == nil || strings.TrimSpace(sub.StripeSubscriptionID) == "" || planRank(planmodel.NormalizeTier(sub.PlanTier)) == planRank(planmodel.TierFree) {
+	case planChangeActionUpgrade:
+		if !hasPaidStripeSubscription(sub) {
 			checkoutResp, err := s.checkout.CreateCheckoutSession(ctx, orgID, userID, CreateCheckoutSessionRequest{Tier: string(targetTier), Cycle: string(targetCycle)})
 			if err != nil {
 				return nil, err
@@ -105,9 +114,9 @@ func (s *ChangePlanService) ChangePlan(ctx context.Context, orgID, userID uuid.U
 			if err := s.applyUpgradeNow(ctx, sub, targetTier, targetCycle); err != nil {
 				return nil, err
 			}
-			resp.Status = "active"
+			resp.Status = planChangeStatusActive
 		}
-	case "downgrade":
+	case planChangeActionDowngrade:
 		if err := s.scheduleDowngrade(ctx, sub, targetTier, targetCycle); err != nil {
 			return nil, err
 		}
@@ -182,14 +191,17 @@ func buildPlanChangeImpact(catalog *planmodel.Catalog, sub *repository.OrgSubscr
 		return nil, &core.ValidationError{Field: "tier", Message: "target plan is invalid"}
 	}
 
-	action := "upgrade"
-	status := "checkout_required"
+	currentRank := planRank(currentTier)
+	targetRank := planRank(targetTier)
+
+	action := planChangeActionUpgrade
+	status := planChangeStatusCheckoutRequired
 	effectiveAtPeriodEnd := false
-	if planRank(targetTier) < planRank(currentTier) {
-		action = "downgrade"
-		status = "scheduled"
+	if targetRank < currentRank {
+		action = planChangeActionDowngrade
+		status = planChangeStatusScheduled
 		effectiveAtPeriodEnd = true
-	} else if planRank(targetTier) == planRank(currentTier) && targetCycle == currentCycle {
+	} else if targetRank == currentRank && targetCycle == currentCycle {
 		return nil, &core.ValidationError{Field: "tier", Message: "target plan matches current plan"}
 	}
 
@@ -409,6 +421,13 @@ func normalizeBillingCycle(cycle string, annual bool) planmodel.BillingCycle {
 	return planmodel.BillingCycleMonthly
 }
 
+func hasPaidStripeSubscription(sub *repository.OrgSubscription) bool {
+	if sub == nil || strings.TrimSpace(sub.StripeSubscriptionID) == "" {
+		return false
+	}
+	return planRank(planmodel.NormalizeTier(sub.PlanTier)) > planRank(planmodel.TierFree)
+}
+
 func planRank(tier planmodel.Tier) int {
 	switch tier {
 	case planmodel.TierScale:
@@ -421,7 +440,7 @@ func planRank(tier planmodel.Tier) int {
 }
 
 func estimateProrationCents(current planmodel.Plan, currentCycle planmodel.BillingCycle, target planmodel.Plan, targetCycle planmodel.BillingCycle, action string) int {
-	if action != "upgrade" {
+	if action != planChangeActionUpgrade {
 		return 0
 	}
 	delta := planPriceCents(target, targetCycle) - planPriceCents(current, currentCycle)

@@ -32,6 +32,11 @@ function effectiveLabel(response: PlanChangeResponse | null): string {
   return new Date(response.effective_at).toLocaleDateString();
 }
 
+function successMessage(status: PlanChangeResponse["status"]): string {
+  if (status === "active") return "Plan upgraded immediately.";
+  return "Plan downgrade scheduled for period end.";
+}
+
 export default function PlanChangeDialog({
   plan,
   cycle,
@@ -45,6 +50,9 @@ export default function PlanChangeDialog({
 
   const price = cycle === "monthly" ? plan.monthlyPrice : plan.annualPrice;
   const isDowngrade = currentTier === "scale" && plan.tier === "growth";
+  const billingImpact = isDowngrade
+    ? "No immediate credit. New lower limits apply at renewal."
+    : `Estimated proration: ${response ? money(response.proration_cents) : "calculated at checkout"}`;
 
   async function confirmChange() {
     setSubmitting(true);
@@ -57,11 +65,7 @@ export default function PlanChangeDialog({
         return;
       }
 
-      toast.success(
-        data.status === "active"
-          ? "Plan upgraded immediately."
-          : "Plan downgrade scheduled for period end.",
-      );
+      toast.success(successMessage(data.status));
       await onChanged();
     } catch {
       toast.error("Unable to change plan. Please try again.");
@@ -108,12 +112,10 @@ export default function PlanChangeDialog({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl bg-[color-mix(in_srgb,var(--galdr-surface-soft)_85%,black_15%)] p-3">
-              <p className="text-xs uppercase tracking-[0.16em]">Billing impact</p>
-              <p className="mt-2 text-[var(--galdr-fg)]">
-                {isDowngrade
-                  ? "No immediate credit. New lower limits apply at renewal."
-                  : `Estimated proration: ${response ? money(response.proration_cents) : "calculated at checkout"}`}
+              <p className="text-xs uppercase tracking-[0.16em]">
+                Billing impact
               </p>
+              <p className="mt-2 text-[var(--galdr-fg)]">{billingImpact}</p>
             </div>
             <div className="rounded-xl bg-[color-mix(in_srgb,var(--galdr-surface-soft)_85%,black_15%)] p-3">
               <p className="text-xs uppercase tracking-[0.16em]">Effective</p>
@@ -131,12 +133,14 @@ export default function PlanChangeDialog({
               {response && (
                 <>
                   <p>
-                    Customer limit: {limitLabel(response.limits.current.customer_limit)} -&gt;{" "}
+                    Customer limit:{" "}
+                    {limitLabel(response.limits.current.customer_limit)} -&gt;{" "}
                     {limitLabel(response.limits.target.customer_limit)}
                   </p>
                   <p>
-                    Integration limit: {limitLabel(response.limits.current.integration_limit)} -&gt;{" "}
-                    {limitLabel(response.limits.target.integration_limit)}
+                    Integration limit:{" "}
+                    {limitLabel(response.limits.current.integration_limit)}{" "}
+                    -&gt; {limitLabel(response.limits.target.integration_limit)}
                   </p>
                 </>
               )}
