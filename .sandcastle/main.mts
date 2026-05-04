@@ -47,10 +47,10 @@ const hooks = {
   },
 };
 
-// Copy node_modules from the host into the worktree before each sandbox
-// starts. Avoids a full npm install from scratch; the hook above handles
-// platform-specific binaries and any packages added since the last copy.
-const copyToWorktree = ["node_modules"];
+// Copy node_modules and local OpenCode auth from the host into the worktree
+// before each sandbox starts. auth.json is git-ignored but needed so the
+// sandbox hook can install it into OpenCode's credential directory.
+const copyToWorktree = ["node_modules", "opencode/auth.json"];
 
 type OpenCodeServiceRole = "planner" | "implementer" | "reviewer" | "merger";
 
