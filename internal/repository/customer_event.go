@@ -67,18 +67,7 @@ func (r *CustomerEventRepository) ListByCustomerAndType(ctx context.Context, cus
 	}
 	defer rows.Close()
 
-	var events []*CustomerEvent
-	for rows.Next() {
-		e := &CustomerEvent{}
-		if err := rows.Scan(
-			&e.ID, &e.OrgID, &e.CustomerID, &e.EventType, &e.Source, &e.ExternalEventID,
-			&e.OccurredAt, &e.Data, &e.CreatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("scan customer event: %w", err)
-		}
-		events = append(events, e)
-	}
-	return events, rows.Err()
+	return scanCustomerEvents(rows)
 }
 
 // CountEventsByTypeForOrg returns event counts per customer for a given event type and time window.
@@ -123,18 +112,7 @@ func (r *CustomerEventRepository) ListByCustomer(ctx context.Context, customerID
 	}
 	defer rows.Close()
 
-	var events []*CustomerEvent
-	for rows.Next() {
-		e := &CustomerEvent{}
-		if err := rows.Scan(
-			&e.ID, &e.OrgID, &e.CustomerID, &e.EventType, &e.Source, &e.ExternalEventID,
-			&e.OccurredAt, &e.Data, &e.CreatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("scan customer event: %w", err)
-		}
-		events = append(events, e)
-	}
-	return events, rows.Err()
+	return scanCustomerEvents(rows)
 }
 
 // ListByCustomerSince returns events for a customer since a given time.
@@ -152,6 +130,10 @@ func (r *CustomerEventRepository) ListByCustomerSince(ctx context.Context, custo
 	}
 	defer rows.Close()
 
+	return scanCustomerEvents(rows)
+}
+
+func scanCustomerEvents(rows pgx.Rows) ([]*CustomerEvent, error) {
 	var events []*CustomerEvent
 	for rows.Next() {
 		e := &CustomerEvent{}

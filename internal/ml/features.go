@@ -23,10 +23,21 @@ const (
 	FeatureCurrentHealthScore         = "current_health_score"
 )
 
-var usageEventTypes = map[string]bool{
-	"login":       true,
-	"feature_use": true,
-	"api_call":    true,
+const (
+	featureCount = 11
+
+	eventLogin          = "login"
+	eventFeatureUse     = "feature_use"
+	eventAPICall        = "api_call"
+	eventTicketOpened   = "ticket.opened"
+	eventTicketResolved = "ticket.resolved"
+	eventMRRChanged     = "mrr.changed"
+)
+
+var usageEventTypes = map[string]struct{}{
+	eventLogin:      {},
+	eventFeatureUse: {},
+	eventAPICall:    {},
 }
 
 // FeatureInput is the raw customer data used for churn model feature extraction.
@@ -54,7 +65,7 @@ func ExtractCustomerFeatures(input FeatureInput) FeatureVector {
 	}
 
 	vector := FeatureVector{
-		Values:       make(map[string]float64, 11),
+		Values:       make(map[string]float64, featureCount),
 		CalculatedAt: now,
 	}
 	if input.Customer != nil {
@@ -148,8 +159,8 @@ func paymentCounts90d(payments []*repository.StripePayment, now time.Time) (int,
 }
 
 func supportTicketTrend(events []*repository.CustomerEvent, now time.Time) float64 {
-	recent := countEvents(events, "ticket.opened", now.AddDate(0, 0, -30), now)
-	previous := countEvents(events, "ticket.opened", now.AddDate(0, 0, -60), now.AddDate(0, 0, -30))
+	recent := countEvents(events, eventTicketOpened, now.AddDate(0, 0, -30), now)
+	previous := countEvents(events, eventTicketOpened, now.AddDate(0, 0, -60), now.AddDate(0, 0, -30))
 	if recent > previous {
 		return 1
 	}
@@ -160,11 +171,11 @@ func supportTicketTrend(events []*repository.CustomerEvent, now time.Time) float
 }
 
 func unresolvedTicketRatio(events []*repository.CustomerEvent, now time.Time) float64 {
-	opened := countEvents(events, "ticket.opened", now.AddDate(0, 0, -90), now)
+	opened := countEvents(events, eventTicketOpened, now.AddDate(0, 0, -90), now)
 	if opened == 0 {
 		return 0
 	}
-	resolved := countEvents(events, "ticket.resolved", now.AddDate(0, 0, -90), now)
+	resolved := countEvents(events, eventTicketResolved, now.AddDate(0, 0, -90), now)
 	unresolved := opened - resolved
 	if unresolved < 0 {
 		unresolved = 0
@@ -189,7 +200,7 @@ func mrrChangeRate(events []*repository.CustomerEvent, now time.Time) float64 {
 	var oldest, latest *repository.CustomerEvent
 	start := now.AddDate(0, 0, -90)
 	for _, event := range events {
-		if event == nil || event.EventType != "mrr.changed" || event.OccurredAt.Before(start) || event.OccurredAt.After(now) {
+		if event == nil || event.EventType != eventMRRChanged || event.OccurredAt.Before(start) || event.OccurredAt.After(now) {
 			continue
 		}
 		if oldest == nil || event.OccurredAt.Before(oldest.OccurredAt) {
@@ -249,7 +260,7 @@ func currentHealthScore(history []*repository.HealthScore) float64 {
 func countUsageEvents(events []*repository.CustomerEvent, start, end time.Time) int {
 	count := 0
 	for _, event := range events {
-		if event == nil || !usageEventTypes[event.EventType] || event.OccurredAt.Before(start) || !event.OccurredAt.Before(end) {
+		if event == nil || !isUsageEvent(event.EventType) || !occurredInHalfOpenWindow(event.OccurredAt, start, end) {
 			continue
 		}
 		count++
@@ -260,7 +271,7 @@ func countUsageEvents(events []*repository.CustomerEvent, start, end time.Time) 
 func countEvents(events []*repository.CustomerEvent, eventType string, start, end time.Time) int {
 	count := 0
 	for _, event := range events {
-		if event == nil || event.EventType != eventType || event.OccurredAt.Before(start) || !event.OccurredAt.Before(end) {
+		if event == nil || event.EventType != eventType || !occurredInHalfOpenWindow(event.OccurredAt, start, end) {
 			continue
 		}
 		count++
@@ -271,7 +282,7 @@ func countEvents(events []*repository.CustomerEvent, eventType string, start, en
 func countAllEvents(events []*repository.CustomerEvent, start, end time.Time) int {
 	count := 0
 	for _, event := range events {
-		if event == nil || event.OccurredAt.Before(start) || !event.OccurredAt.Before(end) {
+		if event == nil || !occurredInHalfOpenWindow(event.OccurredAt, start, end) {
 			continue
 		}
 		count++
@@ -279,17 +290,13 @@ func countAllEvents(events []*repository.CustomerEvent, start, end time.Time) in
 	return count
 }
 
-func latestEvent(events []*repository.CustomerEvent, eventType string, start, end time.Time) *repository.CustomerEvent {
-	var latest *repository.CustomerEvent
-	for _, event := range events {
-		if event == nil || event.EventType != eventType || event.OccurredAt.Before(start) || event.OccurredAt.After(end) {
-			continue
-		}
-		if latest == nil || event.OccurredAt.After(latest.OccurredAt) {
-			latest = event
-		}
-	}
-	return latest
+func isUsageEvent(eventType string) bool {
+	_, ok := usageEventTypes[eventType]
+	return ok
+}
+
+func occurredInHalfOpenWindow(occurredAt, start, end time.Time) bool {
+	return !occurredAt.Before(start) && occurredAt.Before(end)
 }
 
 func numberFromEvent(event *repository.CustomerEvent, key string) float64 {
