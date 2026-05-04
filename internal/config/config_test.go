@@ -17,8 +17,38 @@ func clearEnv() {
 		"STRIPE_BILLING_WEBHOOK_SECRET", "STRIPE_BILLING_PORTAL_RETURN_URL",
 		"STRIPE_BILLING_PRICE_GROWTH_MONTHLY", "STRIPE_BILLING_PRICE_GROWTH_ANNUAL",
 		"STRIPE_BILLING_PRICE_SCALE_MONTHLY", "STRIPE_BILLING_PRICE_SCALE_ANNUAL",
+		"OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_MAX_TOKENS",
+		"OPENAI_REQUESTS_PER_MINUTE", "OPENAI_MAX_TOKENS_PER_DAY",
 	} {
 		os.Unsetenv(key)
+	}
+}
+
+func TestLoadOpenAIFromEnv(t *testing.T) {
+	clearEnv()
+	os.Setenv("OPENAI_API_KEY", "sk-test")
+	os.Setenv("OPENAI_MODEL", "gpt-4o-mini")
+	os.Setenv("OPENAI_MAX_TOKENS", "750")
+	os.Setenv("OPENAI_REQUESTS_PER_MINUTE", "30")
+	os.Setenv("OPENAI_MAX_TOKENS_PER_DAY", "25000")
+	defer clearEnv()
+
+	cfg := Load()
+
+	if cfg.OpenAI.APIKey != "sk-test" {
+		t.Errorf("expected OpenAI API key to load from env")
+	}
+	if cfg.OpenAI.Model != "gpt-4o-mini" {
+		t.Errorf("expected OpenAI model to load from env, got %s", cfg.OpenAI.Model)
+	}
+	if cfg.OpenAI.MaxTokens != 750 {
+		t.Errorf("expected OpenAI max tokens 750, got %d", cfg.OpenAI.MaxTokens)
+	}
+	if cfg.OpenAI.RequestsPerMinute != 30 {
+		t.Errorf("expected OpenAI rpm 30, got %d", cfg.OpenAI.RequestsPerMinute)
+	}
+	if cfg.OpenAI.MaxTokensPerDay != 25000 {
+		t.Errorf("expected OpenAI daily tokens 25000, got %d", cfg.OpenAI.MaxTokensPerDay)
 	}
 }
 
@@ -156,8 +186,32 @@ func TestValidateProductionRequiresBillingStripeConfig(t *testing.T) {
 	}
 }
 
+func TestValidateProductionRequiresOpenAIConfig(t *testing.T) {
+	clearEnv()
+	setProductionBillingEnv()
+	defer clearEnv()
+
+	cfg := Load()
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error when OpenAI config is missing in production")
+	}
+}
+
 func TestValidateProductionWithBillingStripeConfig(t *testing.T) {
 	clearEnv()
+	setProductionBillingEnv()
+	os.Setenv("OPENAI_API_KEY", "sk-live-openai")
+	defer clearEnv()
+
+	cfg := Load()
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected production validation to pass, got %v", err)
+	}
+}
+
+func setProductionBillingEnv() {
 	os.Setenv("ENVIRONMENT", "production")
 	os.Setenv("DATABASE_URL", "postgres://prod-db")
 	os.Setenv("JWT_SECRET", "prod-super-secret")
@@ -168,13 +222,6 @@ func TestValidateProductionWithBillingStripeConfig(t *testing.T) {
 	os.Setenv("STRIPE_BILLING_PRICE_GROWTH_ANNUAL", "price_growth_annual")
 	os.Setenv("STRIPE_BILLING_PRICE_SCALE_MONTHLY", "price_scale_monthly")
 	os.Setenv("STRIPE_BILLING_PRICE_SCALE_ANNUAL", "price_scale_annual")
-	defer clearEnv()
-
-	cfg := Load()
-
-	if err := cfg.Validate(); err != nil {
-		t.Fatalf("expected production validation to pass, got %v", err)
-	}
 }
 
 func TestIsProd(t *testing.T) {

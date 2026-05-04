@@ -20,6 +20,7 @@ type Config struct {
 	BillingStripe BillingStripeConfig
 	HubSpot       HubSpotConfig
 	Intercom      IntercomConfig
+	OpenAI        OpenAIConfig
 	Scoring       ScoringConfig
 	Alert         AlertConfig
 }
@@ -78,6 +79,15 @@ type IntercomConfig struct {
 	EncryptionKey    string // 32-byte hex-encoded AES key for token encryption
 	WebhookSecret    string
 	SyncIntervalMin  int
+}
+
+// OpenAIConfig holds LLM provider and safety limit settings.
+type OpenAIConfig struct {
+	APIKey            string
+	Model             string
+	MaxTokens         int
+	RequestsPerMinute int
+	MaxTokensPerDay   int
 }
 
 // SendGridConfig holds email sending settings.
@@ -199,6 +209,13 @@ func Load() *Config {
 			WebhookSecret:    getEnv("INTERCOM_WEBHOOK_SECRET", ""),
 			SyncIntervalMin:  getInt("INTERCOM_SYNC_INTERVAL_MIN", 15),
 		},
+		OpenAI: OpenAIConfig{
+			APIKey:            getEnv("OPENAI_API_KEY", ""),
+			Model:             getEnv("OPENAI_MODEL", "gpt-4o-mini"),
+			MaxTokens:         getInt("OPENAI_MAX_TOKENS", 1000),
+			RequestsPerMinute: getInt("OPENAI_REQUESTS_PER_MINUTE", 60),
+			MaxTokensPerDay:   getInt("OPENAI_MAX_TOKENS_PER_DAY", 100000),
+		},
 		Scoring: ScoringConfig{
 			RecalcIntervalMin: getInt("SCORE_RECALC_INTERVAL_MIN", 60),
 			Workers:           getInt("SCORE_RECALC_WORKERS", 5),
@@ -221,14 +238,14 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("JWT_SECRET must be set to a secure value in production")
 		}
 
-		if strings.TrimSpace(c.BillingStripe.SecretKey) == "" {
-			return fmt.Errorf("STRIPE_BILLING_SECRET_KEY is required in production")
+		if err := requireProductionValue("STRIPE_BILLING_SECRET_KEY", c.BillingStripe.SecretKey); err != nil {
+			return err
 		}
-		if strings.TrimSpace(c.BillingStripe.PublishableKey) == "" {
-			return fmt.Errorf("STRIPE_BILLING_PUBLISHABLE_KEY is required in production")
+		if err := requireProductionValue("STRIPE_BILLING_PUBLISHABLE_KEY", c.BillingStripe.PublishableKey); err != nil {
+			return err
 		}
-		if strings.TrimSpace(c.BillingStripe.WebhookSecret) == "" {
-			return fmt.Errorf("STRIPE_BILLING_WEBHOOK_SECRET is required in production")
+		if err := requireProductionValue("STRIPE_BILLING_WEBHOOK_SECRET", c.BillingStripe.WebhookSecret); err != nil {
+			return err
 		}
 
 		requiredPriceIDs := map[string]string{
@@ -238,10 +255,21 @@ func (c *Config) Validate() error {
 			"STRIPE_BILLING_PRICE_SCALE_ANNUAL":   c.BillingStripe.PriceScaleAnnual,
 		}
 		for name, value := range requiredPriceIDs {
-			if strings.TrimSpace(value) == "" {
-				return fmt.Errorf("%s is required in production", name)
+			if err := requireProductionValue(name, value); err != nil {
+				return err
 			}
 		}
+
+		if err := requireProductionValue("OPENAI_API_KEY", c.OpenAI.APIKey); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func requireProductionValue(name, value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("%s is required in production", name)
 	}
 	return nil
 }
