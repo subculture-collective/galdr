@@ -47,10 +47,7 @@ func (a *BenchmarkAnonymizer) Anonymize(metrics BenchmarkOrgMetrics) (*repositor
 		return nil, fmt.Errorf("average churn rate out of range")
 	}
 
-	industry := strings.ToLower(strings.TrimSpace(metrics.Industry))
-	if industry == "" {
-		industry = "unknown"
-	}
+	industry := NormalizeBenchmarkIndustry(metrics.Industry)
 
 	return &repository.BenchmarkContribution{
 		OrgID:               metrics.OrgID,
@@ -69,6 +66,33 @@ func averageMRR(totalMRR int64, customerCount int) int64 {
 		return 0
 	}
 	return totalMRR / int64(customerCount)
+}
+
+// NormalizeBenchmarkIndustry maps free-form org input to safe benchmark segments.
+func NormalizeBenchmarkIndustry(industry string) string {
+	normalized := strings.ToLower(strings.TrimSpace(industry))
+	if normalized == "" || strings.Contains(normalized, "@") || strings.Contains(normalized, ".") {
+		return "unknown"
+	}
+
+	allowed := map[string]string{
+		"ai":                      "ai",
+		"artificial intelligence": "ai",
+		"consumer":                "consumer",
+		"e-commerce":              "e-commerce",
+		"ecommerce":               "e-commerce",
+		"education":               "education",
+		"fintech":                 "fintech",
+		"healthcare":              "healthcare",
+		"marketplace":             "marketplace",
+		"media":                   "media",
+		"saas":                    "saas",
+		"software":                "software",
+	}
+	if canonical, ok := allowed[normalized]; ok {
+		return canonical
+	}
+	return "unknown"
 }
 
 func BucketCompanySize(size int) string {

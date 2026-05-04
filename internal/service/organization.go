@@ -127,10 +127,7 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 	}
 	industry := org.Industry
 	if req.Industry != nil {
-		industry = strings.ToLower(strings.TrimSpace(*req.Industry))
-		if industry == "" {
-			industry = "unknown"
-		}
+		industry = NormalizeBenchmarkIndustry(*req.Industry)
 	}
 	companySize := org.CompanySize
 	if req.CompanySize != nil {

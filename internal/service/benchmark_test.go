@@ -74,6 +74,27 @@ func TestBenchmarkAnonymizerStripsPIIAndBucketsRawMetrics(t *testing.T) {
 	}
 }
 
+func TestBenchmarkAnonymizerRejectsPIIIndustrySegments(t *testing.T) {
+	anonymizer := NewBenchmarkAnonymizer()
+
+	contribution, err := anonymizer.Anonymize(BenchmarkOrgMetrics{
+		OrgID:          uuid.New(),
+		Industry:       "Acme Secret Co ceo@acme.example",
+		CompanySize:    42,
+		CustomerCount:  100,
+		TotalMRR:       100000,
+		AvgHealthScore: 72,
+		AvgChurnRate:   0.05,
+	})
+	if err != nil {
+		t.Fatalf("anonymize failed: %v", err)
+	}
+
+	if contribution.Industry != "unknown" {
+		t.Fatalf("expected PII-like industry to be anonymized as unknown, got %q", contribution.Industry)
+	}
+}
+
 func TestBenchmarkPipelineSkipsOptedOutOrganizations(t *testing.T) {
 	optedInOrg := repository.Organization{ID: uuid.New(), Industry: "saas", CompanySize: 25, BenchmarkingEnabled: true}
 	optedOutOrg := repository.Organization{ID: uuid.New(), Industry: "fintech", CompanySize: 80, BenchmarkingEnabled: false}
