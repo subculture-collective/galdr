@@ -13,7 +13,8 @@ import (
 
 // CreateOrgRequest holds the input for creating an organization.
 type CreateOrgRequest struct {
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	Industry string `json:"industry"`
 }
 
 var allowedIndustries = map[string]struct{}{
@@ -136,6 +137,10 @@ func (s *OrganizationService) Create(ctx context.Context, userID uuid.UUID, req 
 	if name == "" {
 		return nil, &ValidationError{Field: "name", Message: "organization name is required"}
 	}
+	industry := strings.TrimSpace(req.Industry)
+	if industry != "" && !isAllowedIndustry(industry) {
+		return nil, &ValidationError{Field: "industry", Message: "industry must be one of the predefined options"}
+	}
 
 	slug := generateSlug(name)
 	baseSlug := slug
@@ -151,8 +156,9 @@ func (s *OrganizationService) Create(ctx context.Context, userID uuid.UUID, req 
 	}
 
 	org := &repository.Organization{
-		Name: name,
-		Slug: slug,
+		Name:     name,
+		Slug:     slug,
+		Industry: industry,
 	}
 
 	tx, err := s.pool.Begin(ctx)

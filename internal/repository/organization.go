@@ -36,15 +36,15 @@ func NewOrganizationRepository(pool *pgxpool.Pool) *OrganizationRepository {
 // Create inserts a new organization inside a transaction.
 func (r *OrganizationRepository) Create(ctx context.Context, tx pgx.Tx, org *Organization) error {
 	query := `
-		INSERT INTO organizations (id, name, slug)
-		VALUES ($1, $2, $3)
+		INSERT INTO organizations (id, name, slug, industry)
+		VALUES ($1, $2, $3, NULLIF($4, ''))
 		RETURNING created_at, updated_at`
 
 	if org.ID == uuid.Nil {
 		org.ID = uuid.New()
 	}
 
-	return tx.QueryRow(ctx, query, org.ID, org.Name, org.Slug).Scan(&org.CreatedAt, &org.UpdatedAt)
+	return tx.QueryRow(ctx, query, org.ID, org.Name, org.Slug, org.Industry).Scan(&org.CreatedAt, &org.UpdatedAt)
 }
 
 // SlugExists checks if an organization slug is already taken.

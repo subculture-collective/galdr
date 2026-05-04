@@ -296,6 +296,18 @@ paths:
                   type: string
                   minLength: 2
                   maxLength: 100
+                industry:
+                  type: string
+                  enum:
+                    - SaaS
+                    - E-commerce
+                    - Fintech
+                    - Healthcare
+                    - Education
+                    - Media
+                    - Marketplace
+                    - Agency
+                    - Other
       responses:
         "201":
           description: Organization created
