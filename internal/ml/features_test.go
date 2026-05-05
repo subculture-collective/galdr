@@ -199,6 +199,27 @@ func TestFeatureNamesCannotMutateStableModelOrder(t *testing.T) {
 	}
 }
 
+func TestExtractCustomerFeaturesUsesIntercomConversationsForSupportTrend(t *testing.T) {
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	features := ExtractCustomerFeatures(FeatureInput{
+		Now: now,
+		Customer: &repository.Customer{
+			ID:    uuid.New(),
+			OrgID: uuid.New(),
+		},
+		Events: []*repository.CustomerEvent{
+			event("conversation_open", now.Add(-55*24*time.Hour), nil),
+			event("conversation_created", now.Add(-8*24*time.Hour), nil),
+			event("conversation_open", now.Add(-4*24*time.Hour), nil),
+			event("conversation_closed", now.Add(-2*24*time.Hour), nil),
+		},
+	})
+
+	assertClose(t, features.Values[FeatureSupportTicketTrend], 1.0)
+	assertClose(t, features.Values[FeatureUnresolvedTicketRatio], 0.5)
+}
+}
+
 func TestNormalizeMinMaxClampsToUnitRange(t *testing.T) {
 	assertClose(t, NormalizeMinMax(5, 0, 10), 0.5)
 	assertClose(t, NormalizeMinMax(-5, 0, 10), 0)
