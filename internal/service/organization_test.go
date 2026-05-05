@@ -11,7 +11,7 @@ import (
 )
 
 func TestOrganizationUpdateCurrentRejectsUnknownIndustry(t *testing.T) {
-	svc := NewOrganizationService(nil, nil)
+	svc := NewOrganizationService(nil, nil, nil)
 	industry := "Professional Services"
 
 	_, err := svc.UpdateCurrent(context.Background(), uuid.New(), UpdateOrgRequest{
@@ -22,7 +22,7 @@ func TestOrganizationUpdateCurrentRejectsUnknownIndustry(t *testing.T) {
 }
 
 func TestOrganizationUpdateCurrentRequiresIndustryForBenchmarking(t *testing.T) {
-	svc := NewOrganizationService(nil, nil)
+	svc := NewOrganizationService(nil, nil, nil)
 	enabled := true
 	industry := " "
 
@@ -47,7 +47,7 @@ func TestOrganizationUpdateCurrentEnablesBenchmarkingWithIndustry(t *testing.T) 
 			Industry: "",
 		},
 	}
-	svc := NewOrganizationService(nil, orgs)
+	svc := NewOrganizationService(nil, orgs, nil)
 
 	resp, err := svc.UpdateCurrent(context.Background(), orgID, UpdateOrgRequest{
 		BenchmarkingEnabled: &enabled,
@@ -101,7 +101,7 @@ func TestOrganizationUpdateCurrentDeletesBenchmarkContributionsOnOptOut(t *testi
 }
 
 func TestOrganizationCreateRejectsUnknownIndustry(t *testing.T) {
-	svc := NewOrganizationService(nil, nil)
+	svc := NewOrganizationService(nil, nil, nil)
 
 	_, err := svc.Create(context.Background(), uuid.New(), CreateOrgRequest{
 		Name:     "Acme",
@@ -112,7 +112,7 @@ func TestOrganizationCreateRejectsUnknownIndustry(t *testing.T) {
 }
 
 func TestOrganizationCreateRequiresIndustry(t *testing.T) {
-	svc := NewOrganizationService(nil, nil)
+	svc := NewOrganizationService(nil, nil, nil)
 
 	_, err := svc.Create(context.Background(), uuid.New(), CreateOrgRequest{
 		Name:     "Acme",

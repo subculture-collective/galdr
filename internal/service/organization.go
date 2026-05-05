@@ -73,8 +73,8 @@ type OrgResponse struct {
 
 // OrganizationService handles organization logic.
 type OrganizationService struct {
-	pool *pgxpool.Pool
-	orgs organizationStore
+	pool                   *pgxpool.Pool
+	orgs                   organizationStore
 	benchmarkContributions benchmarkContributionDeleter
 }
 
@@ -93,12 +93,8 @@ type benchmarkContributionDeleter interface {
 }
 
 // NewOrganizationService creates a new OrganizationService.
-func NewOrganizationService(pool *pgxpool.Pool, orgs organizationStore, benchmarkContributions ...benchmarkContributionDeleter) *OrganizationService {
-	var deleter benchmarkContributionDeleter
-	if len(benchmarkContributions) > 0 {
-		deleter = benchmarkContributions[0]
-	}
-	return &OrganizationService{pool: pool, orgs: orgs, benchmarkContributions: deleter}
+func NewOrganizationService(pool *pgxpool.Pool, orgs organizationStore, benchmarkContributions benchmarkContributionDeleter) *OrganizationService {
+	return &OrganizationService{pool: pool, orgs: orgs, benchmarkContributions: benchmarkContributions}
 }
 
 // UpdateOrgRequest holds input for updating an organization.

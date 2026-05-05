@@ -1,17 +1,17 @@
 import api from "@/lib/api";
 import { useToast } from "@/contexts/ToastContext";
 
-interface BenchmarkOrganization {
+interface BenchmarkOrgSettings {
   benchmarking_enabled?: boolean;
   company_size?: number;
 }
 
 interface BenchmarkSettingsProps {
-  org: BenchmarkOrganization;
+  org: BenchmarkOrgSettings;
   industry: string;
   saving: boolean;
   setSaving: (saving: boolean) => void;
-  onSaved: (org: BenchmarkOrganization) => void;
+  onSaved: (org: BenchmarkOrgSettings) => void;
 }
 
 export default function BenchmarkSettings({
@@ -24,6 +24,17 @@ export default function BenchmarkSettings({
   const toast = useToast();
   const enabled = Boolean(org.benchmarking_enabled);
   const companySize = org.company_size ?? 0;
+  const toggleClassName = enabled
+    ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30"
+    : "bg-[var(--galdr-bg-subtle)] text-[var(--galdr-fg-muted)] ring-1 ring-[var(--galdr-border)]";
+
+  function benchmarkUpdate(nextEnabled: boolean, nextCompanySize: number) {
+    return {
+      benchmarking_enabled: nextEnabled,
+      industry,
+      company_size: nextCompanySize,
+    };
+  }
 
   async function updateBenchmarking(nextEnabled: boolean) {
     if (nextEnabled && !industry) {
@@ -33,20 +44,16 @@ export default function BenchmarkSettings({
 
     setSaving(true);
     try {
-      const { data } = await api.patch<BenchmarkOrganization>(
+      const { data } = await api.patch<BenchmarkOrgSettings>(
         "/organizations/current",
-        {
-          benchmarking_enabled: nextEnabled,
-          industry,
-          company_size: companySize,
-        },
+        benchmarkUpdate(nextEnabled, companySize),
       );
+      const successMessage = nextEnabled
+        ? "Benchmark sharing enabled."
+        : "Benchmark sharing disabled and prior contributions deleted.";
+
       onSaved(data);
-      toast.success(
-        nextEnabled
-          ? "Benchmark sharing enabled."
-          : "Benchmark sharing disabled and prior contributions deleted.",
-      );
+      toast.success(successMessage);
     } catch {
       toast.error("Failed to update benchmark sharing.");
     } finally {
@@ -63,13 +70,9 @@ export default function BenchmarkSettings({
 
     setSaving(true);
     try {
-      const { data } = await api.patch<BenchmarkOrganization>(
+      const { data } = await api.patch<BenchmarkOrgSettings>(
         "/organizations/current",
-        {
-          benchmarking_enabled: enabled,
-          industry,
-          company_size: nextSize,
-        },
+        benchmarkUpdate(enabled, nextSize),
       );
       onSaved(data);
       toast.success("Benchmark company size updated.");
@@ -97,9 +100,7 @@ export default function BenchmarkSettings({
           disabled={saving}
           aria-pressed={enabled}
           className={`rounded-full px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
-            enabled
-              ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30"
-              : "bg-[var(--galdr-bg-subtle)] text-[var(--galdr-fg-muted)] ring-1 ring-[var(--galdr-border)]"
+            toggleClassName
           }`}
         >
           {enabled ? "Opt out" : "Opt in"}

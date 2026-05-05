@@ -52,6 +52,8 @@ export default function OrganizationTab() {
 
   if (!org) return null;
 
+  const benchmarkingEnabled = org.benchmarking_enabled ?? false;
+  const companySize = org.company_size ?? 0;
   const industryRequiredForBenchmarking = org.benchmarking_enabled && !industry;
 
   async function saveOrganization() {
@@ -70,8 +72,8 @@ export default function OrganizationTab() {
       const { data } = await api.patch<Organization>("/organizations/current", {
         name: trimmedName,
         industry,
-        benchmarking_enabled: org?.benchmarking_enabled ?? false,
-        company_size: org?.company_size ?? 0,
+        benchmarking_enabled: benchmarkingEnabled,
+        company_size: companySize,
       });
       setOrg(data);
       setName(data.name);
