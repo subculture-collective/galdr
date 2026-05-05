@@ -20,6 +20,7 @@ const (
 	defaultLLMRequestsPerMinute = 60
 	defaultLLMMaxTokensPerDay   = 100_000
 	defaultLLMMaxTokens         = 1_000
+	defaultLLMRequestType       = "completion"
 
 	gpt4oMiniInputCostPer1M  = 0.15
 	gpt4oMiniOutputCostPer1M = 0.60
@@ -100,7 +101,7 @@ type LLMServiceConfig struct {
 	DefaultMaxTokens  int
 	Templates         map[string]string
 	RetryDelays       []time.Duration
-	FallbackProviders        []LLMProvider
+	FallbackProviders []LLMProvider
 	GlobalRequestsPerMinute int
 	UsageGate               LLMUsageGate
 }
@@ -243,23 +244,8 @@ func (s *LLMService) Complete(ctx context.Context, req LLMCompletionRequest) (*L
 		Latency:      time.Since(start),
 		CreatedAt:    time.Now().UTC(),
 	}
-	if s.cfg.UsageGate != nil {
-		summary, err := s.cfg.UsageGate.RecordLLMUsage(ctx, usage)
-		if err != nil {
-			return nil, fmt.Errorf("track llm usage: %w", err)
-		}
-		if summary != nil && summary.BudgetWarning {
-			warning := LLMBudgetWarning{OrgID: req.OrgID, Tier: summary.Tier, BudgetUSD: summary.BudgetUSD, MonthlyCostUSD: summary.MonthlyCostUSD, PercentUsed: summary.BudgetPercentUsed}
-			if err := s.cfg.UsageGate.NotifyLLMBudgetWarning(ctx, warning); err != nil {
-				return nil, fmt.Errorf("notify llm budget warning: %w", err)
-			}
-		}
-	} else if s.tracker != nil {
-		if err := s.tracker.TrackLLMUsage(ctx, usage); err != nil {
-			return nil, fmt.Errorf("track llm usage: %w", err)
-		}
-	} else {
-		slog.Info("llm usage", "org_id", usage.OrgID, "provider", usage.Provider, "input_tokens", usage.InputTokens, "output_tokens", usage.OutputTokens, "cost_usd", usage.CostUSD)
+	if err := s.recordUsage(ctx, usage); err != nil {
+		return nil, err
 	}
 
 	return res, nil
@@ -274,9 +260,46 @@ func CalculateLLMCostUSD(inputTokens, outputTokens int) float64 {
 
 func normalizeLLMRequestType(requestType string) string {
 	if requestType == "" {
-		return "completion"
+		return defaultLLMRequestType
 	}
 	return requestType
+}
+
+func (s *LLMService) recordUsage(ctx context.Context, usage LLMUsage) error {
+	if s.cfg.UsageGate != nil {
+		return s.recordUsageWithGate(ctx, usage)
+	}
+	if s.tracker != nil {
+		if err := s.tracker.TrackLLMUsage(ctx, usage); err != nil {
+			return fmt.Errorf("track llm usage: %w", err)
+		}
+		return nil
+	}
+
+	slog.Info("llm usage", "org_id", usage.OrgID, "provider", usage.Provider, "input_tokens", usage.InputTokens, "output_tokens", usage.OutputTokens, "cost_usd", usage.CostUSD)
+	return nil
+}
+
+func (s *LLMService) recordUsageWithGate(ctx context.Context, usage LLMUsage) error {
+	summary, err := s.cfg.UsageGate.RecordLLMUsage(ctx, usage)
+	if err != nil {
+		return fmt.Errorf("track llm usage: %w", err)
+	}
+	if summary == nil || !summary.BudgetWarning {
+		return nil
+	}
+
+	warning := LLMBudgetWarning{
+		OrgID:          usage.OrgID,
+		Tier:           summary.Tier,
+		BudgetUSD:      summary.BudgetUSD,
+		MonthlyCostUSD: summary.MonthlyCostUSD,
+		PercentUsed:    summary.BudgetPercentUsed,
+	}
+	if err := s.cfg.UsageGate.NotifyLLMBudgetWarning(ctx, warning); err != nil {
+		return fmt.Errorf("notify llm budget warning: %w", err)
+	}
+	return nil
 }
 
 func (s *LLMService) renderPrompt(req LLMCompletionRequest) (string, error) {

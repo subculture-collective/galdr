@@ -22,10 +22,7 @@ func (s *PostgresLLMUsageStore) TrackLLMUsage(ctx context.Context, usage LLMUsag
 	if createdAt.IsZero() {
 		createdAt = time.Now().UTC()
 	}
-	requestType := usage.RequestType
-	if requestType == "" {
-		requestType = "completion"
-	}
+	requestType := normalizeLLMRequestType(usage.RequestType)
 	model := usage.Model
 	if model == "" {
 		model = usage.Provider
