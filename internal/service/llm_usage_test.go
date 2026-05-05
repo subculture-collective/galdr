@@ -16,15 +16,19 @@ func (f fakeLLMPlanResolver) GetCurrentPlan(ctx context.Context, orgID uuid.UUID
 }
 
 type fakeLLMUsageRepo struct {
-	cost     float64
-	dayCount int
-	monCount int
-	tracked  []LLMUsage
+	cost         float64
+	dayCount     int
+	monCount     int
+	inputTokens  int
+	outputTokens int
+	tracked      []LLMUsage
 }
 
 func (f *fakeLLMUsageRepo) TrackLLMUsage(ctx context.Context, usage LLMUsage) error {
 	f.tracked = append(f.tracked, usage)
 	f.cost += usage.CostUSD
+	f.inputTokens += usage.InputTokens
+	f.outputTokens += usage.OutputTokens
 	f.dayCount++
 	f.monCount++
 	return nil
@@ -39,6 +43,10 @@ func (f *fakeLLMUsageRepo) CountLLMUsageRequests(ctx context.Context, orgID uuid
 		return f.dayCount, nil
 	}
 	return f.monCount, nil
+}
+
+func (f *fakeLLMUsageRepo) SumLLMUsageTokens(ctx context.Context, orgID uuid.UUID, start, end time.Time) (int, int, error) {
+	return f.inputTokens, f.outputTokens, nil
 }
 
 func TestLLMUsageServiceEnforcesTierBudget(t *testing.T) {
@@ -77,5 +85,17 @@ func TestLLMUsageServiceReportsBudgetWarningAtEightyPercent(t *testing.T) {
 	}
 	if !summary.BudgetWarning || summary.BudgetPercentUsed != 0.8 || summary.DailyRequestLimit != 50 {
 		t.Fatalf("unexpected summary: %+v", summary)
+	}
+}
+
+func TestLLMUsageServiceReportsMonthlyTokenUsage(t *testing.T) {
+	svc := NewLLMUsageService(&fakeLLMUsageRepo{cost: 1.25, dayCount: 2, monCount: 3, inputTokens: 1200, outputTokens: 450}, fakeLLMPlanResolver{tier: "growth"}, nil)
+
+	summary, err := svc.GetLLMUsageSummary(context.Background(), uuid.New())
+	if err != nil {
+		t.Fatalf("expected summary, got %v", err)
+	}
+	if summary.InputTokensMonth != 1200 || summary.OutputTokensMonth != 450 {
+		t.Fatalf("unexpected token totals: %+v", summary)
 	}
 }
