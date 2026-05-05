@@ -36,6 +36,7 @@ export default function CustomersPage() {
   const risk = searchParams.get("risk") ?? "";
   const search = searchParams.get("search") ?? "";
   const source = searchParams.get("source") ?? "";
+  const assignee = searchParams.get("assignee") ?? "";
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -49,6 +50,7 @@ export default function CustomersPage() {
       if (risk) params.risk = risk;
       if (search) params.search = search;
       if (source) params.source = source;
+      if (assignee) params.assignee = assignee;
 
       const { data: res } = await api.get<CustomersResponse>("/customers", {
         params,
@@ -59,7 +61,7 @@ export default function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, perPage, sort, order, risk, search, source, toast]);
+  }, [page, perPage, sort, order, risk, search, source, assignee, toast]);
 
   useEffect(() => {
     fetchCustomers();

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Search, X } from "lucide-react";
+import api from "@/lib/api";
 
 const riskOptions = [
   { label: "All", value: "" },
@@ -16,15 +17,24 @@ const sourceOptions = [
   { label: "Intercom", value: "intercom" },
 ];
 
+interface Member {
+  user_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+}
+
 export default function CustomerFilters() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchInput, setSearchInput] = useState(
     searchParams.get("search") ?? "",
   );
+  const [members, setMembers] = useState<Member[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const risk = searchParams.get("risk") ?? "";
   const source = searchParams.get("source") ?? "";
+  const assignee = searchParams.get("assignee") ?? "";
 
   function updateParam(key: string, value: string) {
     setSearchParams((prev) => {
@@ -38,6 +48,18 @@ export default function CustomerFilters() {
       return next;
     });
   }
+
+  useEffect(() => {
+    async function loadMembers() {
+      try {
+        const { data } = await api.get<{ members: Member[] }>("/members");
+        setMembers(data.members);
+      } catch {
+        setMembers([]);
+      }
+    }
+    loadMembers();
+  }, []);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -55,7 +77,7 @@ export default function CustomerFilters() {
     setSearchParams(new URLSearchParams());
   }
 
-  const hasFilters = !!(risk || source || searchInput);
+  const hasFilters = !!(risk || source || assignee || searchInput);
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -101,6 +123,22 @@ export default function CustomerFilters() {
         ))}
       </select>
 
+      {/* Assignee filter */}
+      <select
+        value={assignee}
+        onChange={(e) => updateParam("assignee", e.target.value)}
+        className="galdr-input px-3 py-1.5 text-sm"
+      >
+        <option value="">All assignees</option>
+        <option value="me">Assigned to me</option>
+        <option value="unassigned">Unassigned</option>
+        {members.map((member) => (
+          <option key={member.user_id} value={member.user_id}>
+            {memberName(member)}
+          </option>
+        ))}
+      </select>
+
       {/* Clear all */}
       {hasFilters && (
         <button
@@ -113,4 +151,9 @@ export default function CustomerFilters() {
       )}
     </div>
   );
+}
+
+function memberName(member: Member) {
+  const name = `${member.first_name ?? ""} ${member.last_name ?? ""}`.trim();
+  return name || member.email;
 }

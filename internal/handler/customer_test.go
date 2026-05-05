@@ -21,7 +21,10 @@ type mockCustomerService struct {
 	listFn       func(ctx context.Context, params repository.CustomerListParams) (*service.CustomerListResponse, error)
 	getDetailFn  func(ctx context.Context, customerID, orgID uuid.UUID) (*service.CustomerDetail, error)
 	listEventsFn func(ctx context.Context, params repository.EventListParams) (*service.EventListResponse, error)
+	listAssignFn func(ctx context.Context, customerID, orgID uuid.UUID) (*service.CustomerAssignmentsResponse, error)
 	listNotesFn  func(ctx context.Context, customerID, orgID, actorID uuid.UUID, actorRole string) (*service.CustomerNotesResponse, error)
+	assignFn     func(ctx context.Context, customerID, orgID, assigneeID, assignedBy uuid.UUID) (*service.CustomerAssignmentResponse, error)
+	unassignFn   func(ctx context.Context, customerID, orgID, assigneeID uuid.UUID) error
 	createNoteFn func(ctx context.Context, customerID, orgID, userID uuid.UUID, req service.CustomerNoteRequest) (*service.CustomerNoteResponse, error)
 	updateNoteFn func(ctx context.Context, customerID, noteID, orgID, userID uuid.UUID, actorRole string, req service.CustomerNoteRequest) (*service.CustomerNoteResponse, error)
 	deleteNoteFn func(ctx context.Context, customerID, noteID, orgID, userID uuid.UUID, actorRole string) error
@@ -39,8 +42,20 @@ func (m *mockCustomerService) ListEvents(ctx context.Context, params repository.
 	return m.listEventsFn(ctx, params)
 }
 
+func (m *mockCustomerService) ListAssignments(ctx context.Context, customerID, orgID uuid.UUID) (*service.CustomerAssignmentsResponse, error) {
+	return m.listAssignFn(ctx, customerID, orgID)
+}
+
 func (m *mockCustomerService) ListNotes(ctx context.Context, customerID, orgID, actorID uuid.UUID, actorRole string) (*service.CustomerNotesResponse, error) {
 	return m.listNotesFn(ctx, customerID, orgID, actorID, actorRole)
+}
+
+func (m *mockCustomerService) AssignCustomer(ctx context.Context, customerID, orgID, assigneeID, assignedBy uuid.UUID) (*service.CustomerAssignmentResponse, error) {
+	return m.assignFn(ctx, customerID, orgID, assigneeID, assignedBy)
+}
+
+func (m *mockCustomerService) UnassignCustomer(ctx context.Context, customerID, orgID, assigneeID uuid.UUID) error {
+	return m.unassignFn(ctx, customerID, orgID, assigneeID)
 }
 
 func (m *mockCustomerService) CreateNote(ctx context.Context, customerID, orgID, userID uuid.UUID, req service.CustomerNoteRequest) (*service.CustomerNoteResponse, error) {
@@ -123,7 +138,7 @@ func TestCustomerList_QueryParams(t *testing.T) {
 	}
 
 	h := NewCustomerHandler(mock)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/customers?page=2&per_page=10&sort=mrr&order=desc&risk=high&search=acme&source=stripe", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/customers?page=2&per_page=10&sort=mrr&order=desc&risk=high&search=acme&source=stripe&assignee=me", nil)
 	req = req.WithContext(auth.WithOrgID(req.Context(), orgID))
 	rr := httptest.NewRecorder()
 
@@ -152,6 +167,46 @@ func TestCustomerList_QueryParams(t *testing.T) {
 	}
 	if captured.Source != "stripe" {
 		t.Errorf("expected source stripe, got %s", captured.Source)
+	}
+	if captured.Assignee != "me" {
+		t.Errorf("expected assignee me, got %s", captured.Assignee)
+	}
+}
+
+func TestCustomerAssign_Success(t *testing.T) {
+	orgID := uuid.New()
+	actorID := uuid.New()
+	customerID := uuid.New()
+	assigneeID := uuid.New()
+	mock := &mockCustomerService{
+		assignFn: func(ctx context.Context, cID, oID, aID, assignedBy uuid.UUID) (*service.CustomerAssignmentResponse, error) {
+			if cID != customerID {
+				t.Errorf("expected customerID %s, got %s", customerID, cID)
+			}
+			if oID != orgID {
+				t.Errorf("expected orgID %s, got %s", orgID, oID)
+			}
+			if aID != assigneeID {
+				t.Errorf("expected assigneeID %s, got %s", assigneeID, aID)
+			}
+			if assignedBy != actorID {
+				t.Errorf("expected assignedBy %s, got %s", actorID, assignedBy)
+			}
+			return &service.CustomerAssignmentResponse{CustomerID: customerID, UserID: assigneeID}, nil
+		},
+	}
+
+	h := NewCustomerHandler(mock)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/customers/"+customerID.String()+"/assignments", strings.NewReader(fmt.Sprintf(`{"user_id":"%s"}`, assigneeID)))
+	req = req.WithContext(auth.WithOrgID(req.Context(), orgID))
+	req = req.WithContext(auth.WithUserID(req.Context(), actorID))
+	req = withChiParam(req, "id", customerID.String())
+	rr := httptest.NewRecorder()
+
+	h.AssignCustomer(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rr.Code)
 	}
 }
 

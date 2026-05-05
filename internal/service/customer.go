@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/onnwee/pulse-score/internal/repository"
@@ -19,6 +21,7 @@ type CustomerService struct {
 	subRepo      *repository.StripeSubscriptionRepository
 	eventRepo    *repository.CustomerEventRepository
 	noteRepo     *repository.CustomerNoteRepository
+	assignRepo   *repository.CustomerAssignmentRepository
 }
 
 // NewCustomerService creates a new CustomerService.
@@ -28,6 +31,7 @@ func NewCustomerService(
 	sr *repository.StripeSubscriptionRepository,
 	er *repository.CustomerEventRepository,
 	nr *repository.CustomerNoteRepository,
+	ar *repository.CustomerAssignmentRepository,
 ) *CustomerService {
 	return &CustomerService{
 		customerRepo: cr,
@@ -35,6 +39,7 @@ func NewCustomerService(
 		subRepo:      sr,
 		eventRepo:    er,
 		noteRepo:     nr,
+		assignRepo:   ar,
 	}
 }
 
@@ -86,9 +91,17 @@ func (s *CustomerService) List(ctx context.Context, params repository.CustomerLi
 		params.Order = "asc"
 	}
 
-	validRisks := map[string]bool{"low": true, "medium": true, "high": true, "critical": true}
+	validRisks := map[string]bool{"green": true, "yellow": true, "red": true, "low": true, "medium": true, "high": true, "critical": true}
 	if params.Risk != "" && !validRisks[params.Risk] {
 		return nil, &ValidationError{Field: "risk", Message: "invalid risk level"}
+	}
+	if params.Assignee == "me" && params.AssigneeUserID == uuid.Nil {
+		return nil, &ValidationError{Field: "assignee", Message: "current user is required"}
+	}
+	if params.Assignee != "" && params.Assignee != "me" && params.Assignee != "unassigned" {
+		if _, err := uuid.Parse(params.Assignee); err != nil {
+			return nil, &ValidationError{Field: "assignee", Message: "invalid assignee"}
+		}
 	}
 
 	result, err := s.customerRepo.ListWithScores(ctx, params)
@@ -128,6 +141,7 @@ type CustomerDetail struct {
 	HealthScore   *HealthScoreDetail       `json:"health_score"`
 	Subscriptions []*SubscriptionInfo      `json:"subscriptions"`
 	RecentEvents  []*EventInfo             `json:"recent_events"`
+	Assignments   []CustomerAssignmentResponse `json:"assignments"`
 }
 
 // CustomerInfo holds customer info fields.
@@ -206,6 +220,33 @@ type CustomerNoteAuthor struct {
 	AvatarURL string    `json:"avatar_url"`
 }
 
+// CustomerAssignmentRequest is the assignment write payload.
+type CustomerAssignmentRequest struct {
+	UserID uuid.UUID `json:"user_id"`
+}
+
+// CustomerAssignmentResponse represents a customer assignee.
+type CustomerAssignmentResponse struct {
+	CustomerID  uuid.UUID                `json:"customer_id"`
+	UserID      uuid.UUID                `json:"user_id"`
+	Assignee    CustomerAssignmentUser   `json:"assignee"`
+	AssignedAt  time.Time                `json:"assigned_at"`
+	AssignedBy  uuid.UUID                `json:"assigned_by"`
+}
+
+// CustomerAssignmentsResponse is the JSON response for assignment listing.
+type CustomerAssignmentsResponse struct {
+	Assignments []CustomerAssignmentResponse `json:"assignments"`
+}
+
+// CustomerAssignmentUser is displayed with assignment metadata.
+type CustomerAssignmentUser struct {
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	AvatarURL string    `json:"avatar_url"`
+}
+
 // GetDetail returns the full detail for a customer.
 func (s *CustomerService) GetDetail(ctx context.Context, customerID, orgID uuid.UUID) (*CustomerDetail, error) {
 	customer, err := s.customerRepo.GetByIDAndOrg(ctx, customerID, orgID)
@@ -220,6 +261,7 @@ func (s *CustomerService) GetDetail(ctx context.Context, customerID, orgID uuid.
 		healthScore   *repository.HealthScore
 		subscriptions []*repository.StripeSubscription
 		events        []*repository.CustomerEvent
+		assignments   []*repository.CustomerAssignment
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -239,6 +281,12 @@ func (s *CustomerService) GetDetail(ctx context.Context, customerID, orgID uuid.
 	g.Go(func() error {
 		var err error
 		events, err = s.eventRepo.ListByCustomer(gctx, customerID, 10)
+		return err
+	})
+
+	g.Go(func() error {
+		var err error
+		assignments, err = s.assignRepo.ListByCustomer(gctx, customerID)
 		return err
 	})
 
@@ -299,7 +347,80 @@ func (s *CustomerService) GetDetail(ctx context.Context, customerID, orgID uuid.
 	}
 	detail.RecentEvents = eventInfos
 
+	assignmentInfos := make([]CustomerAssignmentResponse, len(assignments))
+	for i, assignment := range assignments {
+		assignmentInfos[i] = mapCustomerAssignment(assignment)
+	}
+	detail.Assignments = assignmentInfos
+
 	return detail, nil
+}
+
+// ListAssignments returns all current assignees for a customer.
+func (s *CustomerService) ListAssignments(ctx context.Context, customerID, orgID uuid.UUID) (*CustomerAssignmentsResponse, error) {
+	if err := s.ensureCustomerInOrg(ctx, customerID, orgID); err != nil {
+		return nil, err
+	}
+
+	assignments, err := s.assignRepo.ListByCustomer(ctx, customerID)
+	if err != nil {
+		return nil, fmt.Errorf("list customer assignments: %w", err)
+	}
+
+	resp := make([]CustomerAssignmentResponse, len(assignments))
+	for i, assignment := range assignments {
+		resp[i] = mapCustomerAssignment(assignment)
+	}
+
+	return &CustomerAssignmentsResponse{Assignments: resp}, nil
+}
+
+// AssignCustomer assigns an org member to a customer.
+func (s *CustomerService) AssignCustomer(ctx context.Context, customerID, orgID, assigneeID, assignedBy uuid.UUID) (*CustomerAssignmentResponse, error) {
+	if assigneeID == uuid.Nil {
+		return nil, &ValidationError{Field: "user_id", Message: "user_id is required"}
+	}
+	if err := s.ensureCustomerInOrg(ctx, customerID, orgID); err != nil {
+		return nil, err
+	}
+	belongs, err := s.assignRepo.UserInOrg(ctx, orgID, assigneeID)
+	if err != nil {
+		return nil, err
+	}
+	if !belongs {
+		return nil, &ValidationError{Field: "user_id", Message: "assignee must belong to organization"}
+	}
+
+	if err := s.assignRepo.Upsert(ctx, customerID, assigneeID, assignedBy); err != nil {
+		return nil, fmt.Errorf("assign customer: %w", err)
+	}
+	assignment, err := s.assignRepo.Get(ctx, customerID, assigneeID)
+	if err != nil {
+		return nil, fmt.Errorf("get customer assignment: %w", err)
+	}
+	if assignment == nil {
+		return nil, &NotFoundError{Resource: "customer_assignment", Message: "customer assignment not found"}
+	}
+
+	resp := mapCustomerAssignment(assignment)
+	return &resp, nil
+}
+
+// UnassignCustomer removes an assignee from a customer.
+func (s *CustomerService) UnassignCustomer(ctx context.Context, customerID, orgID, assigneeID uuid.UUID) error {
+	if assigneeID == uuid.Nil {
+		return &ValidationError{Field: "user_id", Message: "user_id is required"}
+	}
+	if err := s.ensureCustomerInOrg(ctx, customerID, orgID); err != nil {
+		return err
+	}
+	if err := s.assignRepo.Delete(ctx, customerID, assigneeID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &NotFoundError{Resource: "customer_assignment", Message: "customer assignment not found"}
+		}
+		return fmt.Errorf("unassign customer: %w", err)
+	}
+	return nil
 }
 
 // EventListResponse is the JSON response for event listing.
@@ -499,6 +620,29 @@ func mapCustomerNote(note *repository.CustomerNote, actorID uuid.UUID, actorRole
 		CreatedAt: note.CreatedAt,
 		UpdatedAt: note.UpdatedAt,
 	}
+}
+
+func mapCustomerAssignment(assignment *repository.CustomerAssignment) CustomerAssignmentResponse {
+	return CustomerAssignmentResponse{
+		CustomerID: assignment.CustomerID,
+		UserID:     assignment.UserID,
+		Assignee: CustomerAssignmentUser{
+			ID:        assignment.UserID,
+			Name:      customerAssignmentUserName(assignment),
+			Email:     assignment.AssigneeEmail,
+			AvatarURL: assignment.AssigneeAvatarURL,
+		},
+		AssignedAt: assignment.AssignedAt,
+		AssignedBy: assignment.AssignedBy,
+	}
+}
+
+func customerAssignmentUserName(assignment *repository.CustomerAssignment) string {
+	name := strings.TrimSpace(strings.Join([]string{assignment.AssigneeFirstName, assignment.AssigneeLastName}, " "))
+	if name != "" {
+		return name
+	}
+	return assignment.AssigneeEmail
 }
 
 func customerNoteAuthorName(note *repository.CustomerNote) string {

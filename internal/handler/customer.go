@@ -38,14 +38,20 @@ func (h *CustomerHandler) List(w http.ResponseWriter, r *http.Request) {
 	perPage, _ := strconv.Atoi(q.Get("per_page"))
 
 	params := repository.CustomerListParams{
-		OrgID:   orgID,
-		Page:    page,
-		PerPage: perPage,
-		Sort:    q.Get("sort"),
-		Order:   q.Get("order"),
-		Risk:    q.Get("risk"),
-		Search:  q.Get("search"),
-		Source:  q.Get("source"),
+		OrgID:    orgID,
+		Page:     page,
+		PerPage:  perPage,
+		Sort:     q.Get("sort"),
+		Order:    q.Get("order"),
+		Risk:     q.Get("risk"),
+		Search:   q.Get("search"),
+		Source:   q.Get("source"),
+		Assignee: q.Get("assignee"),
+	}
+	if params.Assignee == "me" {
+		if userID, ok := auth.GetUserID(r.Context()); ok {
+			params.AssigneeUserID = userID
+		}
 	}
 
 	resp, err := h.customerService.List(r.Context(), params)
@@ -126,6 +132,86 @@ func (h *CustomerHandler) ListEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// ListAssignments handles GET /api/v1/customers/{id}/assignments.
+func (h *CustomerHandler) ListAssignments(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := auth.GetOrgID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	customerID, ok := parseUUIDParam(w, r, "id", "invalid customer ID")
+	if !ok {
+		return
+	}
+
+	resp, err := h.customerService.ListAssignments(r.Context(), customerID, orgID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// AssignCustomer handles POST /api/v1/customers/{id}/assignments.
+func (h *CustomerHandler) AssignCustomer(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := auth.GetOrgID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+	userID, ok := auth.GetUserID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	customerID, ok := parseUUIDParam(w, r, "id", "invalid customer ID")
+	if !ok {
+		return
+	}
+
+	var req service.CustomerAssignmentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse("invalid request body"))
+		return
+	}
+
+	resp, err := h.customerService.AssignCustomer(r.Context(), customerID, orgID, req.UserID, userID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, resp)
+}
+
+// UnassignCustomer handles DELETE /api/v1/customers/{id}/assignments/{userID}.
+func (h *CustomerHandler) UnassignCustomer(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := auth.GetOrgID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	customerID, ok := parseUUIDParam(w, r, "id", "invalid customer ID")
+	if !ok {
+		return
+	}
+	assigneeID, ok := parseUUIDParam(w, r, "userID", "invalid user ID")
+	if !ok {
+		return
+	}
+
+	if err := h.customerService.UnassignCustomer(r.Context(), customerID, orgID, assigneeID); err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ListNotes handles GET /api/v1/customers/{id}/notes.

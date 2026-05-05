@@ -550,7 +550,8 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				r.Patch("/users/me", userHandler.UpdateProfile)
 
 				// Customer routes
-				customerSvc := service.NewCustomerService(customerRepo, healthScoreRepo, subRepo, eventRepo, customerNoteRepo)
+				customerAssignmentRepo := repository.NewCustomerAssignmentRepository(pool.P)
+				customerSvc := service.NewCustomerService(customerRepo, healthScoreRepo, subRepo, eventRepo, customerNoteRepo, customerAssignmentRepo)
 				customerHandler := handler.NewCustomerHandler(customerSvc)
 				savedViewSvc := service.NewSavedViewService(savedViewRepo)
 				savedViewHandler := handler.NewSavedViewHandler(savedViewSvc)
@@ -562,6 +563,9 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				r.Delete("/customers/saved-views/{id}", savedViewHandler.Delete)
 				r.Get("/customers/{id}", customerHandler.GetDetail)
 				r.Get("/customers/{id}/events", customerHandler.ListEvents)
+				r.Get("/customers/{id}/assignments", customerHandler.ListAssignments)
+				r.Post("/customers/{id}/assignments", customerHandler.AssignCustomer)
+				r.Delete("/customers/{id}/assignments/{userID}", customerHandler.UnassignCustomer)
 				r.Get("/customers/{id}/notes", customerHandler.ListNotes)
 				r.Post("/customers/{id}/notes", customerHandler.CreateNote)
 				r.Put("/customers/{id}/notes/{noteID}", customerHandler.UpdateNote)

@@ -5,6 +5,9 @@ import { useToast } from "@/contexts/ToastContext";
 import HealthScoreBadge from "@/components/HealthScoreBadge";
 import EventTimeline from "@/components/EventTimeline";
 import CustomerNotes from "@/components/CustomerNotes";
+import AccountAssignment, {
+  type CustomerAssignment,
+} from "@/components/AccountAssignment";
 import ScoreHistoryChart from "@/components/charts/ScoreHistoryChart";
 import ProfileSkeleton from "@/components/skeletons/ProfileSkeleton";
 import { ChevronRight, Mail, Building, DollarSign, Clock } from "lucide-react";
@@ -22,6 +25,7 @@ interface CustomerDetail {
   source: string;
   subscriptions?: Subscription[];
   score_factors?: ScoreFactor[];
+  assignments?: CustomerAssignment[];
 }
 
 interface CustomerDetailResponse {
@@ -46,6 +50,7 @@ interface CustomerDetailResponse {
     amount_cents: number;
     interval: string;
   }>;
+  assignments?: CustomerAssignment[];
 }
 
 interface Subscription {
@@ -191,6 +196,11 @@ export default function CustomerDetailPage() {
       {activeTab === "overview" && (
         <div className="space-y-6">
           {/* Score factors */}
+          <AccountAssignment
+            customerId={customer.id}
+            initialAssignments={customer.assignments}
+          />
+
           {customer.score_factors && customer.score_factors.length > 0 && (
             <div className="galdr-card p-6">
               <h3 className="mb-4 text-sm font-medium text-[var(--galdr-fg)]">
@@ -311,6 +321,7 @@ function normalizeCustomerDetail(
             weight: 0,
           }))
         : [],
+      assignments: data.assignments ?? [],
     };
   }
   return data;

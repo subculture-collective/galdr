@@ -306,14 +306,16 @@ func (r *CustomerRepository) TotalMRRByOrg(ctx context.Context, orgID uuid.UUID)
 
 // CustomerListParams holds pagination and filter params for customer listing.
 type CustomerListParams struct {
-	OrgID   uuid.UUID
-	Page    int
-	PerPage int
-	Sort    string
-	Order   string
-	Risk    string
-	Search  string
-	Source  string
+	OrgID          uuid.UUID
+	Page           int
+	PerPage        int
+	Sort           string
+	Order          string
+	Risk           string
+	Search         string
+	Source         string
+	Assignee       string
+	AssigneeUserID uuid.UUID
 }
 
 // CustomerWithScore holds a customer with its health score data.
@@ -352,6 +354,21 @@ func (r *CustomerRepository) ListWithScores(ctx context.Context, params Customer
 	if params.Source != "" {
 		where += fmt.Sprintf(" AND c.source = $%d", argIdx)
 		args = append(args, params.Source)
+		argIdx++
+	}
+	if params.Assignee == "unassigned" {
+		where += " AND NOT EXISTS (SELECT 1 FROM customer_assignments ca WHERE ca.customer_id = c.id)"
+	} else if params.Assignee != "" {
+		assigneeID := params.AssigneeUserID
+		if assigneeID == uuid.Nil {
+			parsed, err := uuid.Parse(params.Assignee)
+			if err != nil {
+				return nil, fmt.Errorf("invalid assignee filter: %w", err)
+			}
+			assigneeID = parsed
+		}
+		where += fmt.Sprintf(" AND EXISTS (SELECT 1 FROM customer_assignments ca WHERE ca.customer_id = c.id AND ca.user_id = $%d)", argIdx)
+		args = append(args, assigneeID)
 		argIdx++
 	}
 
