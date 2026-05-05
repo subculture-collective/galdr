@@ -151,12 +151,14 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			paymentRepo := repository.NewStripePaymentRepository(pool.P)
 			eventRepo := repository.NewCustomerEventRepository(pool.P)
 
-			// HubSpot/Intercom repositories
+			// HubSpot/Intercom/Zendesk repositories
 			hubspotContactRepo := repository.NewHubSpotContactRepository(pool.P)
 			hubspotDealRepo := repository.NewHubSpotDealRepository(pool.P)
 			hubspotCompanyRepo := repository.NewHubSpotCompanyRepository(pool.P)
 			intercomContactRepo := repository.NewIntercomContactRepository(pool.P)
 			intercomConversationRepo := repository.NewIntercomConversationRepository(pool.P)
+			zendeskUserRepo := repository.NewZendeskUserRepository(pool.P)
+			zendeskTicketRepo := repository.NewZendeskTicketRepository(pool.P)
 
 			// Onboarding repositories
 			onboardingStatusRepo := repository.NewOnboardingStatusRepository(pool.P)
@@ -198,8 +200,16 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				EncryptionKey:    cfg.Intercom.EncryptionKey,
 			}, connRepo)
 
+			zendeskOAuthSvc := service.NewZendeskOAuthService(service.ZendeskOAuthConfig{
+				ClientID:         cfg.Zendesk.ClientID,
+				ClientSecret:     cfg.Zendesk.ClientSecret,
+				OAuthRedirectURL: cfg.Zendesk.OAuthRedirectURL,
+				EncryptionKey:    cfg.Zendesk.EncryptionKey,
+			}, connRepo)
+
 			hubspotClient := service.NewHubSpotClient()
 			intercomClient := service.NewIntercomClient()
+			zendeskClient := service.NewZendeskClient()
 
 			stripeSyncSvc := service.NewStripeSyncService(
 				customerRepo, subRepo, paymentRepo, eventRepo,
@@ -227,6 +237,15 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				eventRepo,
 			)
 
+			zendeskSyncSvc := service.NewZendeskSyncService(
+				zendeskOAuthSvc,
+				zendeskClient,
+				zendeskUserRepo,
+				zendeskTicketRepo,
+				customerRepo,
+				eventRepo,
+			)
+
 			mrrSvc := service.NewMRRService(customerRepo, subRepo, eventRepo)
 			paymentHealthSvc := service.NewPaymentHealthService(paymentRepo, eventRepo, customerRepo)
 			paymentRecencySvc := service.NewPaymentRecencyService(paymentRepo, subRepo)
@@ -234,6 +253,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			syncOrchestrator := service.NewSyncOrchestratorService(connRepo, stripeSyncSvc, mrrSvc)
 			hubspotSyncOrchestrator := service.NewHubSpotSyncOrchestratorService(connRepo, hubspotSyncSvc, mergeSvc)
 			intercomSyncOrchestrator := service.NewIntercomSyncOrchestratorService(connRepo, intercomSyncSvc, mergeSvc)
+			zendeskSyncOrchestrator := service.NewZendeskSyncOrchestratorService(connRepo, zendeskSyncSvc, mergeSvc)
 			connectorRegistry, err := service.NewIntegrationConnectorRegistry(
 				stripeOAuthSvc,
 				syncOrchestrator,
@@ -241,6 +261,8 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				hubspotSyncOrchestrator,
 				intercomOAuthSvc,
 				intercomSyncOrchestrator,
+				zendeskOAuthSvc,
+				zendeskSyncOrchestrator,
 			)
 			if err != nil {
 				slog.Error("failed to create connector registry", "error", err)
@@ -642,6 +664,17 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 					r.Get("/status", intercomHandler.Status)
 					r.Delete("/", intercomHandler.Disconnect)
 					r.Post("/sync", intercomHandler.TriggerSync)
+				})
+
+				// Zendesk integration routes (admin+ required)
+				zendeskHandler := handler.NewIntegrationZendeskHandler(zendeskOAuthSvc, connectorSyncSvc)
+				r.Route("/integrations/zendesk", func(r chi.Router) {
+					r.Use(middleware.RequireRole("admin"))
+					r.With(middleware.RequireIntegrationLimit(billingLimitsSvc, "zendesk")).Get("/connect", zendeskHandler.Connect)
+					r.Get("/callback", zendeskHandler.Callback)
+					r.Get("/status", zendeskHandler.Status)
+					r.Delete("/", zendeskHandler.Disconnect)
+					r.Post("/sync", zendeskHandler.TriggerSync)
 				})
 
 				// Onboarding routes

@@ -20,6 +20,7 @@ type Config struct {
 	BillingStripe BillingStripeConfig
 	HubSpot       HubSpotConfig
 	Intercom      IntercomConfig
+	Zendesk       ZendeskConfig
 	OpenAI        OpenAIConfig
 	Scoring       ScoringConfig
 	Alert         AlertConfig
@@ -79,6 +80,16 @@ type HubSpotConfig struct {
 
 // IntercomConfig holds Intercom OAuth and webhook settings.
 type IntercomConfig struct {
+	ClientID         string
+	ClientSecret     string
+	OAuthRedirectURL string
+	EncryptionKey    string // 32-byte hex-encoded AES key for token encryption
+	WebhookSecret    string
+	SyncIntervalMin  int
+}
+
+// ZendeskConfig holds Zendesk OAuth and sync settings.
+type ZendeskConfig struct {
 	ClientID         string
 	ClientSecret     string
 	OAuthRedirectURL string
@@ -214,6 +225,14 @@ func Load() *Config {
 			EncryptionKey:    getEnv("INTERCOM_ENCRYPTION_KEY", ""),
 			WebhookSecret:    getEnv("INTERCOM_WEBHOOK_SECRET", ""),
 			SyncIntervalMin:  getInt("INTERCOM_SYNC_INTERVAL_MIN", 15),
+		},
+		Zendesk: ZendeskConfig{
+			ClientID:         getEnv("ZENDESK_CLIENT_ID", ""),
+			ClientSecret:     getEnv("ZENDESK_CLIENT_SECRET", ""),
+			OAuthRedirectURL: getEnv("ZENDESK_OAUTH_REDIRECT_URL", "http://localhost:8080/api/v1/integrations/zendesk/callback"),
+			EncryptionKey:    getEnv("ZENDESK_ENCRYPTION_KEY", ""),
+			WebhookSecret:    getEnv("ZENDESK_WEBHOOK_SECRET", ""),
+			SyncIntervalMin:  getInt("ZENDESK_SYNC_INTERVAL_MIN", 15),
 		},
 		OpenAI: OpenAIConfig{
 			APIKey:            getEnv("OPENAI_API_KEY", ""),

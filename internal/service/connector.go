@@ -14,12 +14,14 @@ const (
 	providerStripe   = "stripe"
 	providerHubSpot  = "hubspot"
 	providerIntercom = "intercom"
+	providerZendesk  = "zendesk"
 )
 
 var (
 	_ connectorsdk.Connector = (*StripeConnector)(nil)
 	_ connectorsdk.Connector = (*HubSpotConnector)(nil)
 	_ connectorsdk.Connector = (*IntercomConnector)(nil)
+	_ connectorsdk.Connector = (*ZendeskConnector)(nil)
 )
 
 // ConnectorSyncer runs a provider sync through the connector registry.
@@ -63,12 +65,15 @@ func NewIntegrationConnectorRegistry(
 	hubspotOrchestrator *HubSpotSyncOrchestratorService,
 	intercomOAuth *IntercomOAuthService,
 	intercomOrchestrator *IntercomSyncOrchestratorService,
+	zendeskOAuth *ZendeskOAuthService,
+	zendeskOrchestrator *ZendeskSyncOrchestratorService,
 ) (*connectorsdk.Registry, error) {
 	registry := connectorsdk.NewRegistry()
 	connectors := []connectorsdk.Connector{
 		NewStripeConnector(stripeOAuth, stripeOrchestrator),
 		NewHubSpotConnector(hubspotOAuth, hubspotOrchestrator),
 		NewIntercomConnector(intercomOAuth, intercomOrchestrator),
+		NewZendeskConnector(zendeskOAuth, zendeskOrchestrator),
 	}
 
 	for _, connector := range connectors {
@@ -413,6 +418,111 @@ func (c *IntercomConnector) Sync(ctx context.Context, req connectorsdk.SyncReque
 
 // HandleEvent leaves existing Intercom webhook handling unchanged.
 func (c *IntercomConnector) HandleEvent(context.Context, connectorsdk.EventRequest) (*connectorsdk.EventResult, error) {
+	return &connectorsdk.EventResult{Accepted: false}, nil
+}
+
+// ZendeskConnector adapts existing Zendesk services to the connector SDK.
+type ZendeskConnector struct {
+	oauth        *ZendeskOAuthService
+	orchestrator *ZendeskSyncOrchestratorService
+}
+
+// NewZendeskConnector creates a Zendesk connector adapter.
+func NewZendeskConnector(oauth *ZendeskOAuthService, orchestrator *ZendeskSyncOrchestratorService) *ZendeskConnector {
+	return &ZendeskConnector{oauth: oauth, orchestrator: orchestrator}
+}
+
+// Manifest returns Zendesk connector metadata.
+func (c *ZendeskConnector) Manifest() connectorsdk.ConnectorManifest {
+	return connectorsdk.ConnectorManifest{
+		ID:          providerZendesk,
+		Name:        "Zendesk",
+		Version:     "1.0.0",
+		Description: "Syncs Zendesk end-users and tickets into customer support signals.",
+		Categories:  []string{"support"},
+		Auth: connectorsdk.AuthConfig{
+			Type: connectorsdk.AuthTypeOAuth2,
+			OAuth2: &connectorsdk.OAuth2Config{
+				AuthorizeURL: "https://{subdomain}.zendesk.com/oauth/authorizations/new",
+				TokenURL:     "https://{subdomain}.zendesk.com/oauth/tokens",
+				Scopes:       []string{"read"},
+			},
+		},
+		Sync: connectorsdk.SyncConfig{
+			SupportedModes: []connectorsdk.SyncMode{connectorsdk.SyncModeFull, connectorsdk.SyncModeIncremental},
+			DefaultMode:    connectorsdk.SyncModeFull,
+			Resources: []connectorsdk.ResourceConfig{
+				{Name: "users", Description: "Zendesk end-user records", Required: true},
+				{Name: "tickets", Description: "Zendesk support tickets", Required: true},
+			},
+		},
+		Webhooks: []connectorsdk.WebhookConfig{
+			{
+				Path: "/api/v1/webhooks/zendesk",
+				EventTypes: []string{
+					"ticket.created",
+					"ticket.updated",
+					"ticket.solved",
+				},
+				SigningSecretHeader: "X-Zendesk-Webhook-Signature",
+			},
+		},
+	}
+}
+
+// Authenticate exchanges Zendesk OAuth credentials using the existing service.
+func (c *ZendeskConnector) Authenticate(ctx context.Context, req connectorsdk.AuthRequest) (*connectorsdk.AuthResult, error) {
+	if c.oauth == nil {
+		return nil, &ValidationError{Field: providerZendesk, Message: "Zendesk OAuth service is not configured"}
+	}
+	orgID, err := parseConnectorOrgID(req.OrgID)
+	if err != nil {
+		return nil, err
+	}
+	state := req.Metadata["state"]
+	if err := c.oauth.ExchangeCode(ctx, orgID, req.Code, state); err != nil {
+		return nil, err
+	}
+	status, err := c.oauth.GetStatus(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	return &connectorsdk.AuthResult{ExternalAccountID: status.ExternalAccountID, Scopes: []string{"read"}}, nil
+}
+
+// Sync runs a Zendesk full or incremental sync.
+func (c *ZendeskConnector) Sync(ctx context.Context, req connectorsdk.SyncRequest) (*connectorsdk.SyncResult, error) {
+	if c.orchestrator == nil {
+		return nil, &ValidationError{Field: providerZendesk, Message: "Zendesk sync orchestrator is not configured"}
+	}
+	orgID, err := parseConnectorOrgID(req.OrgID)
+	if err != nil {
+		return nil, err
+	}
+
+	var result *ZendeskSyncResult
+	switch req.Mode {
+	case connectorsdk.SyncModeFull:
+		result = c.orchestrator.RunFullSync(ctx, orgID)
+	case connectorsdk.SyncModeIncremental:
+		if req.Since == nil {
+			return nil, &ValidationError{Field: "since", Message: "incremental sync requires since"}
+		}
+		result = c.orchestrator.RunIncrementalSync(ctx, orgID, *req.Since)
+	default:
+		return nil, &ValidationError{Field: "mode", Message: fmt.Sprintf("unsupported sync mode %q", req.Mode)}
+	}
+
+	errorText := strings.Join(result.Errors, "; ")
+	resources := []connectorsdk.ResourceResult{
+		resourceResult("users", result.Users, errorText),
+		resourceResult("tickets", result.Tickets, errorText),
+	}
+	return &connectorsdk.SyncResult{Resources: resources}, nil
+}
+
+// HandleEvent leaves Zendesk webhook handling to provider-specific routes later.
+func (c *ZendeskConnector) HandleEvent(context.Context, connectorsdk.EventRequest) (*connectorsdk.EventResult, error) {
 	return &connectorsdk.EventResult{Accepted: false}, nil
 }
 
