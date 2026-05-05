@@ -9,6 +9,7 @@ import StripeConnectionCard from "@/components/integrations/StripeConnectionCard
 import HubSpotConnectionCard from "@/components/integrations/HubSpotConnectionCard";
 import IntercomConnectionCard from "@/components/integrations/IntercomConnectionCard";
 import ZendeskConnectionCard from "@/components/integrations/ZendeskConnectionCard";
+import SalesforceConnectionCard from "@/components/integrations/SalesforceConnectionCard";
 import IntegrationCard from "@/components/IntegrationCard";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import { Loader2 } from "lucide-react";
@@ -26,6 +27,7 @@ const DEDICATED_INTEGRATION_PROVIDERS = new Set([
   "hubspot",
   "intercom",
   "zendesk",
+  "salesforce",
 ]);
 
 export default function IntegrationsTab() {
@@ -101,6 +103,13 @@ export default function IntegrationsTab() {
           Zendesk
         </h3>
         <ZendeskConnectionCard />
+      </div>
+
+      <div>
+        <h3 className="mb-4 text-sm font-medium text-[var(--galdr-fg)]">
+          Salesforce
+        </h3>
+        <SalesforceConnectionCard />
       </div>
 
       {otherIntegrations.length > 0 && (

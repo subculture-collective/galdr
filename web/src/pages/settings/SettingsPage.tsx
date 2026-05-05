@@ -26,6 +26,9 @@ const HubSpotCallbackPage = lazy(
 const IntercomCallbackPage = lazy(
   () => import("@/pages/settings/IntercomCallbackPage"),
 );
+const SalesforceCallbackPage = lazy(
+  () => import("@/pages/settings/SalesforceCallbackPage"),
+);
 
 function SettingsTabFallback() {
   return (
@@ -96,6 +99,10 @@ export default function SettingsPage() {
           <Route path="stripe/callback" element={<StripeCallbackPage />} />
           <Route path="hubspot/callback" element={<HubSpotCallbackPage />} />
           <Route path="intercom/callback" element={<IntercomCallbackPage />} />
+          <Route
+            path="salesforce/callback"
+            element={<SalesforceCallbackPage />}
+          />
           <Route index element={<Navigate to="organization" replace />} />
         </Routes>
       </Suspense>
