@@ -97,7 +97,7 @@ func newRouter(cfg *config.Config, pool *database.Pool, jwtMgr *auth.JWTManager)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.CORS.AllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-ID", "X-Organization-ID"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-ID", "X-Organization-ID", "X-PulseScore-Signature"},
 		ExposedHeaders:   []string{"X-Request-ID"},
 		AllowCredentials: true,
 		MaxAge:           corsMaxAgeSeconds,
@@ -150,6 +150,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			subRepo := repository.NewStripeSubscriptionRepository(pool.P)
 			paymentRepo := repository.NewStripePaymentRepository(pool.P)
 			eventRepo := repository.NewCustomerEventRepository(pool.P)
+			genericWebhookConfigRepo := repository.NewGenericWebhookConfigRepository(pool.P)
 
 			// HubSpot/Intercom repositories
 			hubspotContactRepo := repository.NewHubSpotContactRepository(pool.P)
@@ -324,6 +325,9 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				eventRepo,
 			)
 
+			genericWebhookSvc := service.NewGenericWebhookService(orgRepo, genericWebhookConfigRepo, customerRepo, eventRepo)
+			genericWebhookHandler := handler.NewGenericWebhookHandler(genericWebhookSvc)
+
 			onboardingSvc := service.NewOnboardingService(onboardingStatusRepo, onboardingEventRepo)
 
 			// Health scoring engine
@@ -488,6 +492,9 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			intercomWebhookHandler := handler.NewWebhookIntercomHandler(intercomWebhookSvc)
 			r.Post("/webhooks/intercom", intercomWebhookHandler.HandleWebhook)
 
+			// Generic webhook receiver (public — optionally verified by config secret)
+			r.Post("/webhooks/generic/{org_slug}/{webhook_id}", genericWebhookHandler.Process)
+
 			// Protected routes (JWT required)
 			r.Group(func(r chi.Router) {
 				r.Use(middleware.JWTAuth(jwtMgr))
@@ -541,6 +548,15 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				integrationHandler := handler.NewIntegrationHandler(integrationSvc)
 				r.Route("/integrations", func(r chi.Router) {
 					r.Get("/", integrationHandler.List)
+					r.Route("/generic-webhooks", func(r chi.Router) {
+						r.Use(middleware.RequireRole("admin"))
+						r.Get("/", genericWebhookHandler.List)
+						r.Post("/", genericWebhookHandler.Create)
+						r.Post("/test", genericWebhookHandler.Test)
+						r.Get("/{id}", genericWebhookHandler.Get)
+						r.Patch("/{id}", genericWebhookHandler.Update)
+						r.Delete("/{id}", genericWebhookHandler.Delete)
+					})
 					r.Route("/{provider}", func(r chi.Router) {
 						r.Use(middleware.RequireRole("admin"))
 						r.Get("/status", integrationHandler.GetStatus)
