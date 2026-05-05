@@ -262,6 +262,9 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				planCatalog,
 			)
 			billingSubscriptionSvc.SetFeatureOverrides(featureOverrideRepo)
+			llmUsageStore := service.NewPostgresLLMUsageStore(pool.P)
+			llmBudgetNotifier := service.NewPostgresLLMBudgetNotifier(pool.P)
+			llmUsageSvc := service.NewLLMUsageService(llmUsageStore, billingSubscriptionSvc, llmBudgetNotifier)
 
 			billingLimitsSvc := billingsvc.NewLimitsService(
 				billingSubscriptionSvc,
@@ -505,9 +508,11 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 					billingPortalSvc,
 					billingSubscriptionSvc,
 					billingPlanChangeSvc,
+					llmUsageSvc,
 				)
 				r.Route("/billing", func(r chi.Router) {
 					r.Get("/subscription", billingHandler.GetSubscription)
+					r.Get("/ai-usage", billingHandler.GetAIUsage)
 					r.Group(func(r chi.Router) {
 						r.Use(middleware.RequireRole("admin"))
 						r.Post("/checkout", billingHandler.CreateCheckout)

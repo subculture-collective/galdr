@@ -37,6 +37,13 @@ type LLMUsageTracker interface {
 	TrackLLMUsage(ctx context.Context, usage LLMUsage) error
 }
 
+// LLMUsageGate enforces plan budgets/rates and records metered LLM usage.
+type LLMUsageGate interface {
+	CheckLLMUsage(ctx context.Context, orgID uuid.UUID, estimatedCostUSD float64, manualRegeneration bool) error
+	RecordLLMUsage(ctx context.Context, usage LLMUsage) (*LLMUsageSummary, error)
+	NotifyLLMBudgetWarning(ctx context.Context, warning LLMBudgetWarning) error
+}
+
 // LLMProviderRequest is the provider-facing completion request.
 type LLMProviderRequest struct {
 	Prompt    string
@@ -57,6 +64,10 @@ type LLMCompletionRequest struct {
 	TemplateName string
 	TemplateData any
 	MaxTokens    int
+	RequestType  string
+
+	// ManualRegeneration lets callers show confirmation before exceeding a hard budget.
+	ManualRegeneration bool
 }
 
 // LLMCompletionResponse is the service-facing completion response.
@@ -73,6 +84,8 @@ type LLMCompletionResponse struct {
 type LLMUsage struct {
 	OrgID        uuid.UUID
 	Provider     string
+	Model        string
+	RequestType  string
 	InputTokens  int
 	OutputTokens int
 	CostUSD      float64
@@ -87,7 +100,9 @@ type LLMServiceConfig struct {
 	DefaultMaxTokens  int
 	Templates         map[string]string
 	RetryDelays       []time.Duration
-	FallbackProviders []LLMProvider
+	FallbackProviders        []LLMProvider
+	GlobalRequestsPerMinute int
+	UsageGate               LLMUsageGate
 }
 
 // LLMService orchestrates provider calls with per-org safety controls.
@@ -96,9 +111,10 @@ type LLMService struct {
 	tracker   LLMUsageTracker
 	cfg       LLMServiceConfig
 
-	mu          sync.Mutex
-	limiters    map[uuid.UUID]*rate.Limiter
-	dailyTokens map[llmTokenBudgetKey]int
+	mu            sync.Mutex
+	limiters      map[uuid.UUID]*rate.Limiter
+	globalLimiter *rate.Limiter
+	dailyTokens   map[llmTokenBudgetKey]int
 }
 
 type llmTokenBudgetKey struct {
@@ -111,11 +127,12 @@ func NewLLMService(provider LLMProvider, tracker LLMUsageTracker, cfg LLMService
 	cfg = normalizeLLMServiceConfig(cfg)
 
 	return &LLMService{
-		providers:   configuredLLMProviders(provider, cfg.FallbackProviders),
-		tracker:     tracker,
-		cfg:         cfg,
-		limiters:    make(map[uuid.UUID]*rate.Limiter),
-		dailyTokens: make(map[llmTokenBudgetKey]int),
+		providers:     configuredLLMProviders(provider, cfg.FallbackProviders),
+		tracker:       tracker,
+		cfg:           cfg,
+		limiters:      make(map[uuid.UUID]*rate.Limiter),
+		globalLimiter: rate.NewLimiter(rate.Every(time.Minute/time.Duration(cfg.GlobalRequestsPerMinute)), cfg.GlobalRequestsPerMinute),
+		dailyTokens:   make(map[llmTokenBudgetKey]int),
 	}
 }
 
@@ -128,6 +145,9 @@ func normalizeLLMServiceConfig(cfg LLMServiceConfig) LLMServiceConfig {
 	}
 	if cfg.DefaultMaxTokens <= 0 {
 		cfg.DefaultMaxTokens = defaultLLMMaxTokens
+	}
+	if cfg.GlobalRequestsPerMinute <= 0 {
+		cfg.GlobalRequestsPerMinute = cfg.RequestsPerMinute
 	}
 	if len(cfg.RetryDelays) == 0 {
 		cfg.RetryDelays = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
@@ -181,6 +201,13 @@ func (s *LLMService) Complete(ctx context.Context, req LLMCompletionRequest) (*L
 	if err := s.reserveTokens(req.OrgID, estimatedTokens); err != nil {
 		return nil, err
 	}
+	if s.cfg.UsageGate != nil {
+		estimatedCost := CalculateLLMCostUSD(estimatedTokens-maxTokens, maxTokens)
+		if err := s.cfg.UsageGate.CheckLLMUsage(ctx, req.OrgID, estimatedCost, req.ManualRegeneration); err != nil {
+			s.releaseTokenReservation(req.OrgID, estimatedTokens)
+			return nil, err
+		}
+	}
 	if !s.allowRequest(req.OrgID) {
 		s.releaseTokenReservation(req.OrgID, estimatedTokens)
 		return nil, ErrLLMRateLimited
@@ -208,13 +235,26 @@ func (s *LLMService) Complete(ctx context.Context, req LLMCompletionRequest) (*L
 	usage := LLMUsage{
 		OrgID:        req.OrgID,
 		Provider:     providerName,
+		Model:        providerName,
+		RequestType:  normalizeLLMRequestType(req.RequestType),
 		InputTokens:  providerRes.InputTokens,
 		OutputTokens: providerRes.OutputTokens,
 		CostUSD:      cost,
 		Latency:      time.Since(start),
 		CreatedAt:    time.Now().UTC(),
 	}
-	if s.tracker != nil {
+	if s.cfg.UsageGate != nil {
+		summary, err := s.cfg.UsageGate.RecordLLMUsage(ctx, usage)
+		if err != nil {
+			return nil, fmt.Errorf("track llm usage: %w", err)
+		}
+		if summary != nil && summary.BudgetWarning {
+			warning := LLMBudgetWarning{OrgID: req.OrgID, Tier: summary.Tier, BudgetUSD: summary.BudgetUSD, MonthlyCostUSD: summary.MonthlyCostUSD, PercentUsed: summary.BudgetPercentUsed}
+			if err := s.cfg.UsageGate.NotifyLLMBudgetWarning(ctx, warning); err != nil {
+				return nil, fmt.Errorf("notify llm budget warning: %w", err)
+			}
+		}
+	} else if s.tracker != nil {
 		if err := s.tracker.TrackLLMUsage(ctx, usage); err != nil {
 			return nil, fmt.Errorf("track llm usage: %w", err)
 		}
@@ -230,6 +270,13 @@ func CalculateLLMCostUSD(inputTokens, outputTokens int) float64 {
 	inputCost := (float64(inputTokens) / 1_000_000) * gpt4oMiniInputCostPer1M
 	outputCost := (float64(outputTokens) / 1_000_000) * gpt4oMiniOutputCostPer1M
 	return inputCost + outputCost
+}
+
+func normalizeLLMRequestType(requestType string) string {
+	if requestType == "" {
+		return "completion"
+	}
+	return requestType
 }
 
 func (s *LLMService) renderPrompt(req LLMCompletionRequest) (string, error) {
@@ -258,6 +305,9 @@ func (s *LLMService) renderPrompt(req LLMCompletionRequest) (string, error) {
 func (s *LLMService) allowRequest(orgID uuid.UUID) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !s.globalLimiter.Allow() {
+		return false
+	}
 	limiter, ok := s.limiters[orgID]
 	if !ok {
 		limiter = rate.NewLimiter(rate.Every(time.Minute/time.Duration(s.cfg.RequestsPerMinute)), s.cfg.RequestsPerMinute)

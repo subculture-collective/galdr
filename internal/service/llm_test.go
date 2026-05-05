@@ -88,6 +88,23 @@ func TestLLMServiceDoesNotSpendRequestLimitWhenTokenBudgetFails(t *testing.T) {
 	}
 }
 
+func TestLLMServiceEnforcesGlobalRequestLimit(t *testing.T) {
+	svc := NewLLMService(&fakeLLMProvider{}, nil, LLMServiceConfig{
+		RequestsPerMinute:       10,
+		GlobalRequestsPerMinute: 1,
+		MaxTokensPerDay:         10_000,
+	})
+
+	_, err := svc.Complete(context.Background(), LLMCompletionRequest{OrgID: uuid.New(), Prompt: "first"})
+	if err != nil {
+		t.Fatalf("expected first request to pass, got %v", err)
+	}
+	_, err = svc.Complete(context.Background(), LLMCompletionRequest{OrgID: uuid.New(), Prompt: "second"})
+	if !errors.Is(err, ErrLLMRateLimited) {
+		t.Fatalf("expected global rate limit error, got %v", err)
+	}
+}
+
 func TestLLMServiceRetriesProviderRateLimits(t *testing.T) {
 	orgID := uuid.New()
 	provider := &fakeLLMProvider{
@@ -327,6 +344,72 @@ type recordingLLMUsageTracker struct {
 func (r *recordingLLMUsageTracker) TrackLLMUsage(ctx context.Context, usage LLMUsage) error {
 	r.usages = append(r.usages, usage)
 	return nil
+}
+
+type fakeLLMUsageGate struct {
+	checkCalls int
+	records    []LLMUsage
+	checkErr   error
+	warnings   []LLMBudgetWarning
+}
+
+func (f *fakeLLMUsageGate) CheckLLMUsage(ctx context.Context, orgID uuid.UUID, estimatedCostUSD float64, manualRegeneration bool) error {
+	f.checkCalls++
+	return f.checkErr
+}
+
+func (f *fakeLLMUsageGate) RecordLLMUsage(ctx context.Context, usage LLMUsage) (*LLMUsageSummary, error) {
+	f.records = append(f.records, usage)
+	return &LLMUsageSummary{BudgetWarning: true, MonthlyCostUSD: 4.25, BudgetUSD: 5}, nil
+}
+
+func (f *fakeLLMUsageGate) NotifyLLMBudgetWarning(ctx context.Context, warning LLMBudgetWarning) error {
+	f.warnings = append(f.warnings, warning)
+	return nil
+}
+
+func TestLLMServiceBlocksWhenTierBudgetExceeded(t *testing.T) {
+	orgID := uuid.New()
+	gate := &fakeLLMUsageGate{checkErr: ErrLLMBudgetExceeded}
+	provider := &fakeLLMProvider{}
+	svc := NewLLMService(provider, nil, LLMServiceConfig{
+		RequestsPerMinute: 10,
+		MaxTokensPerDay:   10_000,
+		UsageGate:         gate,
+	})
+
+	_, err := svc.Complete(context.Background(), LLMCompletionRequest{OrgID: orgID, Prompt: "budget"})
+	if !errors.Is(err, ErrLLMBudgetExceeded) {
+		t.Fatalf("expected budget error, got %v", err)
+	}
+	if provider.calls != 0 {
+		t.Fatalf("expected provider not to be called after budget block, got %d", provider.calls)
+	}
+}
+
+func TestLLMServiceRecordsUsageAndWarnsAtBudgetThreshold(t *testing.T) {
+	orgID := uuid.New()
+	gate := &fakeLLMUsageGate{}
+	provider := &fakeLLMProvider{name: "gpt-4o-mini", completions: []LLMProviderResponse{{Text: "ok", InputTokens: 1000, OutputTokens: 500}}}
+	svc := NewLLMService(provider, nil, LLMServiceConfig{
+		RequestsPerMinute: 10,
+		MaxTokensPerDay:   10_000,
+		UsageGate:         gate,
+	})
+
+	_, err := svc.Complete(context.Background(), LLMCompletionRequest{OrgID: orgID, Prompt: "warn", RequestType: "customer_summary"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(gate.records) != 1 {
+		t.Fatalf("expected usage record, got %d", len(gate.records))
+	}
+	if gate.records[0].RequestType != "customer_summary" || gate.records[0].Model != "gpt-4o-mini" {
+		t.Fatalf("expected request type/model on usage, got %+v", gate.records[0])
+	}
+	if len(gate.warnings) != 1 || gate.warnings[0].OrgID != orgID {
+		t.Fatalf("expected one budget warning, got %+v", gate.warnings)
+	}
 }
 
 func TestLLMServiceRendersTemplateAndTracksCost(t *testing.T) {

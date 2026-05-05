@@ -31,6 +31,10 @@ type billingPlanChangeServicer interface {
 	ChangePlan(ctx context.Context, orgID, userID uuid.UUID, req billing.ChangePlanRequest) (*billing.ChangePlanResponse, error)
 }
 
+type billingAIUsageServicer interface {
+	GetLLMUsageSummary(ctx context.Context, orgID uuid.UUID) (*core.LLMUsageSummary, error)
+}
+
 type billingWebhookServicer interface {
 	HandleEvent(ctx context.Context, payload []byte, sigHeader string) error
 }
@@ -41,6 +45,7 @@ type BillingHandler struct {
 	portalSvc       billingPortalServicer
 	subscriptionSvc billingSubscriptionServicer
 	planChangeSvc   billingPlanChangeServicer
+	aiUsageSvc      billingAIUsageServicer
 }
 
 func NewBillingHandler(
@@ -48,12 +53,14 @@ func NewBillingHandler(
 	portalSvc billingPortalServicer,
 	subscriptionSvc billingSubscriptionServicer,
 	planChangeSvc billingPlanChangeServicer,
+	aiUsageSvc billingAIUsageServicer,
 ) *BillingHandler {
 	return &BillingHandler{
 		checkoutSvc:     checkoutSvc,
 		portalSvc:       portalSvc,
 		subscriptionSvc: subscriptionSvc,
 		planChangeSvc:   planChangeSvc,
+		aiUsageSvc:      aiUsageSvc,
 	}
 }
 
@@ -112,6 +119,23 @@ func (h *BillingHandler) GetSubscription(w http.ResponseWriter, r *http.Request)
 	}
 
 	resp, err := h.subscriptionSvc.GetSubscriptionSummary(r.Context(), orgID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// GetAIUsage handles GET /api/v1/billing/ai-usage.
+func (h *BillingHandler) GetAIUsage(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := auth.GetOrgID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	resp, err := h.aiUsageSvc.GetLLMUsageSummary(r.Context(), orgID)
 	if err != nil {
 		handleServiceError(w, err)
 		return
