@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
+  BarChart3,
   Plug,
   Settings,
   ChevronLeft,
@@ -12,6 +13,7 @@ import {
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/customers", label: "Customers", icon: Users },
+  { to: "/benchmarks", label: "Benchmarks", icon: BarChart3 },
   { to: "/settings/integrations", label: "Integrations", icon: Plug },
   { to: "/settings", label: "Settings", icon: Settings, end: true },
 ];
