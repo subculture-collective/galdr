@@ -4,6 +4,7 @@ import { useToast } from "@/contexts/ToastContext";
 import StripeConnectionCard from "@/components/integrations/StripeConnectionCard";
 import HubSpotConnectionCard from "@/components/integrations/HubSpotConnectionCard";
 import IntercomConnectionCard from "@/components/integrations/IntercomConnectionCard";
+import WebhookConfig from "@/components/integrations/WebhookConfig";
 import IntegrationCard from "@/components/IntegrationCard";
 import { Loader2 } from "lucide-react";
 
@@ -75,6 +76,8 @@ export default function IntegrationsTab() {
         </h3>
         <IntercomConnectionCard />
       </div>
+
+      <WebhookConfig />
 
       {otherIntegrations.length > 0 && (
         <div>
