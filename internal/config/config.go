@@ -21,9 +21,15 @@ type Config struct {
 	HubSpot       HubSpotConfig
 	Intercom      IntercomConfig
 	OpenAI        OpenAIConfig
+	Internal      InternalConfig
 	Scoring       ScoringConfig
 	Alert         AlertConfig
 	Benchmark     BenchmarkConfig
+}
+
+// InternalConfig holds non-public operational API settings.
+type InternalConfig struct {
+	AnalyticsToken string
 }
 
 // BenchmarkConfig holds anonymized benchmarking job settings.
@@ -222,6 +228,9 @@ func Load() *Config {
 			RequestsPerMinute: getInt("OPENAI_REQUESTS_PER_MINUTE", 60),
 			MaxTokensPerDay:   getInt("OPENAI_MAX_TOKENS_PER_DAY", 100000),
 		},
+		Internal: InternalConfig{
+			AnalyticsToken: getEnv("INTERNAL_ANALYTICS_TOKEN", ""),
+		},
 		Scoring: ScoringConfig{
 			RecalcIntervalMin: getInt("SCORE_RECALC_INTERVAL_MIN", 60),
 			Workers:           getInt("SCORE_RECALC_WORKERS", 5),
@@ -272,6 +281,9 @@ func (c *Config) Validate() error {
 		}
 	}
 	if err := requireProductionValue("OPENAI_API_KEY", c.OpenAI.APIKey); err != nil {
+		return err
+	}
+	if err := requireProductionValue("INTERNAL_ANALYTICS_TOKEN", c.Internal.AnalyticsToken); err != nil {
 		return err
 	}
 	return nil

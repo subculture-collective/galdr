@@ -29,6 +29,7 @@ type billingSubscriptionServicer interface {
 
 type billingUsageServicer interface {
 	GetUsage(ctx context.Context, orgID uuid.UUID) (*billing.UsageSummary, error)
+	GetAggregateAnalytics(ctx context.Context) (*billing.AggregateUsageAnalytics, error)
 }
 
 type billingPlanChangeServicer interface {
@@ -136,6 +137,17 @@ func (h *BillingHandler) GetUsage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, err := h.usageSvc.GetUsage(r.Context(), orgID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// GetUsageAnalytics handles GET /api/v1/billing/usage/analytics.
+func (h *BillingHandler) GetUsageAnalytics(w http.ResponseWriter, r *http.Request) {
+	resp, err := h.usageSvc.GetAggregateAnalytics(r.Context())
 	if err != nil {
 		handleServiceError(w, err)
 		return

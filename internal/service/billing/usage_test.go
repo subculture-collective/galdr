@@ -20,8 +20,9 @@ func (m *mockPlaybookCounter) CountByOrg(ctx context.Context, orgID uuid.UUID) (
 }
 
 type mockUsageSnapshotStore struct {
-	recorded []repository.UsageSnapshotRecord
-	apiCount int
+	recorded   []repository.UsageSnapshotRecord
+	apiCount   int
+	aggregates []repository.UsageMetricAggregate
 }
 
 func (m *mockUsageSnapshotStore) Record(ctx context.Context, record repository.UsageSnapshotRecord) error {
@@ -39,6 +40,10 @@ func (m *mockUsageSnapshotStore) CurrentValue(ctx context.Context, orgID uuid.UU
 		return m.apiCount, nil
 	}
 	return 0, nil
+}
+
+func (m *mockUsageSnapshotStore) AggregateLatest(ctx context.Context, recordedAt time.Time) ([]repository.UsageMetricAggregate, error) {
+	return m.aggregates, nil
 }
 
 func TestUsageServiceReturnsCurrentUsageAndRecordsDailySnapshot(t *testing.T) {
@@ -95,5 +100,33 @@ func TestUsageServiceReturnsCurrentUsageAndRecordsDailySnapshot(t *testing.T) {
 	}
 	if metrics[UsageMetricCustomers] != 42 || metrics[UsageMetricIntegrations] != 2 || metrics[UsageMetricTeamMembers] != 4 || metrics[UsageMetricPlaybooks] != 7 {
 		t.Fatalf("unexpected recorded metrics: %+v", metrics)
+	}
+}
+
+func TestUsageServiceReturnsAggregateUsageAnalytics(t *testing.T) {
+	now := time.Date(2026, 5, 5, 10, 0, 0, 0, time.UTC)
+	store := &mockUsageSnapshotStore{aggregates: []repository.UsageMetricAggregate{
+		{Metric: UsageMetricCustomers, OrgCount: 2, Total: 75, Average: 37.5, Maximum: 50},
+		{Metric: UsageMetricIntegrations, OrgCount: 2, Total: 5, Average: 2.5, Maximum: 3},
+	}}
+	svc := NewUsageService(UsageServiceDeps{
+		Snapshots: store,
+		Now:       func() time.Time { return now },
+	})
+
+	analytics, err := svc.GetAggregateAnalytics(context.Background())
+	if err != nil {
+		t.Fatalf("get aggregate analytics: %v", err)
+	}
+
+	if !analytics.RecordedAt.Equal(now) {
+		t.Fatalf("expected recorded_at %s, got %s", now, analytics.RecordedAt)
+	}
+	if len(analytics.Metrics) != 2 {
+		t.Fatalf("expected two aggregate metrics, got %d", len(analytics.Metrics))
+	}
+	customers := analytics.Metrics[UsageMetricCustomers]
+	if customers.OrgCount != 2 || customers.Total != 75 || customers.Average != 37.5 || customers.Maximum != 50 {
+		t.Fatalf("unexpected customer aggregate: %+v", customers)
 	}
 }

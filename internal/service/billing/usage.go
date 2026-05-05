@@ -27,6 +27,7 @@ type usageSnapshotStore interface {
 	Record(ctx context.Context, record repository.UsageSnapshotRecord) error
 	Increment(ctx context.Context, orgID uuid.UUID, metric string, recordedAt time.Time) error
 	CurrentValue(ctx context.Context, orgID uuid.UUID, metric string, recordedAt time.Time) (int, error)
+	AggregateLatest(ctx context.Context, recordedAt time.Time) ([]repository.UsageMetricAggregate, error)
 }
 
 // UsageServiceDeps groups usage analytics dependencies.
@@ -56,6 +57,12 @@ type UsageSummary struct {
 	PlaybookCount    UsageCounter `json:"playbook_count"`
 	TeamMemberCount  UsageCounter `json:"team_member_count"`
 	APIRequestsCount UsageCounter `json:"api_requests_count"`
+}
+
+// AggregateUsageAnalytics summarizes latest usage across all organizations.
+type AggregateUsageAnalytics struct {
+	RecordedAt time.Time                                  `json:"recorded_at"`
+	Metrics    map[string]repository.UsageMetricAggregate `json:"metrics"`
 }
 
 // UsageService tracks metered resource usage per organization.
@@ -145,6 +152,21 @@ func (s *UsageService) RecordAPIRequest(ctx context.Context, orgID uuid.UUID) er
 func (s *UsageService) RecordDailySnapshot(ctx context.Context, orgID uuid.UUID) error {
 	_, err := s.GetUsage(ctx, orgID)
 	return err
+}
+
+func (s *UsageService) GetAggregateAnalytics(ctx context.Context) (*AggregateUsageAnalytics, error) {
+	recordedAt := s.now().UTC()
+	aggregates, err := s.snapshots.AggregateLatest(ctx, recordedAt)
+	if err != nil {
+		return nil, fmt.Errorf("aggregate usage analytics: %w", err)
+	}
+
+	metrics := make(map[string]repository.UsageMetricAggregate, len(aggregates))
+	for _, aggregate := range aggregates {
+		metrics[aggregate.Metric] = aggregate
+	}
+
+	return &AggregateUsageAnalytics{RecordedAt: recordedAt, Metrics: metrics}, nil
 }
 
 func (s *UsageService) currentLimits(ctx context.Context, orgID uuid.UUID) (planmodel.UsageLimits, error) {

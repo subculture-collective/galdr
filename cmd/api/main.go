@@ -97,7 +97,7 @@ func newRouter(cfg *config.Config, pool *database.Pool, jwtMgr *auth.JWTManager)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.CORS.AllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-ID", "X-Organization-ID"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Internal-Analytics-Token", "X-Request-ID", "X-Organization-ID"},
 		ExposedHeaders:   []string{"X-Request-ID"},
 		AllowCredentials: true,
 		MaxAge:           corsMaxAgeSeconds,
@@ -527,6 +527,11 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				r.Route("/billing", func(r chi.Router) {
 					r.Get("/subscription", billingHandler.GetSubscription)
 					r.Get("/usage", billingHandler.GetUsage)
+					r.Group(func(r chi.Router) {
+						r.Use(middleware.RequireInternalAnalyticsToken(cfg.Internal.AnalyticsToken))
+						r.Use(middleware.RequireRole("owner"))
+						r.Get("/usage/analytics", billingHandler.GetUsageAnalytics)
+					})
 					r.Group(func(r chi.Router) {
 						r.Use(middleware.RequireRole("admin"))
 						r.Post("/checkout", billingHandler.CreateCheckout)

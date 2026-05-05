@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/onnwee/pulse-score/internal/auth"
+	"github.com/onnwee/pulse-score/internal/repository"
 	core "github.com/onnwee/pulse-score/internal/service"
 	billing "github.com/onnwee/pulse-score/internal/service/billing"
 )
@@ -44,11 +45,16 @@ func (m *mockBillingSubscriptionService) GetSubscriptionSummary(ctx context.Cont
 }
 
 type mockBillingUsageService struct {
-	getFn func(ctx context.Context, orgID uuid.UUID) (*billing.UsageSummary, error)
+	getFn       func(ctx context.Context, orgID uuid.UUID) (*billing.UsageSummary, error)
+	aggregateFn func(ctx context.Context) (*billing.AggregateUsageAnalytics, error)
 }
 
 func (m *mockBillingUsageService) GetUsage(ctx context.Context, orgID uuid.UUID) (*billing.UsageSummary, error) {
 	return m.getFn(ctx, orgID)
+}
+
+func (m *mockBillingUsageService) GetAggregateAnalytics(ctx context.Context) (*billing.AggregateUsageAnalytics, error) {
+	return m.aggregateFn(ctx)
 }
 
 type mockBillingPlanChangeService struct {
@@ -152,6 +158,32 @@ func TestBillingGetUsage_Success(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestBillingGetUsageAnalytics_Success(t *testing.T) {
+	h := NewBillingHandler(
+		&mockBillingCheckoutService{},
+		&mockBillingPortalService{},
+		&mockBillingSubscriptionService{},
+		&mockBillingUsageService{aggregateFn: func(ctx context.Context) (*billing.AggregateUsageAnalytics, error) {
+			return &billing.AggregateUsageAnalytics{Metrics: map[string]repository.UsageMetricAggregate{
+				billing.UsageMetricCustomers: {Metric: billing.UsageMetricCustomers, OrgCount: 2, Total: 75, Average: 37.5, Maximum: 50},
+			}}, nil
+		}},
+		&mockBillingPlanChangeService{},
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/billing/usage/analytics", nil)
+	rr := httptest.NewRecorder()
+
+	h.GetUsageAnalytics(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), `"org_count":2`) {
+		t.Fatalf("expected aggregate org count response, got %s", rr.Body.String())
 	}
 }
 
