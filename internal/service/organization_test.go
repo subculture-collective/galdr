@@ -18,6 +18,19 @@ func TestOrganizationUpdateCurrentRejectsUnknownIndustry(t *testing.T) {
 	assertIndustryValidationError(t, err)
 }
 
+func TestOrganizationUpdateCurrentRequiresIndustryForBenchmarking(t *testing.T) {
+	svc := NewOrganizationService(nil, nil)
+	enabled := true
+	industry := " "
+
+	_, err := svc.UpdateCurrent(context.Background(), uuid.New(), UpdateOrgRequest{
+		BenchmarkingEnabled: &enabled,
+		Industry:            &industry,
+	})
+
+	assertIndustryValidationError(t, err)
+}
+
 func TestOrganizationCreateRejectsUnknownIndustry(t *testing.T) {
 	svc := NewOrganizationService(nil, nil)
 
