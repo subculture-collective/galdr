@@ -59,6 +59,9 @@ func (a *BenchmarkAnonymizer) Anonymize(metrics BenchmarkOrgMetrics) (*repositor
 	if metrics.OrgID == uuid.Nil {
 		return nil, fmt.Errorf("org id is required")
 	}
+	if metrics.CustomerCount <= 0 {
+		return nil, fmt.Errorf("customer count must be positive")
+	}
 	if metrics.AvgHealthScore < 0 || metrics.AvgHealthScore > 100 {
 		return nil, fmt.Errorf("average health score out of range")
 	}
