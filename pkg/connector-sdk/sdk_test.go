@@ -118,6 +118,23 @@ func TestValidateManifestRejectsInvalidConnectorMetadata(t *testing.T) {
 			wantError: "unsupported sync mode",
 		},
 		{
+			name: "duplicate supported mode",
+			mutate: func(m *ConnectorManifest) {
+				m.Sync.SupportedModes = []SyncMode{SyncModeFull, SyncModeFull}
+			},
+			wantError: "duplicate sync mode",
+		},
+		{
+			name: "duplicate resource name",
+			mutate: func(m *ConnectorManifest) {
+				m.Sync.Resources = append(m.Sync.Resources, ResourceConfig{
+					Name:        "customers",
+					Description: "Duplicate customer feed",
+				})
+			},
+			wantError: "duplicate sync resource",
+		},
+		{
 			name:      "webhook without events",
 			mutate:    func(m *ConnectorManifest) { m.Webhooks[0].EventTypes = nil },
 			wantError: "event types",

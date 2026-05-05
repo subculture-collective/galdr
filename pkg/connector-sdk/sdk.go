@@ -350,10 +350,15 @@ func validateSupportedSyncModes(modes []SyncMode) error {
 	if len(modes) == 0 {
 		return errors.New("sync supported_modes is required")
 	}
+	seen := make(map[SyncMode]struct{}, len(modes))
 	for _, mode := range modes {
 		if !isSupportedSyncMode(mode) {
 			return fmt.Errorf("unsupported sync mode %q", mode)
 		}
+		if _, exists := seen[mode]; exists {
+			return fmt.Errorf("duplicate sync mode %q", mode)
+		}
+		seen[mode] = struct{}{}
 	}
 	return nil
 }
@@ -362,10 +367,16 @@ func validateSyncResources(resources []ResourceConfig) error {
 	if len(resources) == 0 {
 		return errors.New("sync resources is required")
 	}
+	seen := make(map[string]struct{}, len(resources))
 	for _, resource := range resources {
-		if strings.TrimSpace(resource.Name) == "" {
+		name := strings.TrimSpace(resource.Name)
+		if name == "" {
 			return errors.New("sync resource name is required")
 		}
+		if _, exists := seen[name]; exists {
+			return fmt.Errorf("duplicate sync resource %q", name)
+		}
+		seen[name] = struct{}{}
 	}
 	return nil
 }
