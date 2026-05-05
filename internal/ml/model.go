@@ -15,7 +15,14 @@ const (
 	defaultTrainIterations = 1000
 	defaultLearningRate    = 0.2
 	defaultDecisionCutoff  = 0.5
+	defaultRowWeight       = 1
 	maxSigmoidInput        = 35
+	modelVersionPrefix     = "churn-logistic-"
+	modelVersionTimeFormat = "20060102150405"
+	metricAUCROC           = "auc_roc"
+	metricPrecision        = "precision"
+	metricRecall           = "recall"
+	metricF1               = "f1"
 )
 
 // TrainOptions controls logistic-regression model training.
@@ -134,10 +141,10 @@ func (m *ChurnModel) StoredVersion(orgID uuid.UUID) (*repository.ChurnModelVersi
 		Bias:         m.Bias,
 		Cutoff:       m.Cutoff,
 		Metrics: map[string]float64{
-			"auc_roc":   m.Metrics.AUCROC,
-			"precision": m.Metrics.Precision,
-			"recall":    m.Metrics.Recall,
-			"f1":        m.Metrics.F1,
+			metricAUCROC:    m.Metrics.AUCROC,
+			metricPrecision: m.Metrics.Precision,
+			metricRecall:    m.Metrics.Recall,
+			metricF1:        m.Metrics.F1,
 		},
 		TrainedAt: m.TrainedAt,
 	}, nil
@@ -183,7 +190,7 @@ func (m *ChurnModel) applyGradientStep(rows []TrainingDataRow, learningRate floa
 	for _, row := range rows {
 		rowWeight := row.ClassWeight
 		if rowWeight <= 0 {
-			rowWeight = 1
+			rowWeight = defaultRowWeight
 		}
 		prediction := sigmoid(m.score(row.Features))
 		errorTerm := (prediction - float64(row.Label)) * rowWeight
@@ -213,7 +220,7 @@ func (m *ChurnModel) score(features []float64) float64 {
 
 func normalizeTrainOptions(opts TrainOptions) TrainOptions {
 	if opts.Version == "" {
-		opts.Version = "churn-logistic-" + time.Now().UTC().Format("20060102150405")
+		opts.Version = modelVersionPrefix + time.Now().UTC().Format(modelVersionTimeFormat)
 	}
 	if opts.Iterations <= 0 {
 		opts.Iterations = defaultTrainIterations
@@ -264,15 +271,15 @@ func aucROC(scores []labeledScore) float64 {
 	sort.SliceStable(scores, func(i, j int) bool {
 		return scores[i].probability > scores[j].probability
 	})
-	var rankSum, pairRank float64
+	var concordantPairs, seenNegatives float64
 	for _, score := range scores {
 		if score.label == ChurnLabelChurned {
-			rankSum += negatives - pairRank
+			concordantPairs += negatives - seenNegatives
 		} else {
-			pairRank++
+			seenNegatives++
 		}
 	}
-	return rankSum / (positives * negatives)
+	return concordantPairs / (positives * negatives)
 }
 
 func sigmoid(value float64) float64 {
