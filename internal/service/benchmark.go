@@ -181,6 +181,9 @@ func (p *BenchmarkPipeline) contributeOrg(ctx context.Context, org repository.Or
 	if err != nil {
 		return fmt.Errorf("count benchmark customers: %w", err)
 	}
+	if customerCount == 0 {
+		return nil
+	}
 	totalMRR, err := p.metrics.TotalMRR(ctx, org.ID)
 	if err != nil {
 		return fmt.Errorf("sum benchmark mrr: %w", err)

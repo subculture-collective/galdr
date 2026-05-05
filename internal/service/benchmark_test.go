@@ -146,6 +146,24 @@ func TestBenchmarkPipelineSkipsOptedOutOrganizations(t *testing.T) {
 	}
 }
 
+func TestBenchmarkPipelineSkipsOrganizationsWithoutCustomers(t *testing.T) {
+	org := repository.Organization{ID: uuid.New(), Industry: "saas", CompanySize: 25, BenchmarkingEnabled: true}
+	orgs := &fakeBenchmarkOrgRepo{orgs: []repository.Organization{org}}
+	metrics := &fakeBenchmarkMetricsRepo{
+		customerCounts: map[uuid.UUID]int{org.ID: 0},
+	}
+	contributions := &fakeBenchmarkContributionRepo{}
+	pipeline := NewBenchmarkPipeline(orgs, metrics, contributions, NewBenchmarkAnonymizer())
+
+	if err := pipeline.RunOnce(context.Background()); err != nil {
+		t.Fatalf("run once failed: %v", err)
+	}
+
+	if len(contributions.created) != 0 {
+		t.Fatalf("expected no contribution for org without customers, got %d", len(contributions.created))
+	}
+}
+
 type fakeBenchmarkOrgRepo struct {
 	orgs []repository.Organization
 }
