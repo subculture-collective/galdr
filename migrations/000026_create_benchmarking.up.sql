@@ -10,6 +10,7 @@ CREATE TABLE benchmark_contributions (
     avg_health_score      NUMERIC(5,2) NOT NULL CHECK (avg_health_score >= 0 AND avg_health_score <= 100),
     avg_mrr               BIGINT NOT NULL CHECK (avg_mrr >= 0),
     avg_churn_rate        NUMERIC(5,4) NOT NULL CHECK (avg_churn_rate >= 0 AND avg_churn_rate <= 1),
+    active_integration_count INTEGER NOT NULL DEFAULT 0 CHECK (active_integration_count >= 0),
     customer_count_bucket VARCHAR(20) NOT NULL CHECK (customer_count_bucket IN ('1-10', '11-50', '51-200', '201-1000', '1000+')),
     contributed_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -21,7 +22,7 @@ CREATE TABLE benchmark_aggregates (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     industry            VARCHAR(100) NOT NULL,
     company_size_bucket VARCHAR(20) NOT NULL CHECK (company_size_bucket IN ('1-10', '11-50', '51-200', '201-1000', '1000+')),
-    metric_name         VARCHAR(50) NOT NULL CHECK (metric_name IN ('avg_health_score', 'avg_mrr', 'avg_churn_rate')),
+    metric_name         VARCHAR(50) NOT NULL CHECK (metric_name IN ('health_score', 'mrr_per_customer', 'churn_rate', 'integration_usage')),
     p25                 NUMERIC(12,4) NOT NULL,
     p50                 NUMERIC(12,4) NOT NULL,
     p75                 NUMERIC(12,4) NOT NULL,
