@@ -135,3 +135,41 @@ func TestGetSubscriptionSummaryIncludesTeamMemberUsageLimit(t *testing.T) {
 		t.Fatalf("expected growth team member usage 3/5, got %+v", summary.Usage.TeamMembers)
 	}
 }
+
+func TestGetSubscriptionSummaryAppliesFeatureOverrides(t *testing.T) {
+	orgID := uuid.New()
+	disabled := false
+	limitOverride := 7
+	svc := NewSubscriptionService(
+		&mockOrgSubscriptionReader{getByOrgFn: func(context.Context, uuid.UUID) (*repository.OrgSubscription, error) {
+			return &repository.OrgSubscription{OrgID: orgID, PlanTier: "growth", Status: "active"}, nil
+		}},
+		&mockOrganizationReader{
+			getByIDFn: func(context.Context, uuid.UUID) (*repository.Organization, error) {
+				return &repository.Organization{ID: orgID, Plan: "growth"}, nil
+			},
+			countMembersFn: func(context.Context, uuid.UUID) (int, error) { return 3, nil },
+		},
+		&mockCustomerCounter{countByOrgFn: func(context.Context, uuid.UUID) (int, error) { return 42, nil }},
+		&mockIntegrationCounter{countActiveByOrgFn: func(context.Context, uuid.UUID) (int, error) { return 2, nil }},
+		planmodel.NewCatalog(planmodel.PriceConfig{}),
+	)
+	svc.SetFeatureOverrides(&mockFeatureOverrideReader{listByOrgFn: func(context.Context, uuid.UUID) ([]repository.FeatureOverride, error) {
+		return []repository.FeatureOverride{
+			{OrgID: orgID, FeatureName: planmodel.FeaturePlaybooks, Enabled: &disabled},
+			{OrgID: orgID, FeatureName: LimitIntegration, LimitOverride: &limitOverride},
+		}, nil
+	}})
+
+	summary, err := svc.GetSubscriptionSummary(context.Background(), orgID)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if summary.Features[planmodel.FeaturePlaybooks] {
+		t.Fatal("expected playbooks override to disable feature")
+	}
+	if summary.Usage.Integrations.Limit != limitOverride {
+		t.Fatalf("expected integration override limit %d, got %d", limitOverride, summary.Usage.Integrations.Limit)
+	}
+}

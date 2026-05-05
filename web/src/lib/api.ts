@@ -83,7 +83,7 @@ export interface BillingSubscriptionResponse {
     integrations: BillingUsageMetric;
     team_members: BillingUsageMetric;
   };
-  features: Record<string, unknown>;
+  features: Record<string, boolean>;
 }
 
 export interface CheckoutPayload {

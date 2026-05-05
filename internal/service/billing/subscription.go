@@ -36,6 +36,7 @@ type SubscriptionService struct {
 	customers     customerCounter
 	integrations  integrationCounter
 	catalog       *planmodel.Catalog
+	featureFlags  *FeatureFlagService
 }
 
 // UsageSnapshot contains current usage against plan limits.
@@ -52,6 +53,10 @@ type UsageSnapshot struct {
 		Used  int `json:"used"`
 		Limit int `json:"limit"`
 	} `json:"team_members"`
+}
+
+func (s *SubscriptionService) SetFeatureOverrides(overrides featureOverrideReader) {
+	s.featureFlags = NewFeatureFlagService(s, overrides, s.catalog)
 }
 
 // SubscriptionSummary is returned by GET /api/v1/billing/subscription.
@@ -128,11 +133,14 @@ func (s *SubscriptionService) GetUsageLimits(ctx context.Context, orgID uuid.UUI
 		return planmodel.UsageLimits{}, err
 	}
 
+	if s.featureFlags != nil {
+		return s.featureFlags.EffectiveLimits(ctx, orgID)
+	}
+
 	limits, ok := s.catalog.GetLimits(tier)
 	if !ok {
 		return planmodel.UsageLimits{}, fmt.Errorf("no limits configured for tier %s", tier)
 	}
-
 	return limits, nil
 }
 
@@ -175,7 +183,13 @@ func (s *SubscriptionService) GetSubscriptionSummary(ctx context.Context, orgID 
 	summary.Usage.TeamMembers.Used = memberCount
 	summary.Usage.TeamMembers.Limit = limits.TeamMemberLimit
 
-	if plan, ok := s.catalog.GetPlanByTier(tier); ok {
+	if s.featureFlags != nil {
+		features, err := s.featureFlags.EffectiveFeatures(ctx, orgID)
+		if err != nil {
+			return nil, err
+		}
+		summary.Features = features
+	} else if plan, ok := s.catalog.GetPlanByTier(tier); ok {
 		summary.Features = subscriptionFeatureMap(plan.Features)
 	}
 

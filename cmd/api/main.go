@@ -128,6 +128,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			invitationRepo := repository.NewInvitationRepository(pool.P)
 			passwordResetRepo := repository.NewPasswordResetRepository(pool.P)
 			billingWebhookEventRepo := repository.NewBillingWebhookEventRepository(pool.P)
+			featureOverrideRepo := repository.NewFeatureOverrideRepository(pool.P)
 
 			emailSvc := service.NewSendGridEmailService(service.SendGridConfig{
 				APIKey:      cfg.SendGrid.APIKey,
@@ -260,12 +261,14 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				connRepo,
 				planCatalog,
 			)
+			billingSubscriptionSvc.SetFeatureOverrides(featureOverrideRepo)
 
 			billingLimitsSvc := billingsvc.NewLimitsService(
 				billingSubscriptionSvc,
 				customerRepo,
 				connRepo,
 				connRepo,
+				featureOverrideRepo,
 				planCatalog,
 			)
 
