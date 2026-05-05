@@ -417,4 +417,37 @@ export const onboardingApi = {
   analytics: () => api.get<OnboardingAnalytics>("/onboarding/analytics"),
 };
 
+export type BenchmarkMetricKey =
+  | "health_score"
+  | "mrr_per_customer"
+  | "churn_rate"
+  | "integration_usage";
+
+export interface BenchmarkMetricResponse {
+  key: BenchmarkMetricKey;
+  label: string;
+  unit: "score" | "currency" | "percent" | "count";
+  your_value: number | null;
+  percentile: number | null;
+  benchmarks: {
+    p25: number;
+    p50: number;
+    p75: number;
+  } | null;
+  sample_count: number;
+}
+
+export interface BenchmarksResponse {
+  participating: boolean;
+  industry: string;
+  size: string;
+  percentile: number | null;
+  metrics: BenchmarkMetricResponse[];
+}
+
+export const benchmarksApi = {
+  compare: (params: { industry: string; size: string }) =>
+    api.get<BenchmarksResponse>("/benchmarks", { params }),
+};
+
 export default api;

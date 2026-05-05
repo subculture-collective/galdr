@@ -18,6 +18,7 @@ const LoginPage = lazy(() => import("@/pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("@/pages/auth/RegisterPage"));
 const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
 const CustomersPage = lazy(() => import("@/pages/CustomersPage"));
+const BenchmarkPage = lazy(() => import("@/pages/BenchmarkPage"));
 const CustomerDetailPage = lazy(() => import("@/pages/CustomerDetailPage"));
 const MarketplacePage = lazy(() => import("@/pages/MarketplacePage"));
 const ConnectorDetailPage = lazy(() => import("@/pages/ConnectorDetailPage"));
@@ -127,6 +128,7 @@ function App() {
                       <Route path="/dashboard" element={<DashboardPage />} />
                       <Route path="/onboarding" element={<OnboardingPage />} />
                       <Route path="/customers" element={<CustomersPage />} />
+                      <Route path="/benchmarks" element={<BenchmarkPage />} />
                       <Route
                         path="/customers/:id"
                         element={<CustomerDetailPage />}
