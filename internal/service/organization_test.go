@@ -9,10 +9,10 @@ import (
 
 func TestOrganizationUpdateCurrentRejectsUnknownIndustry(t *testing.T) {
 	svc := NewOrganizationService(nil, nil)
+	industry := "Professional Services"
 
 	_, err := svc.UpdateCurrent(context.Background(), uuid.New(), UpdateOrgRequest{
-		Name:     "Acme",
-		Industry: "Professional Services",
+		Industry: &industry,
 	})
 
 	assertIndustryValidationError(t, err)

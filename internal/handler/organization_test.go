@@ -146,8 +146,8 @@ func TestOrganizationUpdateCurrent_Success(t *testing.T) {
 			if req.Name == nil || *req.Name != "New Name" {
 				t.Errorf("expected name 'New Name', got %v", req.Name)
 			}
-			if req.Industry != "SaaS" {
-				t.Errorf("expected industry 'SaaS', got %s", req.Industry)
+			if req.Industry == nil || *req.Industry != "SaaS" {
+				t.Errorf("expected industry 'SaaS', got %v", req.Industry)
 			}
 			return &service.OrgDetailResponse{
 				ID:       orgID,
