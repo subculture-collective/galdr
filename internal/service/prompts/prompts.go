@@ -273,6 +273,11 @@ func funcs() template.FuncMap {
 	}
 }
 
+// FuncMap returns template helpers used by bundled prompt templates.
+func FuncMap() template.FuncMap {
+	return funcs()
+}
+
 func formatMoney(cents int, currency string) string {
 	if currency == "" {
 		currency = "usd"

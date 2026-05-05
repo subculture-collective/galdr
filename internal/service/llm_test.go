@@ -5,10 +5,12 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/onnwee/pulse-score/internal/service/prompts"
 )
 
 type fakeLLMProvider struct {
@@ -274,5 +276,54 @@ func TestLLMServiceRendersTemplateAndTracksCost(t *testing.T) {
 	}
 	if tracker.usages[0].OrgID != orgID || tracker.usages[0].Provider != "fake-model" {
 		t.Fatalf("usage not tracked with org/provider: %+v", tracker.usages[0])
+	}
+}
+
+func TestLLMServiceRendersBundledPromptTemplate(t *testing.T) {
+	orgID := uuid.New()
+	provider := &fakeLLMProvider{
+		completions: []LLMProviderResponse{{
+			Text:         `{"insight_type":"summary"}`,
+			InputTokens:  120,
+			OutputTokens: 30,
+		}},
+	}
+	templates, err := prompts.Templates()
+	if err != nil {
+		t.Fatalf("expected bundled templates to load, got %v", err)
+	}
+	svc := NewLLMService(provider, nil, LLMServiceConfig{
+		RequestsPerMinute: 10,
+		MaxTokensPerDay:   10_000,
+		Templates:         templates,
+	})
+
+	res, err := svc.Complete(context.Background(), LLMCompletionRequest{
+		OrgID:        orgID,
+		TemplateName: string(prompts.SummaryTemplate),
+		TemplateData: prompts.CustomerAnalysisData{
+			Customer: prompts.CustomerSnapshot{
+				Name:     "Acme",
+				MRRCents: 125000,
+				Currency: "usd",
+			},
+			HealthScore: prompts.HealthScoreSnapshot{
+				OverallScore:  38,
+				RiskLevel:     "red",
+				ScoreChange7d: -12,
+				Factors: []prompts.ScoreFactor{{
+					Name:        "failed_payments",
+					Score:       0.2,
+					Explanation: "two recent failures",
+				}},
+			},
+		},
+		MaxTokens: 100,
+	})
+	if err != nil {
+		t.Fatalf("expected bundled prompt to render, got %v", err)
+	}
+	if !strings.Contains(res.Prompt, "Customer: Acme") || !strings.Contains(res.Prompt, "USD 1,250.00") {
+		t.Fatalf("expected rendered bundled prompt with customer data, got %q", res.Prompt)
 	}
 }

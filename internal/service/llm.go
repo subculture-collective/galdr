@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/onnwee/pulse-score/internal/service/prompts"
 	"golang.org/x/time/rate"
 )
 
@@ -54,7 +55,7 @@ type LLMCompletionRequest struct {
 	OrgID        uuid.UUID
 	Prompt       string
 	TemplateName string
-	TemplateData map[string]any
+	TemplateData any
 	MaxTokens    int
 }
 
@@ -224,7 +225,7 @@ func (s *LLMService) renderPrompt(req LLMCompletionRequest) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("unknown llm template %q", req.TemplateName)
 	}
-	tmpl, err := template.New(req.TemplateName).Option("missingkey=error").Parse(templateText)
+	tmpl, err := template.New(req.TemplateName).Option("missingkey=error").Funcs(prompts.FuncMap()).Parse(templateText)
 	if err != nil {
 		return "", fmt.Errorf("parse llm template: %w", err)
 	}
