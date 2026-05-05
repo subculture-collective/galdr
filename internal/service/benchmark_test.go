@@ -118,24 +118,34 @@ func TestBenchmarkAnonymizerRejectsPIIIndustrySegments(t *testing.T) {
 	}
 }
 
-func TestBenchmarkAnonymizerRejectsOrganizationsWithoutCustomers(t *testing.T) {
+func TestBenchmarkAnonymizerRejectsNonpositiveCustomerCounts(t *testing.T) {
 	anonymizer := NewBenchmarkAnonymizer()
 
-	contribution, err := anonymizer.Anonymize(BenchmarkOrgMetrics{
-		OrgID:          uuid.New(),
-		Industry:       "SaaS",
-		CompanySize:    25,
-		CustomerCount:  0,
-		TotalMRR:       0,
-		AvgHealthScore: 0,
-		AvgChurnRate:   0,
-	})
+	for _, tc := range []struct {
+		name          string
+		customerCount int
+	}{
+		{"zero", 0},
+		{"negative", -1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			contribution, err := anonymizer.Anonymize(BenchmarkOrgMetrics{
+				OrgID:          uuid.New(),
+				Industry:       "SaaS",
+				CompanySize:    25,
+				CustomerCount:  tc.customerCount,
+				TotalMRR:       0,
+				AvgHealthScore: 0,
+				AvgChurnRate:   0,
+			})
 
-	if err == nil {
-		t.Fatal("expected anonymizer to reject org without customers")
-	}
-	if contribution != nil {
-		t.Fatal("expected no contribution for org without customers")
+			if err == nil {
+				t.Fatal("expected anonymizer to reject nonpositive customer count")
+			}
+			if contribution != nil {
+				t.Fatal("expected no contribution for nonpositive customer count")
+			}
+		})
 	}
 }
 
