@@ -71,6 +71,19 @@ var usageEventTypes = map[string]struct{}{
 	eventAPICall:    {},
 }
 
+var supportOpenedEventTypes = map[string]struct{}{
+	eventTicketOpened:           {},
+	eventConversationCreated:    {},
+	eventConversationCreatedDot: {},
+	eventConversationOpen:       {},
+}
+
+var supportResolvedEventTypes = map[string]struct{}{
+	eventTicketResolved:        {},
+	eventConversationClosed:    {},
+	eventConversationClosedDot: {},
+}
+
 // FeatureInput is the raw customer data used for churn model feature extraction.
 type FeatureInput struct {
 	Now                time.Time
@@ -331,22 +344,15 @@ func countUsageEvents(events []*repository.CustomerEvent, start, end time.Time) 
 }
 
 func countSupportOpenedEvents(events []*repository.CustomerEvent, start, end time.Time) int {
-	return countEventsMatching(events, isSupportOpenedEvent, start, end)
+	return countMatchingEvents(events, start, end, func(event *repository.CustomerEvent) bool {
+		return isSupportOpenedEvent(event.EventType)
+	})
 }
 
 func countSupportResolvedEvents(events []*repository.CustomerEvent, start, end time.Time) int {
-	return countEventsMatching(events, isSupportResolvedEvent, start, end)
-}
-
-func countEventsMatching(events []*repository.CustomerEvent, matches func(string) bool, start, end time.Time) int {
-	count := 0
-	for _, event := range events {
-		if event == nil || !matches(event.EventType) || !occurredInHalfOpenWindow(event.OccurredAt, start, end) {
-			continue
-		}
-		count++
-	}
-	return count
+	return countMatchingEvents(events, start, end, func(event *repository.CustomerEvent) bool {
+		return isSupportResolvedEvent(event.EventType)
+	})
 }
 
 func countAllEvents(events []*repository.CustomerEvent, start, end time.Time) int {
@@ -372,21 +378,13 @@ func isUsageEvent(eventType string) bool {
 }
 
 func isSupportOpenedEvent(eventType string) bool {
-	switch eventType {
-	case eventTicketOpened, eventConversationCreated, eventConversationCreatedDot, eventConversationOpen:
-		return true
-	default:
-		return false
-	}
+	_, ok := supportOpenedEventTypes[eventType]
+	return ok
 }
 
 func isSupportResolvedEvent(eventType string) bool {
-	switch eventType {
-	case eventTicketResolved, eventConversationClosed, eventConversationClosedDot:
-		return true
-	default:
-		return false
-	}
+	_, ok := supportResolvedEventTypes[eventType]
+	return ok
 }
 
 func occurredInHalfOpenWindow(occurredAt, start, end time.Time) bool {
