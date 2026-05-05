@@ -137,6 +137,24 @@ func TestExtractCustomerFeaturesUsesFullMRRTrajectory(t *testing.T) {
 	assertClose(t, features.Values[FeatureMRRChangeRate], 0.75)
 }
 
+func TestExtractCustomerFeaturesUsesRecentEventsForLastActivity(t *testing.T) {
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	lastSeen := now.Add(-30 * 24 * time.Hour)
+	features := ExtractCustomerFeatures(FeatureInput{
+		Now: now,
+		Customer: &repository.Customer{
+			ID:         uuid.New(),
+			OrgID:      uuid.New(),
+			LastSeenAt: &lastSeen,
+		},
+		Events: []*repository.CustomerEvent{
+			event("conversation.updated", now.Add(-2*24*time.Hour), nil),
+		},
+	})
+
+	assertClose(t, features.Values[FeatureDaysSinceLastActivity], 0.05)
+}
+
 func TestNormalizeMinMaxClampsToUnitRange(t *testing.T) {
 	assertClose(t, NormalizeMinMax(5, 0, 10), 0.5)
 	assertClose(t, NormalizeMinMax(-5, 0, 10), 0)

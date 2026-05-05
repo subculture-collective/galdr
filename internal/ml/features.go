@@ -80,7 +80,7 @@ func ExtractCustomerFeatures(input FeatureInput) FeatureVector {
 	vector.Values[FeatureUnresolvedTicketRatio] = unresolvedTicketRatio(input.Events, now)
 	vector.Values[FeatureUsageFrequencyChange30d] = usageFrequencyChange(input.Events, now)
 	vector.Values[FeatureMRRChangeRate] = mrrChangeRate(input.Events, now)
-	vector.Values[FeatureDaysSinceLastActivity] = daysSinceLastActivity(input.Customer, now)
+	vector.Values[FeatureDaysSinceLastActivity] = daysSinceLastActivity(input.Customer, input.Events, now)
 	vector.Values[FeatureEngagementEventsPerDay] = engagementEventsPerDay(input.Events, now)
 	vector.Values[FeatureContractTenure] = contractTenure(input.Customer, now)
 	vector.Values[FeatureCurrentHealthScore] = currentHealthScore(input.HealthScoreHistory)
@@ -222,11 +222,12 @@ func mrrChangeRate(events []*repository.CustomerEvent, now time.Time) float64 {
 	return NormalizeMinMax(change, -1, 1)
 }
 
-func daysSinceLastActivity(customer *repository.Customer, now time.Time) float64 {
-	if customer == nil || customer.LastSeenAt == nil {
+func daysSinceLastActivity(customer *repository.Customer, events []*repository.CustomerEvent, now time.Time) float64 {
+	lastActivity := latestActivityAt(customer, events, now)
+	if lastActivity == nil {
 		return 1
 	}
-	return NormalizeMinMax(now.Sub(*customer.LastSeenAt).Hours()/24, 0, 40)
+	return NormalizeMinMax(now.Sub(*lastActivity).Hours()/24, 0, 40)
 }
 
 func engagementEventsPerDay(events []*repository.CustomerEvent, now time.Time) float64 {
@@ -255,6 +256,23 @@ func currentHealthScore(history []*repository.HealthScore) float64 {
 		return 0.5
 	}
 	return NormalizeMinMax(float64(latest.OverallScore), 0, 100)
+}
+
+func latestActivityAt(customer *repository.Customer, events []*repository.CustomerEvent, now time.Time) *time.Time {
+	var latest *time.Time
+	if customer != nil && customer.LastSeenAt != nil && !customer.LastSeenAt.After(now) {
+		latest = customer.LastSeenAt
+	}
+	for _, event := range events {
+		if event == nil || event.OccurredAt.After(now) {
+			continue
+		}
+		occurredAt := event.OccurredAt
+		if latest == nil || occurredAt.After(*latest) {
+			latest = &occurredAt
+		}
+	}
+	return latest
 }
 
 func countUsageEvents(events []*repository.CustomerEvent, start, end time.Time) int {
