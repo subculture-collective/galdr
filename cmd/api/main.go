@@ -148,6 +148,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			connRepo := repository.NewIntegrationConnectionRepository(pool.P)
 			marketplaceRepo := repository.NewMarketplaceRepository(pool.P)
 			customerRepo := repository.NewCustomerRepository(pool.P)
+			customerNoteRepo := repository.NewCustomerNoteRepository(pool.P)
 			subRepo := repository.NewStripeSubscriptionRepository(pool.P)
 			paymentRepo := repository.NewStripePaymentRepository(pool.P)
 			eventRepo := repository.NewCustomerEventRepository(pool.P)
@@ -548,11 +549,15 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				r.Patch("/users/me", userHandler.UpdateProfile)
 
 				// Customer routes
-				customerSvc := service.NewCustomerService(customerRepo, healthScoreRepo, subRepo, eventRepo)
+				customerSvc := service.NewCustomerService(customerRepo, healthScoreRepo, subRepo, eventRepo, customerNoteRepo)
 				customerHandler := handler.NewCustomerHandler(customerSvc)
 				r.Get("/customers", customerHandler.List)
 				r.Get("/customers/{id}", customerHandler.GetDetail)
 				r.Get("/customers/{id}/events", customerHandler.ListEvents)
+				r.Get("/customers/{id}/notes", customerHandler.ListNotes)
+				r.Post("/customers/{id}/notes", customerHandler.CreateNote)
+				r.Put("/customers/{id}/notes/{noteID}", customerHandler.UpdateNote)
+				r.Delete("/customers/{id}/notes/{noteID}", customerHandler.DeleteNote)
 
 				// Dashboard routes
 				dashboardSvc := service.NewDashboardService(customerRepo, healthScoreRepo)

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +18,7 @@ type CustomerService struct {
 	healthRepo   *repository.HealthScoreRepository
 	subRepo      *repository.StripeSubscriptionRepository
 	eventRepo    *repository.CustomerEventRepository
+	noteRepo     *repository.CustomerNoteRepository
 }
 
 // NewCustomerService creates a new CustomerService.
@@ -25,12 +27,14 @@ func NewCustomerService(
 	hr *repository.HealthScoreRepository,
 	sr *repository.StripeSubscriptionRepository,
 	er *repository.CustomerEventRepository,
+	nr *repository.CustomerNoteRepository,
 ) *CustomerService {
 	return &CustomerService{
 		customerRepo: cr,
 		healthRepo:   hr,
 		subRepo:      sr,
 		eventRepo:    er,
+		noteRepo:     nr,
 	}
 }
 
@@ -169,6 +173,37 @@ type EventInfo struct {
 	Source     string         `json:"source"`
 	OccurredAt time.Time      `json:"occurred_at"`
 	Data       map[string]any `json:"data"`
+}
+
+// CustomerNoteRequest is the write payload for customer notes.
+type CustomerNoteRequest struct {
+	Content string `json:"content"`
+}
+
+// CustomerNotesResponse is the JSON response for note listing.
+type CustomerNotesResponse struct {
+	Notes []CustomerNoteResponse `json:"notes"`
+}
+
+// CustomerNoteResponse represents a note with author and permissions.
+type CustomerNoteResponse struct {
+	ID         uuid.UUID          `json:"id"`
+	CustomerID uuid.UUID          `json:"customer_id"`
+	UserID     uuid.UUID          `json:"user_id"`
+	Author     CustomerNoteAuthor `json:"author"`
+	Content    string             `json:"content"`
+	CanEdit    bool               `json:"can_edit"`
+	CanDelete  bool               `json:"can_delete"`
+	CreatedAt  time.Time          `json:"created_at"`
+	UpdatedAt  time.Time          `json:"updated_at"`
+}
+
+// CustomerNoteAuthor is displayed with note metadata.
+type CustomerNoteAuthor struct {
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	AvatarURL string    `json:"avatar_url"`
 }
 
 // GetDetail returns the full detail for a customer.
@@ -323,4 +358,157 @@ func (s *CustomerService) ListEvents(ctx context.Context, params repository.Even
 			TotalPages: result.TotalPages,
 		},
 	}, nil
+}
+
+// ListNotes returns notes for a customer, newest first.
+func (s *CustomerService) ListNotes(ctx context.Context, customerID, orgID, actorID uuid.UUID, actorRole string) (*CustomerNotesResponse, error) {
+	if err := s.ensureCustomerInOrg(ctx, customerID, orgID); err != nil {
+		return nil, err
+	}
+
+	notes, err := s.noteRepo.ListByCustomer(ctx, customerID)
+	if err != nil {
+		return nil, fmt.Errorf("list customer notes: %w", err)
+	}
+
+	resp := make([]CustomerNoteResponse, len(notes))
+	for i, note := range notes {
+		resp[i] = mapCustomerNote(note, actorID, actorRole)
+	}
+
+	return &CustomerNotesResponse{Notes: resp}, nil
+}
+
+// CreateNote creates a note for a customer.
+func (s *CustomerService) CreateNote(ctx context.Context, customerID, orgID, userID uuid.UUID, req CustomerNoteRequest) (*CustomerNoteResponse, error) {
+	content, err := validateCustomerNoteContent(req.Content)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureCustomerInOrg(ctx, customerID, orgID); err != nil {
+		return nil, err
+	}
+
+	note := &repository.CustomerNote{CustomerID: customerID, UserID: userID, Content: content}
+	if err := s.noteRepo.Create(ctx, note); err != nil {
+		return nil, fmt.Errorf("create customer note: %w", err)
+	}
+
+	created, err := s.noteRepo.GetByIDForCustomer(ctx, note.ID, customerID)
+	if err != nil {
+		return nil, fmt.Errorf("get customer note: %w", err)
+	}
+	if created == nil {
+		return nil, &NotFoundError{Resource: "customer_note", Message: "customer note not found"}
+	}
+
+	resp := mapCustomerNote(created, userID, "member")
+	return &resp, nil
+}
+
+// UpdateNote updates a note when actor owns it or has admin privileges.
+func (s *CustomerService) UpdateNote(ctx context.Context, customerID, noteID, orgID, userID uuid.UUID, actorRole string, req CustomerNoteRequest) (*CustomerNoteResponse, error) {
+	content, err := validateCustomerNoteContent(req.Content)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureCustomerInOrg(ctx, customerID, orgID); err != nil {
+		return nil, err
+	}
+
+	note, err := s.noteRepo.GetByIDForCustomer(ctx, noteID, customerID)
+	if err != nil {
+		return nil, fmt.Errorf("get customer note: %w", err)
+	}
+	if note == nil {
+		return nil, &NotFoundError{Resource: "customer_note", Message: "customer note not found"}
+	}
+	if !canManageCustomerNote(userID, actorRole, note.UserID) {
+		return nil, &ForbiddenError{Message: "cannot edit this note"}
+	}
+
+	note.Content = content
+	if err := s.noteRepo.Update(ctx, note); err != nil {
+		return nil, fmt.Errorf("update customer note: %w", err)
+	}
+
+	updated := mapCustomerNote(note, userID, actorRole)
+	return &updated, nil
+}
+
+// DeleteNote deletes a note when actor owns it or has admin privileges.
+func (s *CustomerService) DeleteNote(ctx context.Context, customerID, noteID, orgID, userID uuid.UUID, actorRole string) error {
+	if err := s.ensureCustomerInOrg(ctx, customerID, orgID); err != nil {
+		return err
+	}
+
+	note, err := s.noteRepo.GetByIDForCustomer(ctx, noteID, customerID)
+	if err != nil {
+		return fmt.Errorf("get customer note: %w", err)
+	}
+	if note == nil {
+		return &NotFoundError{Resource: "customer_note", Message: "customer note not found"}
+	}
+	if !canManageCustomerNote(userID, actorRole, note.UserID) {
+		return &ForbiddenError{Message: "cannot delete this note"}
+	}
+
+	if err := s.noteRepo.Delete(ctx, noteID, customerID); err != nil {
+		return fmt.Errorf("delete customer note: %w", err)
+	}
+	return nil
+}
+
+func (s *CustomerService) ensureCustomerInOrg(ctx context.Context, customerID, orgID uuid.UUID) error {
+	customer, err := s.customerRepo.GetByIDAndOrg(ctx, customerID, orgID)
+	if err != nil {
+		return fmt.Errorf("get customer: %w", err)
+	}
+	if customer == nil {
+		return &NotFoundError{Resource: "customer", Message: "customer not found"}
+	}
+	return nil
+}
+
+func validateCustomerNoteContent(content string) (string, error) {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return "", &ValidationError{Field: "content", Message: "content is required"}
+	}
+	if len(trimmed) > 10000 {
+		return "", &ValidationError{Field: "content", Message: "content must be 10000 characters or fewer"}
+	}
+	return trimmed, nil
+}
+
+func mapCustomerNote(note *repository.CustomerNote, actorID uuid.UUID, actorRole string) CustomerNoteResponse {
+	canManage := canManageCustomerNote(actorID, actorRole, note.UserID)
+	return CustomerNoteResponse{
+		ID:         note.ID,
+		CustomerID: note.CustomerID,
+		UserID:     note.UserID,
+		Author: CustomerNoteAuthor{
+			ID:        note.UserID,
+			Name:      customerNoteAuthorName(note),
+			Email:     note.AuthorEmail,
+			AvatarURL: note.AuthorAvatarURL,
+		},
+		Content:   note.Content,
+		CanEdit:   canManage,
+		CanDelete: canManage,
+		CreatedAt: note.CreatedAt,
+		UpdatedAt: note.UpdatedAt,
+	}
+}
+
+func customerNoteAuthorName(note *repository.CustomerNote) string {
+	name := strings.TrimSpace(strings.Join([]string{note.AuthorFirstName, note.AuthorLastName}, " "))
+	if name != "" {
+		return name
+	}
+	return note.AuthorEmail
+}
+
+func canManageCustomerNote(actorID uuid.UUID, actorRole string, authorID uuid.UUID) bool {
+	return actorID == authorID || actorRole == "admin" || actorRole == "owner"
 }

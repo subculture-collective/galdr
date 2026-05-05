@@ -4,6 +4,7 @@ import api from "@/lib/api";
 import { useToast } from "@/contexts/ToastContext";
 import HealthScoreBadge from "@/components/HealthScoreBadge";
 import EventTimeline from "@/components/EventTimeline";
+import CustomerNotes from "@/components/CustomerNotes";
 import ScoreHistoryChart from "@/components/charts/ScoreHistoryChart";
 import ProfileSkeleton from "@/components/skeletons/ProfileSkeleton";
 import { ChevronRight, Mail, Building, DollarSign, Clock } from "lucide-react";
@@ -23,6 +24,30 @@ interface CustomerDetail {
   score_factors?: ScoreFactor[];
 }
 
+interface CustomerDetailResponse {
+  customer: {
+    id: string;
+    name: string;
+    email: string;
+    company_name: string;
+    mrr_cents: number;
+    source: string;
+    last_seen_at: string | null;
+  };
+  health_score: {
+    overall_score: number;
+    risk_level: "green" | "yellow" | "red";
+    factors: Record<string, number>;
+  } | null;
+  subscriptions: Array<{
+    id: string;
+    plan_name: string;
+    status: string;
+    amount_cents: number;
+    interval: string;
+  }>;
+}
+
 interface Subscription {
   id: string;
   plan_name: string;
@@ -37,7 +62,7 @@ interface ScoreFactor {
   weight: number;
 }
 
-type Tab = "overview" | "events" | "subscriptions";
+type Tab = "overview" | "events" | "subscriptions" | "notes";
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -49,8 +74,10 @@ export default function CustomerDetailPage() {
 
   const fetchCustomer = useCallback(async () => {
     try {
-      const { data } = await api.get<CustomerDetail>(`/customers/${id}`);
-      setCustomer(data);
+      const { data } = await api.get<CustomerDetailResponse | CustomerDetail>(
+        `/customers/${id}`,
+      );
+      setCustomer(normalizeCustomerDetail(data));
     } catch (err: unknown) {
       if (err && typeof err === "object" && "response" in err) {
         const resp = err as { response?: { status?: number } };
@@ -94,6 +121,7 @@ export default function CustomerDetailPage() {
     { key: "overview", label: "Overview" },
     { key: "events", label: "Events" },
     { key: "subscriptions", label: "Subscriptions" },
+    { key: "notes", label: "Notes" },
   ];
 
   return (
@@ -198,6 +226,8 @@ export default function CustomerDetailPage() {
 
       {activeTab === "events" && <EventTimeline customerId={customer.id} />}
 
+      {activeTab === "notes" && <CustomerNotes customerId={customer.id} />}
+
       {activeTab === "subscriptions" && (
         <div className="space-y-4">
           {!customer.subscriptions || customer.subscriptions.length === 0 ? (
@@ -251,4 +281,37 @@ export default function CustomerDetailPage() {
       )}
     </div>
   );
+}
+
+function normalizeCustomerDetail(
+  data: CustomerDetailResponse | CustomerDetail,
+): CustomerDetail {
+  if ("customer" in data) {
+    return {
+      id: data.customer.id,
+      name: data.customer.name,
+      email: data.customer.email,
+      company: data.customer.company_name,
+      mrr: data.customer.mrr_cents,
+      health_score: data.health_score?.overall_score ?? 0,
+      risk_level: data.health_score?.risk_level ?? "red",
+      last_seen_at: data.customer.last_seen_at ?? "",
+      source: data.customer.source,
+      subscriptions: data.subscriptions.map((sub) => ({
+        id: sub.id,
+        plan_name: sub.plan_name,
+        status: sub.status,
+        amount: sub.amount_cents,
+        interval: sub.interval,
+      })),
+      score_factors: data.health_score
+        ? Object.entries(data.health_score.factors).map(([name, score]) => ({
+            name,
+            score: Math.round(score * 100),
+            weight: 0,
+          }))
+        : [],
+    };
+  }
+  return data;
 }

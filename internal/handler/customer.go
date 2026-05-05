@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/onnwee/pulse-score/internal/auth"
 	"github.com/onnwee/pulse-score/internal/repository"
+	"github.com/onnwee/pulse-score/internal/service"
 )
 
 // CustomerHandler provides customer HTTP endpoints.
@@ -124,4 +126,141 @@ func (h *CustomerHandler) ListEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// ListNotes handles GET /api/v1/customers/{id}/notes.
+func (h *CustomerHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, role, ok := notesActorContext(r)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	customerID, ok := parseUUIDParam(w, r, "id", "invalid customer ID")
+	if !ok {
+		return
+	}
+
+	resp, err := h.customerService.ListNotes(r.Context(), customerID, orgID, userID, role)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// CreateNote handles POST /api/v1/customers/{id}/notes.
+func (h *CustomerHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := auth.GetOrgID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+	userID, ok := auth.GetUserID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	customerID, ok := parseUUIDParam(w, r, "id", "invalid customer ID")
+	if !ok {
+		return
+	}
+
+	var req service.CustomerNoteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse("invalid request body"))
+		return
+	}
+
+	resp, err := h.customerService.CreateNote(r.Context(), customerID, orgID, userID, req)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, resp)
+}
+
+// UpdateNote handles PUT /api/v1/customers/{id}/notes/{noteID}.
+func (h *CustomerHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, role, ok := notesActorContext(r)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	customerID, ok := parseUUIDParam(w, r, "id", "invalid customer ID")
+	if !ok {
+		return
+	}
+	noteID, ok := parseUUIDParam(w, r, "noteID", "invalid note ID")
+	if !ok {
+		return
+	}
+
+	var req service.CustomerNoteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse("invalid request body"))
+		return
+	}
+
+	resp, err := h.customerService.UpdateNote(r.Context(), customerID, noteID, orgID, userID, role, req)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// DeleteNote handles DELETE /api/v1/customers/{id}/notes/{noteID}.
+func (h *CustomerHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, role, ok := notesActorContext(r)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	customerID, ok := parseUUIDParam(w, r, "id", "invalid customer ID")
+	if !ok {
+		return
+	}
+	noteID, ok := parseUUIDParam(w, r, "noteID", "invalid note ID")
+	if !ok {
+		return
+	}
+
+	if err := h.customerService.DeleteNote(r.Context(), customerID, noteID, orgID, userID, role); err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func notesActorContext(r *http.Request) (uuid.UUID, uuid.UUID, string, bool) {
+	orgID, ok := auth.GetOrgID(r.Context())
+	if !ok {
+		return uuid.Nil, uuid.Nil, "", false
+	}
+	userID, ok := auth.GetUserID(r.Context())
+	if !ok {
+		return uuid.Nil, uuid.Nil, "", false
+	}
+	role, ok := auth.GetRole(r.Context())
+	if !ok {
+		return uuid.Nil, uuid.Nil, "", false
+	}
+	return orgID, userID, role, true
+}
+
+func parseUUIDParam(w http.ResponseWriter, r *http.Request, name, msg string) (uuid.UUID, bool) {
+	value, err := uuid.Parse(chi.URLParam(r, name))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse(msg))
+		return uuid.Nil, false
+	}
+	return value, true
 }

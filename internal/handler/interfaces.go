@@ -14,6 +14,10 @@ type customerServicer interface {
 	List(ctx context.Context, params repository.CustomerListParams) (*service.CustomerListResponse, error)
 	GetDetail(ctx context.Context, customerID, orgID uuid.UUID) (*service.CustomerDetail, error)
 	ListEvents(ctx context.Context, params repository.EventListParams) (*service.EventListResponse, error)
+	ListNotes(ctx context.Context, customerID, orgID, actorID uuid.UUID, actorRole string) (*service.CustomerNotesResponse, error)
+	CreateNote(ctx context.Context, customerID, orgID, userID uuid.UUID, req service.CustomerNoteRequest) (*service.CustomerNoteResponse, error)
+	UpdateNote(ctx context.Context, customerID, noteID, orgID, userID uuid.UUID, actorRole string, req service.CustomerNoteRequest) (*service.CustomerNoteResponse, error)
+	DeleteNote(ctx context.Context, customerID, noteID, orgID, userID uuid.UUID, actorRole string) error
 }
 
 // dashboardServicer defines the methods the DashboardHandler needs.

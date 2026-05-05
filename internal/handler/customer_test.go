@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -20,6 +21,10 @@ type mockCustomerService struct {
 	listFn       func(ctx context.Context, params repository.CustomerListParams) (*service.CustomerListResponse, error)
 	getDetailFn  func(ctx context.Context, customerID, orgID uuid.UUID) (*service.CustomerDetail, error)
 	listEventsFn func(ctx context.Context, params repository.EventListParams) (*service.EventListResponse, error)
+	listNotesFn  func(ctx context.Context, customerID, orgID, actorID uuid.UUID, actorRole string) (*service.CustomerNotesResponse, error)
+	createNoteFn func(ctx context.Context, customerID, orgID, userID uuid.UUID, req service.CustomerNoteRequest) (*service.CustomerNoteResponse, error)
+	updateNoteFn func(ctx context.Context, customerID, noteID, orgID, userID uuid.UUID, actorRole string, req service.CustomerNoteRequest) (*service.CustomerNoteResponse, error)
+	deleteNoteFn func(ctx context.Context, customerID, noteID, orgID, userID uuid.UUID, actorRole string) error
 }
 
 func (m *mockCustomerService) List(ctx context.Context, params repository.CustomerListParams) (*service.CustomerListResponse, error) {
@@ -34,8 +39,27 @@ func (m *mockCustomerService) ListEvents(ctx context.Context, params repository.
 	return m.listEventsFn(ctx, params)
 }
 
+func (m *mockCustomerService) ListNotes(ctx context.Context, customerID, orgID, actorID uuid.UUID, actorRole string) (*service.CustomerNotesResponse, error) {
+	return m.listNotesFn(ctx, customerID, orgID, actorID, actorRole)
+}
+
+func (m *mockCustomerService) CreateNote(ctx context.Context, customerID, orgID, userID uuid.UUID, req service.CustomerNoteRequest) (*service.CustomerNoteResponse, error) {
+	return m.createNoteFn(ctx, customerID, orgID, userID, req)
+}
+
+func (m *mockCustomerService) UpdateNote(ctx context.Context, customerID, noteID, orgID, userID uuid.UUID, actorRole string, req service.CustomerNoteRequest) (*service.CustomerNoteResponse, error) {
+	return m.updateNoteFn(ctx, customerID, noteID, orgID, userID, actorRole, req)
+}
+
+func (m *mockCustomerService) DeleteNote(ctx context.Context, customerID, noteID, orgID, userID uuid.UUID, actorRole string) error {
+	return m.deleteNoteFn(ctx, customerID, noteID, orgID, userID, actorRole)
+}
+
 func withChiParam(r *http.Request, key, val string) *http.Request {
-	rctx := chi.NewRouteContext()
+	rctx := chi.RouteContext(r.Context())
+	if rctx == nil {
+		rctx = chi.NewRouteContext()
+	}
 	rctx.URLParams.Add(key, val)
 	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
 }
@@ -304,5 +328,142 @@ func TestCustomerListEvents_Success(t *testing.T) {
 	}
 	if captured.To.IsZero() {
 		t.Error("expected to to be set")
+	}
+}
+
+func TestCustomerListNotes_Success(t *testing.T) {
+	orgID := uuid.New()
+	userID := uuid.New()
+	customerID := uuid.New()
+	mock := &mockCustomerService{
+		listNotesFn: func(ctx context.Context, cID, oID, actorID uuid.UUID, actorRole string) (*service.CustomerNotesResponse, error) {
+			if cID != customerID {
+				t.Errorf("expected customerID %s, got %s", customerID, cID)
+			}
+			if oID != orgID {
+				t.Errorf("expected orgID %s, got %s", orgID, oID)
+			}
+			if actorID != userID {
+				t.Errorf("expected userID %s, got %s", userID, actorID)
+			}
+			if actorRole != "member" {
+				t.Errorf("expected role member, got %s", actorRole)
+			}
+			return &service.CustomerNotesResponse{Notes: []service.CustomerNoteResponse{{Content: "**hello**"}}}, nil
+		},
+	}
+
+	h := NewCustomerHandler(mock)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/customers/"+customerID.String()+"/notes", nil)
+	ctx := auth.WithOrgID(req.Context(), orgID)
+	ctx = auth.WithUserID(ctx, userID)
+	ctx = auth.WithRole(ctx, "member")
+	req = req.WithContext(ctx)
+	req = withChiParam(req, "id", customerID.String())
+	rr := httptest.NewRecorder()
+
+	h.ListNotes(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestCustomerCreateNote_Success(t *testing.T) {
+	orgID := uuid.New()
+	userID := uuid.New()
+	customerID := uuid.New()
+	mock := &mockCustomerService{
+		createNoteFn: func(ctx context.Context, cID, oID, uID uuid.UUID, req service.CustomerNoteRequest) (*service.CustomerNoteResponse, error) {
+			if cID != customerID || oID != orgID || uID != userID {
+				t.Fatalf("unexpected ids: customer=%s org=%s user=%s", cID, oID, uID)
+			}
+			if req.Content != "New note" {
+				t.Errorf("expected content New note, got %q", req.Content)
+			}
+			return &service.CustomerNoteResponse{ID: uuid.New(), Content: req.Content}, nil
+		},
+	}
+
+	h := NewCustomerHandler(mock)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/customers/"+customerID.String()+"/notes", strings.NewReader(`{"content":"New note"}`))
+	ctx := auth.WithOrgID(req.Context(), orgID)
+	ctx = auth.WithUserID(ctx, userID)
+	req = req.WithContext(ctx)
+	req = withChiParam(req, "id", customerID.String())
+	rr := httptest.NewRecorder()
+
+	h.CreateNote(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rr.Code)
+	}
+}
+
+func TestCustomerUpdateNote_Success(t *testing.T) {
+	orgID := uuid.New()
+	userID := uuid.New()
+	customerID := uuid.New()
+	noteID := uuid.New()
+	mock := &mockCustomerService{
+		updateNoteFn: func(ctx context.Context, cID, nID, oID, uID uuid.UUID, actorRole string, req service.CustomerNoteRequest) (*service.CustomerNoteResponse, error) {
+			if cID != customerID || nID != noteID || oID != orgID || uID != userID {
+				t.Fatalf("unexpected ids: customer=%s note=%s org=%s user=%s", cID, nID, oID, uID)
+			}
+			if actorRole != "admin" {
+				t.Errorf("expected role admin, got %s", actorRole)
+			}
+			return &service.CustomerNoteResponse{ID: nID, Content: req.Content}, nil
+		},
+	}
+
+	h := NewCustomerHandler(mock)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/customers/"+customerID.String()+"/notes/"+noteID.String(), strings.NewReader(`{"content":"Updated"}`))
+	ctx := auth.WithOrgID(req.Context(), orgID)
+	ctx = auth.WithUserID(ctx, userID)
+	ctx = auth.WithRole(ctx, "admin")
+	req = req.WithContext(ctx)
+	req = withChiParam(req, "id", customerID.String())
+	req = withChiParam(req, "noteID", noteID.String())
+	rr := httptest.NewRecorder()
+
+	h.UpdateNote(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestCustomerDeleteNote_Success(t *testing.T) {
+	orgID := uuid.New()
+	userID := uuid.New()
+	customerID := uuid.New()
+	noteID := uuid.New()
+	mock := &mockCustomerService{
+		deleteNoteFn: func(ctx context.Context, cID, nID, oID, uID uuid.UUID, actorRole string) error {
+			if cID != customerID || nID != noteID || oID != orgID || uID != userID {
+				t.Fatalf("unexpected ids: customer=%s note=%s org=%s user=%s", cID, nID, oID, uID)
+			}
+			if actorRole != "owner" {
+				t.Errorf("expected role owner, got %s", actorRole)
+			}
+			return nil
+		},
+	}
+
+	h := NewCustomerHandler(mock)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/customers/"+customerID.String()+"/notes/"+noteID.String(), nil)
+	ctx := auth.WithOrgID(req.Context(), orgID)
+	ctx = auth.WithUserID(ctx, userID)
+	ctx = auth.WithRole(ctx, "owner")
+	req = req.WithContext(ctx)
+	req = withChiParam(req, "id", customerID.String())
+	req = withChiParam(req, "noteID", noteID.String())
+	rr := httptest.NewRecorder()
+
+	h.DeleteNote(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rr.Code)
 	}
 }
