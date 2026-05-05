@@ -94,6 +94,30 @@ func (r *OrganizationRepository) GetByID(ctx context.Context, id uuid.UUID) (*Or
 	return o, nil
 }
 
+// GetBySlug retrieves an organization by slug.
+func (r *OrganizationRepository) GetBySlug(ctx context.Context, slug string) (*Organization, error) {
+	query := `
+		SELECT id, name, slug, COALESCE(industry, ''), plan, COALESCE(stripe_customer_id, ''),
+			   benchmarking_enabled, COALESCE(company_size, 0),
+			   created_at, updated_at
+		FROM organizations
+		WHERE slug = $1 AND deleted_at IS NULL`
+
+	o := &Organization{}
+	err := r.pool.QueryRow(ctx, query, slug).Scan(
+		&o.ID, &o.Name, &o.Slug, &o.Industry, &o.Plan, &o.StripeCustomerID,
+		&o.BenchmarkingEnabled, &o.CompanySize,
+		&o.CreatedAt, &o.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get org by slug: %w", err)
+	}
+	return o, nil
+}
+
 // IsMember checks if a user is a member of an organization.
 func (r *OrganizationRepository) IsMember(ctx context.Context, userID, orgID uuid.UUID) (bool, error) {
 	query := `SELECT EXISTS(SELECT 1 FROM user_organizations WHERE user_id = $1 AND org_id = $2)`

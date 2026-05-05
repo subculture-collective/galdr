@@ -32,6 +32,17 @@ type integrationServicer interface {
 	Disconnect(ctx context.Context, orgID uuid.UUID, provider string) error
 }
 
+// genericWebhookServicer defines the methods the GenericWebhookHandler needs.
+type genericWebhookServicer interface {
+	Create(ctx context.Context, orgID uuid.UUID, req service.GenericWebhookConfigRequest) (*repository.GenericWebhookConfig, error)
+	List(ctx context.Context, orgID uuid.UUID) ([]*repository.GenericWebhookConfig, error)
+	Get(ctx context.Context, orgID, id uuid.UUID) (*repository.GenericWebhookConfig, error)
+	Update(ctx context.Context, orgID, id uuid.UUID, req service.GenericWebhookConfigRequest) (*repository.GenericWebhookConfig, error)
+	Delete(ctx context.Context, orgID, id uuid.UUID) error
+	Process(ctx context.Context, orgSlug string, webhookID uuid.UUID, payload []byte, signature string) (*service.GenericWebhookProcessResult, error)
+	Test(ctx context.Context, orgID uuid.UUID, req service.GenericWebhookTestRequest) (*service.GenericWebhookTestResult, error)
+}
+
 // marketplaceServicer defines the methods the MarketplaceHandler needs.
 type marketplaceServicer interface {
 	Register(ctx context.Context, developerID uuid.UUID, req service.RegisterConnectorRequest) (*repository.MarketplaceConnector, error)
