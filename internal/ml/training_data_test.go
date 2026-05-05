@@ -33,10 +33,10 @@ func TestTrainingDataPreparerLabelsSplitsAndWeightsRows(t *testing.T) {
 		Features: &trainingFeatureSource{features: features},
 		Subscriptions: &trainingSubscriptionSource{subscriptions: map[uuid.UUID][]*repository.StripeSubscription{
 			churnedCustomerID: {
-				&repository.StripeSubscription{CustomerID: churnedCustomerID, Status: "canceled", CanceledAt: &canceledAt},
+				{CustomerID: churnedCustomerID, Status: "canceled", CanceledAt: &canceledAt},
 			},
 			lateChurnCustomerID: {
-				&repository.StripeSubscription{CustomerID: lateChurnCustomerID, Status: "canceled", CanceledAt: &lateCanceledAt},
+				{CustomerID: lateChurnCustomerID, Status: "canceled", CanceledAt: &lateCanceledAt},
 			},
 		}},
 		Events: &trainingEventSource{events: map[uuid.UUID][]*repository.CustomerEvent{

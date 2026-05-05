@@ -96,20 +96,10 @@ func (p *TrainingDataPreparer) Prepare(ctx context.Context, req TrainingDataRequ
 	if p.features == nil || p.subscriptions == nil || p.events == nil {
 		return nil, fmt.Errorf("training data preparer dependencies are required")
 	}
-	if req.OrgID == uuid.Nil {
-		return nil, fmt.Errorf("org id is required")
-	}
-	if req.To.IsZero() {
-		req.To = time.Now().UTC()
-	}
-	if req.From.IsZero() {
-		req.From = req.To.AddDate(-1, 0, 0)
-	}
-	if !req.From.Before(req.To) {
-		return nil, fmt.Errorf("training data window must have from before to")
-	}
-	if req.LabelWindow <= 0 {
-		req.LabelWindow = defaultLabelWindow
+	var err error
+	req, err = normalizeTrainingDataRequest(req)
+	if err != nil {
+		return nil, err
 	}
 
 	snapshots, err := p.features.ListByOrgBetween(ctx, req.OrgID, req.From, req.To)
@@ -142,19 +132,8 @@ func (p *TrainingDataPreparer) Prepare(ctx context.Context, req TrainingDataRequ
 		if err != nil {
 			return nil, err
 		}
-		row := TrainingDataRow{
-			OrgID:      snapshot.OrgID,
-			CustomerID: snapshot.CustomerID,
-			SnapshotAt: snapshot.CalculatedAt,
-			Features:   valuesFromMap(snapshot.Features),
-			Label:      label,
-		}
-		rows = append(rows, row)
-		if label == ChurnLabelChurned {
-			quality.ChurnedRows++
-		} else {
-			quality.RetainedRows++
-		}
+		rows = append(rows, trainingDataRowFromSnapshot(snapshot, label))
+		countTrainingLabel(&quality, label)
 	}
 
 	weights := classWeights(quality.ChurnedRows, quality.RetainedRows)
@@ -175,6 +154,43 @@ func (p *TrainingDataPreparer) Prepare(ctx context.Context, req TrainingDataRequ
 		ClassWeights: weights,
 		Quality:      quality,
 	}, nil
+}
+
+func normalizeTrainingDataRequest(req TrainingDataRequest) (TrainingDataRequest, error) {
+	if req.OrgID == uuid.Nil {
+		return req, fmt.Errorf("org id is required")
+	}
+	if req.To.IsZero() {
+		req.To = time.Now().UTC()
+	}
+	if req.From.IsZero() {
+		req.From = req.To.AddDate(-1, 0, 0)
+	}
+	if !req.From.Before(req.To) {
+		return req, fmt.Errorf("training data window must have from before to")
+	}
+	if req.LabelWindow <= 0 {
+		req.LabelWindow = defaultLabelWindow
+	}
+	return req, nil
+}
+
+func trainingDataRowFromSnapshot(snapshot *repository.CustomerFeature, label int) TrainingDataRow {
+	return TrainingDataRow{
+		OrgID:      snapshot.OrgID,
+		CustomerID: snapshot.CustomerID,
+		SnapshotAt: snapshot.CalculatedAt,
+		Features:   valuesFromMap(snapshot.Features),
+		Label:      label,
+	}
+}
+
+func countTrainingLabel(quality *DataQualitySummary, label int) {
+	if label == ChurnLabelChurned {
+		quality.ChurnedRows++
+		return
+	}
+	quality.RetainedRows++
 }
 
 func (p *TrainingDataPreparer) labelSnapshot(ctx context.Context, customerID uuid.UUID, from, to time.Time) (int, error) {
