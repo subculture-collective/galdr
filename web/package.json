@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
+    "test": "node -e \"fs.rmSync('.tmp-test',{recursive:true,force:true})\" && tsc -p tsconfig.test.json && node --test .tmp-test/src/lib/*.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

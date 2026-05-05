@@ -4,6 +4,7 @@ import { useToast } from "@/contexts/ToastContext";
 import StripeConnectionCard from "@/components/integrations/StripeConnectionCard";
 import HubSpotConnectionCard from "@/components/integrations/HubSpotConnectionCard";
 import IntercomConnectionCard from "@/components/integrations/IntercomConnectionCard";
+import PostHogConnectionCard from "@/components/integrations/PostHogConnectionCard";
 import IntegrationCard from "@/components/IntegrationCard";
 import { Loader2 } from "lucide-react";
 
@@ -50,7 +51,8 @@ export default function IntegrationsTab() {
     (i) =>
       i.provider !== "stripe" &&
       i.provider !== "hubspot" &&
-      i.provider !== "intercom",
+      i.provider !== "intercom" &&
+      i.provider !== "posthog",
   );
 
   return (
@@ -74,6 +76,13 @@ export default function IntegrationsTab() {
           Intercom
         </h3>
         <IntercomConnectionCard />
+      </div>
+
+      <div>
+        <h3 className="mb-4 text-sm font-medium text-[var(--galdr-fg)]">
+          PostHog
+        </h3>
+        <PostHogConnectionCard />
       </div>
 
       {otherIntegrations.length > 0 && (
