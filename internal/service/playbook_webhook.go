@@ -22,6 +22,11 @@ const (
 	defaultWebhookTimeout = 10 * time.Second
 	defaultWebhookAttempts = 3
 	webhookSignatureHeader = "X-PulseScore-Signature"
+
+	webhookConfigURL                 = "url"
+	webhookConfigHeaders             = "headers"
+	webhookConfigIncludeCustomerData = "include_customer_data"
+	webhookConfigSigningSecret       = "signing_secret"
 )
 
 // ErrWebhookURLMustBeHTTPS is returned when an action uses an unsafe webhook URL.
@@ -140,15 +145,10 @@ func (e *WebhookActionExecutor) Execute(ctx context.Context, req WebhookActionRe
 
 func (e *WebhookActionExecutor) send(ctx context.Context, cfg webhookActionConfig, payload []byte, attempt int) (*WebhookActionResult, error) {
 	started := e.now()
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.URL, bytes.NewReader(payload))
+	httpReq, err := newWebhookHTTPRequest(ctx, cfg, payload)
 	if err != nil {
-		return nil, fmt.Errorf("create webhook request: %w", err)
+		return nil, err
 	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	for name, value := range cfg.Headers {
-		httpReq.Header.Set(name, value)
-	}
-	httpReq.Header.Set(webhookSignatureHeader, signWebhookPayload(cfg.SigningSecret, payload))
 
 	res, err := e.httpClient.Do(httpReq)
 	latency := e.now().Sub(started).Milliseconds()
@@ -161,6 +161,19 @@ func (e *WebhookActionExecutor) send(ctx context.Context, cfg webhookActionConfi
 	_, _ = io.Copy(io.Discard, res.Body)
 	result.StatusCode = res.StatusCode
 	return result, nil
+}
+
+func newWebhookHTTPRequest(ctx context.Context, cfg webhookActionConfig, payload []byte) (*http.Request, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.URL, bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("create webhook request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	for name, value := range cfg.Headers {
+		httpReq.Header.Set(name, value)
+	}
+	httpReq.Header.Set(webhookSignatureHeader, signWebhookPayload(cfg.SigningSecret, payload))
+	return httpReq, nil
 }
 
 func (e *WebhookActionExecutor) webhookPayload(req WebhookActionRequest, includeCustomer bool) map[string]any {
@@ -199,27 +212,35 @@ func (e *WebhookActionExecutor) retryDelay(attempt int) time.Duration {
 }
 
 func parseWebhookActionConfig(values map[string]any) (webhookActionConfig, error) {
-	cfg := webhookActionConfig{Headers: make(map[string]string)}
-	cfg.URL = stringConfigValue(values, "url")
+	cfg := webhookActionConfig{Headers: parseWebhookHeaders(values)}
+	cfg.URL = stringConfigValue(values, webhookConfigURL)
 	if cfg.URL == "" {
 		return cfg, errors.New("webhook url is required")
 	}
-	cfg.IncludeCustomerData = boolConfigValue(values, "include_customer_data")
-	cfg.SigningSecret = stringConfigValue(values, "signing_secret")
+	cfg.IncludeCustomerData = boolConfigValue(values, webhookConfigIncludeCustomerData)
+	cfg.SigningSecret = stringConfigValue(values, webhookConfigSigningSecret)
 	if cfg.SigningSecret == "" {
 		return cfg, errors.New("webhook signing_secret is required")
 	}
-	if rawHeaders, ok := values["headers"].(map[string]any); ok {
-		for name, value := range rawHeaders {
-			cfg.Headers[name] = fmt.Sprint(value)
-		}
-	}
-	if rawHeaders, ok := values["headers"].(map[string]string); ok {
-		for name, value := range rawHeaders {
-			cfg.Headers[name] = value
-		}
-	}
 	return cfg, nil
+}
+
+func parseWebhookHeaders(values map[string]any) map[string]string {
+	headers := make(map[string]string)
+	if values == nil {
+		return headers
+	}
+	switch rawHeaders := values[webhookConfigHeaders].(type) {
+	case map[string]any:
+		for name, value := range rawHeaders {
+			headers[name] = fmt.Sprint(value)
+		}
+	case map[string]string:
+		for name, value := range rawHeaders {
+			headers[name] = value
+		}
+	}
+	return headers
 }
 
 func validateWebhookURL(rawURL string) error {

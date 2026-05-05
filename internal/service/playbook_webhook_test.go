@@ -73,13 +73,13 @@ func TestWebhookActionPostsPayloadWithSignature(t *testing.T) {
 	if result.StatusCode != http.StatusAccepted || result.Attempts != 1 || result.LatencyMS < 0 {
 		t.Fatalf("unexpected result: %+v", result)
 	}
-	if seenRequest["trigger_event"].(map[string]any)["type"] != "score_drop" {
+	if nestedString(t, seenRequest, "trigger_event", "type") != "score_drop" {
 		t.Fatalf("expected trigger payload, got %+v", seenRequest)
 	}
-	if seenRequest["playbook"].(map[string]any)["id"] != playbookID.String() {
+	if nestedString(t, seenRequest, "playbook", "id") != playbookID.String() {
 		t.Fatalf("expected playbook summary, got %+v", seenRequest["playbook"])
 	}
-	if seenRequest["customer"].(map[string]any)["email"] != "billing@acme.test" {
+	if nestedString(t, seenRequest, "customer", "email") != "billing@acme.test" {
 		t.Fatalf("expected customer summary, got %+v", seenRequest["customer"])
 	}
 }
@@ -154,4 +154,17 @@ func expectedWebhookSignature(secret string, body []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write(body)
 	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
+}
+
+func nestedString(t *testing.T, values map[string]any, objectKey, valueKey string) string {
+	t.Helper()
+	nested, ok := values[objectKey].(map[string]any)
+	if !ok {
+		t.Fatalf("expected %q to be an object, got %+v", objectKey, values[objectKey])
+	}
+	value, ok := nested[valueKey].(string)
+	if !ok {
+		t.Fatalf("expected %q.%q to be a string, got %+v", objectKey, valueKey, nested[valueKey])
+	}
+	return value
 }
