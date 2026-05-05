@@ -266,6 +266,9 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				planCatalog,
 			)
 			billingSubscriptionSvc.SetFeatureOverrides(featureOverrideRepo)
+			llmUsageStore := service.NewPostgresLLMUsageStore(pool.P)
+			llmBudgetNotifier := service.NewPostgresLLMBudgetNotifier(pool.P)
+			llmUsageSvc := service.NewLLMUsageService(llmUsageStore, billingSubscriptionSvc, llmBudgetNotifier)
 
 			usageAnalyticsSvc := billingsvc.NewUsageService(billingsvc.UsageServiceDeps{
 				Subscriptions: orgSubRepo,
@@ -525,10 +528,12 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 					billingSubscriptionSvc,
 					usageAnalyticsSvc,
 					billingPlanChangeSvc,
+					llmUsageSvc,
 				)
 				r.Route("/billing", func(r chi.Router) {
 					r.Get("/subscription", billingHandler.GetSubscription)
 					r.Get("/usage", billingHandler.GetUsage)
+					r.Get("/ai-usage", billingHandler.GetAIUsage)
 					r.Group(func(r chi.Router) {
 						r.Use(middleware.RequireInternalAnalyticsToken(cfg.Internal.AnalyticsToken))
 						r.Use(middleware.RequireRole("owner"))
