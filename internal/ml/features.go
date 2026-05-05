@@ -365,20 +365,20 @@ func numberFromEvent(event *repository.CustomerEvent, key string) float64 {
 	case float32:
 		return float64(value)
 	case json.Number:
-		parsed, err := value.Float64()
-		if err != nil {
-			return 0
-		}
-		return parsed
+		return parseFloatOrZero(string(value))
 	case string:
-		parsed, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			return 0
-		}
-		return parsed
+		return parseFloatOrZero(value)
 	default:
 		return 0
 	}
+}
+
+func parseFloatOrZero(value string) float64 {
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0
+	}
+	return parsed
 }
 
 func clamp01(value float64) float64 {

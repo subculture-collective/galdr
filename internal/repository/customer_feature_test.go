@@ -6,8 +6,10 @@ import (
 	"testing"
 )
 
+const customerFeaturesMigration = "../../migrations/000025_create_customer_features"
+
 func TestCustomerFeatureMigrationUpFileContainsFeatureStore(t *testing.T) {
-	data, err := os.ReadFile("../../migrations/000025_create_customer_features.up.sql")
+	data, err := os.ReadFile(customerFeaturesMigration + ".up.sql")
 	if err != nil {
 		t.Fatalf("failed to read migration file: %v", err)
 	}
@@ -28,7 +30,7 @@ func TestCustomerFeatureMigrationUpFileContainsFeatureStore(t *testing.T) {
 }
 
 func TestCustomerFeatureMigrationDownFileDropsFeatureStore(t *testing.T) {
-	data, err := os.ReadFile("../../migrations/000025_create_customer_features.down.sql")
+	data, err := os.ReadFile(customerFeaturesMigration + ".down.sql")
 	if err != nil {
 		t.Fatalf("failed to read migration file: %v", err)
 	}
