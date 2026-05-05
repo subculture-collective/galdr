@@ -18,10 +18,14 @@ const (
 	// contracts change.
 	SDKVersion = "0.1.0"
 
+	connectorIDPattern      = `^[a-z0-9]+(?:-[a-z0-9]+)*$`
 	semanticVersionPattern = `^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`
 )
 
-var semverPattern = regexp.MustCompile(semanticVersionPattern)
+var (
+	connectorIDSlugPattern = regexp.MustCompile(connectorIDPattern)
+	semverPattern          = regexp.MustCompile(semanticVersionPattern)
+)
 
 // Connector is the public lifecycle contract for marketplace integrations.
 type Connector interface {
@@ -280,6 +284,9 @@ func ValidateManifest(manifest ConnectorManifest) error {
 func validateConnectorMetadata(manifest ConnectorManifest) error {
 	if strings.TrimSpace(manifest.ID) == "" {
 		return errors.New("manifest id is required")
+	}
+	if !connectorIDSlugPattern.MatchString(manifest.ID) {
+		return errors.New("manifest id must use lowercase letters, numbers, and single hyphens")
 	}
 	if strings.TrimSpace(manifest.Name) == "" {
 		return errors.New("manifest name is required")
