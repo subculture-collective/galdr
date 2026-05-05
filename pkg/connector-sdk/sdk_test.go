@@ -91,6 +91,11 @@ func TestValidateManifestRejectsInvalidConnectorMetadata(t *testing.T) {
 			wantError: "id is required",
 		},
 		{
+			name:      "id is not slug safe",
+			mutate:    func(m *ConnectorManifest) { m.ID = "Mock CRM" },
+			wantError: "connector id",
+		},
+		{
 			name:      "invalid semver",
 			mutate:    func(m *ConnectorManifest) { m.Version = "v1" },
 			wantError: "semantic version",
