@@ -51,6 +51,27 @@ func TestPlanChangeImpactUpgradeImmediate(t *testing.T) {
 	}
 }
 
+func TestPlanChangeImpactUpgradeProrationUsesRemainingPeriod(t *testing.T) {
+	periodStart := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	periodEnd := periodStart.Add(30 * 24 * time.Hour)
+	now := periodStart.Add(15 * 24 * time.Hour)
+	sub := &repository.OrgSubscription{
+		PlanTier:           "growth",
+		BillingCycle:       "monthly",
+		CurrentPeriodStart: &periodStart,
+		CurrentPeriodEnd:   &periodEnd,
+	}
+
+	resp, err := buildPlanChangeImpactAt(planmodel.NewCatalog(planmodel.PriceConfig{}), sub, planmodel.TierScale, planmodel.BillingCycleMonthly, now)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if resp.ProrationCents != 5000 {
+		t.Fatalf("expected half-period proration estimate, got %d", resp.ProrationCents)
+	}
+}
+
 func TestPlanChangeImpactDowngradeAtPeriodEnd(t *testing.T) {
 	renewal := time.Now().Add(24 * time.Hour).UTC()
 	sub := &repository.OrgSubscription{PlanTier: "scale", BillingCycle: "monthly", CurrentPeriodEnd: &renewal}

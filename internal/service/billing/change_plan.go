@@ -173,6 +173,10 @@ func (s *ChangePlanService) applyUpgradeNow(ctx context.Context, sub *repository
 }
 
 func buildPlanChangeImpact(catalog *planmodel.Catalog, sub *repository.OrgSubscription, targetTier planmodel.Tier, targetCycle planmodel.BillingCycle) (*ChangePlanResponse, error) {
+	return buildPlanChangeImpactAt(catalog, sub, targetTier, targetCycle, time.Now())
+}
+
+func buildPlanChangeImpactAt(catalog *planmodel.Catalog, sub *repository.OrgSubscription, targetTier planmodel.Tier, targetCycle planmodel.BillingCycle, now time.Time) (*ChangePlanResponse, error) {
 	currentTier := planmodel.TierFree
 	currentCycle := planmodel.BillingCycleMonthly
 	var effectiveAt *time.Time
@@ -223,7 +227,7 @@ func buildPlanChangeImpact(catalog *planmodel.Catalog, sub *repository.OrgSubscr
 		TargetCycle:          string(targetCycle),
 		EffectiveAt:          effectiveAt,
 		EffectiveAtPeriodEnd: effectiveAtPeriodEnd,
-		ProrationCents:       estimateProrationCents(currentPlan, currentCycle, targetPlan, targetCycle, action),
+		ProrationCents:       estimateProrationCents(currentPlan, currentCycle, targetPlan, targetCycle, action, sub, now),
 		Limits: PlanChangeLimitsImpact{
 			Current: currentPlan.Limits,
 			Target:  targetPlan.Limits,
@@ -456,7 +460,7 @@ func planRank(tier planmodel.Tier) int {
 	}
 }
 
-func estimateProrationCents(current planmodel.Plan, currentCycle planmodel.BillingCycle, target planmodel.Plan, targetCycle planmodel.BillingCycle, action string) int {
+func estimateProrationCents(current planmodel.Plan, currentCycle planmodel.BillingCycle, target planmodel.Plan, targetCycle planmodel.BillingCycle, action string, sub *repository.OrgSubscription, now time.Time) int {
 	if action != planChangeActionUpgrade {
 		return 0
 	}
@@ -464,7 +468,20 @@ func estimateProrationCents(current planmodel.Plan, currentCycle planmodel.Billi
 	if delta < 0 {
 		return 0
 	}
-	return delta
+	if sub == nil || sub.CurrentPeriodStart == nil || sub.CurrentPeriodEnd == nil {
+		return delta
+	}
+
+	total := sub.CurrentPeriodEnd.Sub(*sub.CurrentPeriodStart)
+	remaining := sub.CurrentPeriodEnd.Sub(now)
+	if total <= 0 || remaining <= 0 {
+		return 0
+	}
+	if remaining >= total {
+		return delta
+	}
+
+	return int(float64(delta) * remaining.Seconds() / total.Seconds())
 }
 
 func planPriceCents(plan planmodel.Plan, cycle planmodel.BillingCycle) int {
