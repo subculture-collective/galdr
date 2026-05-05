@@ -1,6 +1,5 @@
 ALTER TABLE organizations
     ADD COLUMN benchmarking_enabled BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN industry VARCHAR(100) NOT NULL DEFAULT 'unknown',
     ADD COLUMN company_size INTEGER NOT NULL DEFAULT 0 CHECK (company_size >= 0);
 
 CREATE TABLE benchmark_contributions (

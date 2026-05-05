@@ -110,12 +110,29 @@ func TestBenchmarkMigrationDownFileDropsTablesAndOptInFields(t *testing.T) {
 		"DROP TABLE IF EXISTS benchmark_aggregates",
 		"DROP TABLE IF EXISTS benchmark_contributions",
 		"DROP COLUMN IF EXISTS benchmarking_enabled",
-		"DROP COLUMN IF EXISTS industry",
 		"DROP COLUMN IF EXISTS company_size",
 	}
 	for _, item := range required {
 		if !strings.Contains(sql, item) {
 			t.Errorf("migration down file missing %s", item)
 		}
+	}
+}
+
+func TestBenchmarkMigrationDoesNotOwnIndustryClassification(t *testing.T) {
+	upData, err := os.ReadFile("../../migrations/000024_create_benchmarking.up.sql")
+	if err != nil {
+		t.Fatalf("failed to read migration up file: %v", err)
+	}
+	downData, err := os.ReadFile("../../migrations/000024_create_benchmarking.down.sql")
+	if err != nil {
+		t.Fatalf("failed to read migration down file: %v", err)
+	}
+
+	if strings.Contains(string(upData), "ADD COLUMN industry") {
+		t.Error("benchmark migration must not add organizations.industry; industry classification owns that column")
+	}
+	if strings.Contains(string(downData), "DROP COLUMN IF EXISTS industry") {
+		t.Error("benchmark migration must not drop organizations.industry; industry classification owns that column")
 	}
 }
