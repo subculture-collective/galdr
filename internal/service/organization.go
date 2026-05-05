@@ -30,12 +30,24 @@ var allowedIndustries = map[string]struct{}{
 }
 
 const industryValidationMessage = "industry must be one of the predefined options"
+const industryRequiredMessage = "industry is required"
 const benchmarkIndustryRequiredMessage = "industry is required for benchmark participation"
 
 func validateIndustry(industry string) (string, error) {
 	industry = strings.TrimSpace(industry)
 	if _, ok := allowedIndustries[industry]; industry != "" && !ok {
 		return "", &ValidationError{Field: "industry", Message: industryValidationMessage}
+	}
+	return industry, nil
+}
+
+func validateRequiredIndustry(industry string) (string, error) {
+	industry, err := validateIndustry(industry)
+	if err != nil {
+		return "", err
+	}
+	if industry == "" {
+		return "", &ValidationError{Field: "industry", Message: industryRequiredMessage}
 	}
 	return industry, nil
 }
@@ -185,7 +197,7 @@ func (s *OrganizationService) Create(ctx context.Context, userID uuid.UUID, req 
 	if name == "" {
 		return nil, &ValidationError{Field: "name", Message: "organization name is required"}
 	}
-	industry, err := validateIndustry(req.Industry)
+	industry, err := validateRequiredIndustry(req.Industry)
 	if err != nil {
 		return nil, err
 	}

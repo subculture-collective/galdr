@@ -97,6 +97,16 @@ func TestBenchmarkIndustrySegmentsUsePredefinedOrganizationIndustries(t *testing
 	}
 }
 
+func TestBenchmarkIndustrySegmentsRejectNonPredefinedIndustries(t *testing.T) {
+	for _, industry := range []string{"AI", "Software", "Consumer"} {
+		t.Run(industry, func(t *testing.T) {
+			if got := NormalizeBenchmarkIndustry(industry); got != unknownBenchmarkIndustry {
+				t.Fatalf("expected unknown segment, got %q", got)
+			}
+		})
+	}
+}
+
 func TestBenchmarkAnonymizerRejectsPIIIndustrySegments(t *testing.T) {
 	anonymizer := NewBenchmarkAnonymizer()
 

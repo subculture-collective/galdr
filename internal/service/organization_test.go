@@ -42,6 +42,17 @@ func TestOrganizationCreateRejectsUnknownIndustry(t *testing.T) {
 	assertIndustryValidationError(t, err)
 }
 
+func TestOrganizationCreateRequiresIndustry(t *testing.T) {
+	svc := NewOrganizationService(nil, nil)
+
+	_, err := svc.Create(context.Background(), uuid.New(), CreateOrgRequest{
+		Name:     "Acme",
+		Industry: " ",
+	})
+
+	assertIndustryValidationError(t, err)
+}
+
 func assertIndustryValidationError(t *testing.T, err error) {
 	t.Helper()
 
