@@ -8,17 +8,19 @@ import {
 const noop = () => undefined;
 
 function render(status: SalesforceStatus | null, loading = false) {
+  const props = {
+    status,
+    loading,
+    actionLoading: false,
+    error: "",
+    message: "",
+    onConnect: noop,
+    onDisconnect: noop,
+    onSync: noop,
+  };
+
   return renderToStaticMarkup(
-    React.createElement(SalesforceConnectionCardView, {
-      status,
-      loading,
-      actionLoading: false,
-      error: "",
-      message: "",
-      onConnect: noop,
-      onDisconnect: noop,
-      onSync: noop,
-    }),
+    React.createElement(SalesforceConnectionCardView, props),
   );
 }
 

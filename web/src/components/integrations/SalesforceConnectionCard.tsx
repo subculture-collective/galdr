@@ -128,6 +128,7 @@ export function SalesforceConnectionCardView({
     { label: "Contacts synced", count: status?.contact_count },
     { label: "Opportunities synced", count: status?.opportunity_count },
   ];
+  const showSyncDetails = status && (isConnected || status.last_sync_error);
 
   return (
     <div className="galdr-card p-6">
@@ -168,7 +169,7 @@ export function SalesforceConnectionCardView({
         <div className="galdr-alert-success mt-4 p-3 text-sm">{message}</div>
       )}
 
-      {(isConnected || status?.last_sync_error) && status && (
+      {showSyncDetails && (
         <div className="galdr-panel mt-4 space-y-2 p-3 text-sm text-[var(--galdr-fg-muted)]">
           {status.external_account_id && (
             <p>
@@ -180,7 +181,7 @@ export function SalesforceConnectionCardView({
             <p>Last sync: {new Date(status.last_sync_at).toLocaleString()}</p>
           )}
           {syncedResources.map((resource) => (
-            <SyncedResourceCount key={resource.label} resource={resource} />
+            <SyncedResourceCount key={resource.label} {...resource} />
           ))}
           {status.last_sync_error && (
             <p className="text-[var(--galdr-danger)]">
@@ -222,14 +223,14 @@ export function SalesforceConnectionCardView({
   );
 }
 
-function SyncedResourceCount({ resource }: { resource: SyncedResource }) {
-  if (resource.count === undefined) {
+function SyncedResourceCount({ label, count }: SyncedResource) {
+  if (count === undefined) {
     return null;
   }
 
   return (
     <p>
-      {resource.label}: {resource.count}
+      {label}: {count}
     </p>
   );
 }
