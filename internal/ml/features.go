@@ -1,7 +1,9 @@
 package ml
 
 import (
+	"encoding/json"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -362,9 +364,21 @@ func numberFromEvent(event *repository.CustomerEvent, key string) float64 {
 		return value
 	case float32:
 		return float64(value)
+	case json.Number:
+		return parseFloatOrZero(string(value))
+	case string:
+		return parseFloatOrZero(value)
 	default:
 		return 0
 	}
+}
+
+func parseFloatOrZero(value string) float64 {
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0
+	}
+	return parsed
 }
 
 func clamp01(value float64) float64 {

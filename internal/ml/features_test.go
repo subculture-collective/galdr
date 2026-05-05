@@ -1,6 +1,7 @@
 package ml
 
 import (
+	"encoding/json"
 	"math"
 	"testing"
 	"time"
@@ -131,6 +132,23 @@ func TestExtractCustomerFeaturesUsesFullMRRTrajectory(t *testing.T) {
 		Events: []*repository.CustomerEvent{
 			event("mrr.changed", now.Add(-80*24*time.Hour), map[string]any{"old_mrr_cents": float64(100_000), "new_mrr_cents": float64(120_000)}),
 			event("mrr.changed", now.Add(-10*24*time.Hour), map[string]any{"old_mrr_cents": float64(120_000), "new_mrr_cents": float64(150_000)}),
+		},
+	})
+
+	assertClose(t, features.Values[FeatureMRRChangeRate], 0.75)
+}
+
+func TestExtractCustomerFeaturesReadsPersistedMRRNumbers(t *testing.T) {
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	features := ExtractCustomerFeatures(FeatureInput{
+		Now: now,
+		Customer: &repository.Customer{
+			ID:    uuid.New(),
+			OrgID: uuid.New(),
+		},
+		Events: []*repository.CustomerEvent{
+			event("mrr.changed", now.Add(-70*24*time.Hour), map[string]any{"old_mrr_cents": json.Number("100000"), "new_mrr_cents": "120000"}),
+			event("mrr.changed", now.Add(-5*24*time.Hour), map[string]any{"old_mrr_cents": "120000", "new_mrr_cents": json.Number("150000")}),
 		},
 	})
 
