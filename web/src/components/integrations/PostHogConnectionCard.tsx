@@ -5,6 +5,23 @@ import {
   validatePostHogCredentials,
 } from "@/lib/posthogConnectionView";
 
+export type { PostHogStatus };
+
+interface PostHogConnectionCardViewProps {
+  status: PostHogStatus | null;
+  apiKey: string;
+  projectId: string;
+  loading: boolean;
+  actionLoading: boolean;
+  error: string;
+  message: string;
+  onApiKeyChange: (apiKey: string) => void;
+  onProjectIdChange: (projectId: string) => void;
+  onSave: () => void;
+  onDisconnect: () => void;
+  onSync: () => void;
+}
+
 export default function PostHogConnectionCard() {
   const [status, setStatus] = useState<PostHogStatus | null>(null);
   const [apiKey, setApiKey] = useState("");
@@ -90,6 +107,38 @@ export default function PostHogConnectionCard() {
     }
   }
 
+  return (
+    <PostHogConnectionCardView
+      status={status}
+      apiKey={apiKey}
+      projectId={projectId}
+      loading={loading}
+      actionLoading={actionLoading}
+      error={error}
+      message={message}
+      onApiKeyChange={setApiKey}
+      onProjectIdChange={setProjectId}
+      onSave={handleSave}
+      onDisconnect={handleDisconnect}
+      onSync={handleSync}
+    />
+  );
+}
+
+export function PostHogConnectionCardView({
+  status,
+  apiKey,
+  projectId,
+  loading,
+  actionLoading,
+  error,
+  message,
+  onApiKeyChange,
+  onProjectIdChange,
+  onSave,
+  onDisconnect,
+  onSync,
+}: PostHogConnectionCardViewProps) {
   if (loading) {
     return (
       <div className="galdr-card p-6">
@@ -101,6 +150,8 @@ export default function PostHogConnectionCard() {
   }
 
   const view = getPostHogConnectionView(status);
+  const showStatusDetails =
+    view.isConnected || Boolean(status?.last_sync_error);
 
   return (
     <div className="galdr-card overflow-hidden p-6">
@@ -141,7 +192,7 @@ export default function PostHogConnectionCard() {
         <div className="galdr-alert-success mt-4 p-3 text-sm">{message}</div>
       )}
 
-      {view.isConnected && (
+      {showStatusDetails && (
         <div className="galdr-panel mt-4 grid gap-2 p-3 text-sm text-[var(--galdr-fg-muted)] sm:grid-cols-2">
           {view.metrics.map((metric) => (
             <p key={metric}>{metric}</p>
@@ -161,9 +212,10 @@ export default function PostHogConnectionCard() {
             <input
               type="password"
               value={apiKey}
-              onChange={(event) => setApiKey(event.target.value)}
+              onChange={(event) => onApiKeyChange(event.target.value)}
               placeholder="phx_..."
               className="galdr-input mt-1 w-full px-3 py-2 text-sm"
+              disabled={actionLoading}
             />
           </label>
           <label className="block text-sm font-medium text-[var(--galdr-fg-muted)]">
@@ -171,9 +223,10 @@ export default function PostHogConnectionCard() {
             <input
               type="text"
               value={projectId}
-              onChange={(event) => setProjectId(event.target.value)}
+              onChange={(event) => onProjectIdChange(event.target.value)}
               placeholder="12345"
               className="galdr-input mt-1 w-full px-3 py-2 text-sm"
+              disabled={actionLoading}
             />
           </label>
         </div>
@@ -190,14 +243,14 @@ export default function PostHogConnectionCard() {
         {view.isConnected ? (
           <>
             <button
-              onClick={handleSync}
+              onClick={onSync}
               disabled={actionLoading || !view.canSync}
               className="galdr-button-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {actionLoading ? "..." : "Sync Now"}
             </button>
             <button
-              onClick={handleDisconnect}
+              onClick={onDisconnect}
               disabled={actionLoading}
               className="galdr-button-danger-outline px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
@@ -206,7 +259,7 @@ export default function PostHogConnectionCard() {
           </>
         ) : (
           <button
-            onClick={handleSave}
+            onClick={onSave}
             disabled={actionLoading}
             className="galdr-button-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
