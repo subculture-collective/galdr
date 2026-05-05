@@ -156,8 +156,22 @@ type BenchmarkAggregateWriter interface {
 	CreateAggregate(ctx context.Context, aggregate *repository.BenchmarkAggregate) error
 }
 
-const benchmarkMinimumSampleSize = 5
-const benchmarkContributionFreshnessWindow = 30 * 24 * time.Hour
+const (
+	benchmarkMinimumSampleSize         = 5
+	benchmarkContributionFreshnessWindow = 30 * 24 * time.Hour
+	benchmarkQualityTargetSampleSize   = 20
+	benchmarkQualitySampleWeight       = 0.5
+	benchmarkQualityRecencyWeight      = 0.3
+	benchmarkQualityVarianceWeight     = 0.2
+	benchmarkQualityHighThreshold      = 80
+	benchmarkQualityMediumThreshold    = 60
+)
+
+const (
+	benchmarkQualityLevelHigh   = "high"
+	benchmarkQualityLevelMedium = "medium"
+	benchmarkQualityLevelLow    = "low"
+)
 
 type BenchmarkAggregationService struct {
 	contributions BenchmarkContributionReader
@@ -284,10 +298,10 @@ func benchmarkMetricValues(contributions []repository.BenchmarkContribution) []b
 	integrationUsage := make([]benchmarkMetricObservation, 0, len(contributions))
 
 	for _, contribution := range contributions {
-		healthScores = append(healthScores, benchmarkMetricObservation{value: contribution.AvgHealthScore, contributedAt: contribution.ContributedAt})
-		mrrPerCustomer = append(mrrPerCustomer, benchmarkMetricObservation{value: float64(contribution.AvgMRR), contributedAt: contribution.ContributedAt})
-		churnRates = append(churnRates, benchmarkMetricObservation{value: contribution.AvgChurnRate, contributedAt: contribution.ContributedAt})
-		integrationUsage = append(integrationUsage, benchmarkMetricObservation{value: float64(contribution.ActiveIntegrationCount), contributedAt: contribution.ContributedAt})
+		healthScores = append(healthScores, benchmarkObservation(contribution.AvgHealthScore, contribution.ContributedAt))
+		mrrPerCustomer = append(mrrPerCustomer, benchmarkObservation(float64(contribution.AvgMRR), contribution.ContributedAt))
+		churnRates = append(churnRates, benchmarkObservation(contribution.AvgChurnRate, contribution.ContributedAt))
+		integrationUsage = append(integrationUsage, benchmarkObservation(float64(contribution.ActiveIntegrationCount), contribution.ContributedAt))
 	}
 
 	return []benchmarkMetricValueSet{
@@ -296,6 +310,10 @@ func benchmarkMetricValues(contributions []repository.BenchmarkContribution) []b
 		{name: repository.BenchmarkMetricChurnRate, observations: excludeBenchmarkOutliers(churnRates)},
 		{name: repository.BenchmarkMetricIntegrationUsage, observations: excludeBenchmarkOutliers(integrationUsage)},
 	}
+}
+
+func benchmarkObservation(value float64, contributedAt time.Time) benchmarkMetricObservation {
+	return benchmarkMetricObservation{value: value, contributedAt: contributedAt}
 }
 
 func benchmarkAggregate(segment benchmarkSegment, metric benchmarkMetricValueSet, calculatedAt time.Time) *repository.BenchmarkAggregate {
@@ -355,10 +373,12 @@ func benchmarkQualityScore(observations []benchmarkMetricObservation, now time.T
 	if len(observations) == 0 {
 		return 0
 	}
-	sampleScore := math.Min(float64(len(observations))/20, 1)
+	sampleScore := math.Min(float64(len(observations))/benchmarkQualityTargetSampleSize, 1)
 	recencyScore := benchmarkRecencyQuality(observations, now)
 	varianceScore := benchmarkVarianceQuality(benchmarkObservationValues(observations))
-	score := (0.5 * sampleScore) + (0.3 * recencyScore) + (0.2 * varianceScore)
+	score := (benchmarkQualitySampleWeight * sampleScore) +
+		(benchmarkQualityRecencyWeight * recencyScore) +
+		(benchmarkQualityVarianceWeight * varianceScore)
 	return math.Round(score * 100)
 }
 
@@ -379,24 +399,24 @@ func benchmarkVarianceQuality(values []float64) float64 {
 	if len(values) < 2 {
 		return 1
 	}
-	mean := mean(values)
+	average := averageFloat64(values)
 	var variance float64
 	for _, value := range values {
-		delta := value - mean
+		delta := value - average
 		variance += delta * delta
 	}
 	stddev := math.Sqrt(variance / float64(len(values)))
-	if mean == 0 {
+	if average == 0 {
 		if stddev == 0 {
 			return 1
 		}
 		return 0
 	}
-	coefficient := math.Abs(stddev / mean)
+	coefficient := math.Abs(stddev / average)
 	return math.Max(0, 1-math.Min(coefficient, 1))
 }
 
-func mean(values []float64) float64 {
+func averageFloat64(values []float64) float64 {
 	var total float64
 	for _, value := range values {
 		total += value
@@ -406,12 +426,12 @@ func mean(values []float64) float64 {
 
 func benchmarkQualityLevel(score float64) string {
 	switch {
-	case score >= 80:
-		return "high"
-	case score >= 60:
-		return "medium"
+	case score >= benchmarkQualityHighThreshold:
+		return benchmarkQualityLevelHigh
+	case score >= benchmarkQualityMediumThreshold:
+		return benchmarkQualityLevelMedium
 	default:
-		return "low"
+		return benchmarkQualityLevelLow
 	}
 }
 

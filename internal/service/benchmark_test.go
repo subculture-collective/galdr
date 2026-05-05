@@ -365,6 +365,34 @@ func TestBenchmarkAggregationServiceExcludesStaleAndOutlierContributions(t *test
 	}
 }
 
+func TestBenchmarkAggregationServiceExcludesInvalidPersistedContributions(t *testing.T) {
+	now := time.Now().UTC()
+	valid := []repository.BenchmarkContribution{
+		benchmarkContributionAt("saas", repository.BenchmarkBucket11To50, 50, 5000, 0.10, 1, now.Add(-1*time.Hour)),
+		benchmarkContributionAt("saas", repository.BenchmarkBucket11To50, 51, 5100, 0.11, 1, now.Add(-2*time.Hour)),
+		benchmarkContributionAt("saas", repository.BenchmarkBucket11To50, 52, 5200, 0.12, 1, now.Add(-3*time.Hour)),
+		benchmarkContributionAt("saas", repository.BenchmarkBucket11To50, 53, 5300, 0.13, 1, now.Add(-4*time.Hour)),
+		benchmarkContributionAt("saas", repository.BenchmarkBucket11To50, 54, 5400, 0.14, 1, now.Add(-5*time.Hour)),
+	}
+	invalidNegativeMRR := benchmarkContributionAt("saas", repository.BenchmarkBucket11To50, 55, -1, 0.15, 1, now.Add(-6*time.Hour))
+	invalidScore := benchmarkContributionAt("saas", repository.BenchmarkBucket11To50, 101, 5500, 0.15, 1, now.Add(-7*time.Hour))
+	repo := &fakeBenchmarkAggregateRepo{contributions: append(valid, invalidNegativeMRR, invalidScore)}
+	service := NewBenchmarkAggregationService(repo, repo)
+
+	if err := service.RunOnce(context.Background()); err != nil {
+		t.Fatalf("aggregate once failed: %v", err)
+	}
+
+	health := repo.aggregateByMetric(repository.BenchmarkMetricHealthScore)
+	if health == nil {
+		t.Fatal("expected aggregate from valid persisted contributions")
+	}
+	if health.SampleCount != len(valid) {
+		t.Fatalf("expected invalid persisted contributions excluded, got sample count %d", health.SampleCount)
+	}
+	assertFloatEqual(t, health.P50, 52)
+}
+
 func benchmarkContribution(industry, bucket string, score float64, mrr int64, churnRate float64, integrationCount int) repository.BenchmarkContribution {
 	return benchmarkContributionAt(industry, bucket, score, mrr, churnRate, integrationCount, time.Now().UTC())
 }
