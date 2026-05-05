@@ -81,6 +81,7 @@ export interface BillingSubscriptionResponse {
   usage: {
     customers: BillingUsageMetric;
     integrations: BillingUsageMetric;
+    team_members: BillingUsageMetric;
   };
   features: Record<string, unknown>;
 }
@@ -109,8 +110,8 @@ export interface PlanChangeResponse {
   effective_at_period_end: boolean;
   proration_cents: number;
   limits: {
-    current: { customer_limit: number; integration_limit: number };
-    target: { customer_limit: number; integration_limit: number };
+    current: { customer_limit: number; integration_limit: number; team_member_limit: number };
+    target: { customer_limit: number; integration_limit: number; team_member_limit: number };
   };
   features: {
     current: Record<string, boolean>;

@@ -11,7 +11,7 @@ import (
 )
 
 // VerifyConfiguredPrices validates that configured Stripe price IDs exist and include required metadata.
-// Required metadata keys: tier, customer_limit, integration_limit.
+// Required metadata keys: tier, customer_limit, integration_limit, team_member_limit.
 func VerifyConfiguredPrices(ctx context.Context, stripeSecretKey string, catalog *Catalog) error {
 	if strings.TrimSpace(stripeSecretKey) == "" {
 		return fmt.Errorf("stripe billing secret key is required for price verification")
@@ -51,6 +51,9 @@ func VerifyConfiguredPrices(ctx context.Context, stripeSecretKey string, catalog
 			}
 			if !limitMetadataMatches(p.Metadata["integration_limit"], plan.Limits.IntegrationLimit) {
 				return fmt.Errorf("price %s metadata integration_limit mismatch for tier %s", priceID, tier)
+			}
+			if !limitMetadataMatches(p.Metadata["team_member_limit"], plan.Limits.TeamMemberLimit) {
+				return fmt.Errorf("price %s metadata team_member_limit mismatch for tier %s", priceID, tier)
 			}
 		}
 	}

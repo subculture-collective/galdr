@@ -84,11 +84,13 @@ Global per-IP request limit is enforced via middleware:
 
 ### Per-tier product limits
 
-| Plan | Customer limit | Integration limit |
-| --- | ---: | ---: |
-| `free` | 10 | 1 |
-| `growth` | 250 | 3 |
-| `scale` | unlimited | unlimited |
+| Plan | Customer limit | Integration limit | Team member limit |
+| --- | ---: | ---: | ---: |
+| `free` | 10 | 1 | 1 |
+| `growth` | 500 | 3 | 5 |
+| `scale` | unlimited | unlimited | unlimited |
+
+For the full tier feature matrix, see [Billing Tier Specifications](./billing-tiers.md).
 
 ## Error responses
 
@@ -865,12 +867,17 @@ HTTP/1.1 204 No Content
   "renewal_date": "2026-03-24T00:00:00Z",
   "cancel_at_period_end": false,
   "usage": {
-    "customers": { "used": 42, "limit": 250 },
-    "integrations": { "used": 2, "limit": 3 }
+    "customers": { "used": 42, "limit": 500 },
+    "integrations": { "used": 2, "limit": 3 },
+    "team_members": { "used": 3, "limit": 5 }
   },
   "features": {
+    "basic_dashboard": true,
+    "full_dashboard": true,
+    "email_alerts": true,
     "playbooks": true,
-    "ai_insights": false
+    "ai_insights": false,
+    "benchmarks": false
   }
 }
 ```

@@ -18,6 +18,7 @@ type orgSubscriptionReader interface {
 
 type organizationReader interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*repository.Organization, error)
+	CountMembers(ctx context.Context, orgID uuid.UUID) (int, error)
 }
 
 type customerCounter interface {
@@ -47,6 +48,10 @@ type UsageSnapshot struct {
 		Used  int `json:"used"`
 		Limit int `json:"limit"`
 	} `json:"integrations"`
+	TeamMembers struct {
+		Used  int `json:"used"`
+		Limit int `json:"limit"`
+	} `json:"team_members"`
 }
 
 // SubscriptionSummary is returned by GET /api/v1/billing/subscription.
@@ -151,6 +156,10 @@ func (s *SubscriptionService) GetSubscriptionSummary(ctx context.Context, orgID 
 	if err != nil {
 		return nil, fmt.Errorf("count integrations: %w", err)
 	}
+	memberCount, err := s.orgs.CountMembers(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("count members: %w", err)
+	}
 
 	summary := &SubscriptionSummary{
 		Tier:         tier,
@@ -163,10 +172,16 @@ func (s *SubscriptionService) GetSubscriptionSummary(ctx context.Context, orgID 
 	summary.Usage.Customers.Limit = limits.CustomerLimit
 	summary.Usage.Integrations.Used = integrationCount
 	summary.Usage.Integrations.Limit = limits.IntegrationLimit
+	summary.Usage.TeamMembers.Used = memberCount
+	summary.Usage.TeamMembers.Limit = limits.TeamMemberLimit
 
 	if plan, ok := s.catalog.GetPlanByTier(tier); ok {
-		summary.Features["playbooks"] = plan.Features.Playbooks
-		summary.Features["ai_insights"] = plan.Features.AIInsights
+		summary.Features[planmodel.FeatureBasicDashboard] = plan.Features.BasicDashboard
+		summary.Features[planmodel.FeatureFullDashboard] = plan.Features.FullDashboard
+		summary.Features[planmodel.FeatureEmailAlerts] = plan.Features.EmailAlerts
+		summary.Features[planmodel.FeaturePlaybooks] = plan.Features.Playbooks
+		summary.Features[planmodel.FeatureAIInsights] = plan.Features.AIInsights
+		summary.Features[planmodel.FeatureBenchmarks] = plan.Features.Benchmarks
 	}
 
 	sub, err := s.subscriptions.GetByOrg(ctx, orgID)
