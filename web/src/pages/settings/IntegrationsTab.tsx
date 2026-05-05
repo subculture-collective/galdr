@@ -10,6 +10,7 @@ import HubSpotConnectionCard from "@/components/integrations/HubSpotConnectionCa
 import IntercomConnectionCard from "@/components/integrations/IntercomConnectionCard";
 import ZendeskConnectionCard from "@/components/integrations/ZendeskConnectionCard";
 import SalesforceConnectionCard from "@/components/integrations/SalesforceConnectionCard";
+import PostHogConnectionCard from "@/components/integrations/PostHogConnectionCard";
 import IntegrationCard from "@/components/IntegrationCard";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import { Loader2 } from "lucide-react";
@@ -28,6 +29,7 @@ const DEDICATED_INTEGRATION_PROVIDERS = new Set([
   "intercom",
   "zendesk",
   "salesforce",
+  "posthog",
 ]);
 
 export default function IntegrationsTab() {
@@ -110,6 +112,13 @@ export default function IntegrationsTab() {
           Salesforce
         </h3>
         <SalesforceConnectionCard />
+      </div>
+
+      <div>
+        <h3 className="mb-4 text-sm font-medium text-[var(--galdr-fg)]">
+          PostHog
+        </h3>
+        <PostHogConnectionCard />
       </div>
 
       {otherIntegrations.length > 0 && (
