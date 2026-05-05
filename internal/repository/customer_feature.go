@@ -77,3 +77,35 @@ func (r *CustomerFeatureRepository) GetByCustomerID(ctx context.Context, custome
 	}
 	return feature, nil
 }
+
+// ListByOrgBetween returns feature snapshots for training dataset preparation.
+func (r *CustomerFeatureRepository) ListByOrgBetween(ctx context.Context, orgID uuid.UUID, from, to time.Time) ([]*CustomerFeature, error) {
+	query := `
+		SELECT id, org_id, customer_id, features, calculated_at, created_at, updated_at
+		FROM customer_features
+		WHERE org_id = $1 AND calculated_at >= $2 AND calculated_at <= $3
+		ORDER BY calculated_at ASC`
+
+	rows, err := r.pool.Query(ctx, query, orgID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("list customer features by org: %w", err)
+	}
+	defer rows.Close()
+
+	var features []*CustomerFeature
+	for rows.Next() {
+		feature := &CustomerFeature{}
+		var featuresJSON []byte
+		if err := rows.Scan(
+			&feature.ID, &feature.OrgID, &feature.CustomerID, &featuresJSON,
+			&feature.CalculatedAt, &feature.CreatedAt, &feature.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan customer features: %w", err)
+		}
+		if err := json.Unmarshal(featuresJSON, &feature.Features); err != nil {
+			return nil, fmt.Errorf("unmarshal customer features: %w", err)
+		}
+		features = append(features, feature)
+	}
+	return features, rows.Err()
+}

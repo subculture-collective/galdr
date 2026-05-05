@@ -133,6 +133,24 @@ func (r *CustomerEventRepository) ListByCustomerSince(ctx context.Context, custo
 	return scanCustomerEvents(rows)
 }
 
+// ListByCustomerBetween returns events for a customer in a closed time window.
+func (r *CustomerEventRepository) ListByCustomerBetween(ctx context.Context, customerID uuid.UUID, from, to time.Time) ([]*CustomerEvent, error) {
+	query := `
+		SELECT id, org_id, customer_id, event_type, source, COALESCE(external_event_id, ''),
+			occurred_at, COALESCE(data, '{}'), created_at
+		FROM customer_events
+		WHERE customer_id = $1 AND occurred_at >= $2 AND occurred_at <= $3
+		ORDER BY occurred_at DESC`
+
+	rows, err := r.pool.Query(ctx, query, customerID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("list customer events between: %w", err)
+	}
+	defer rows.Close()
+
+	return scanCustomerEvents(rows)
+}
+
 func scanCustomerEvents(rows pgx.Rows) ([]*CustomerEvent, error) {
 	var events []*CustomerEvent
 	for rows.Next() {
