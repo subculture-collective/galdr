@@ -56,10 +56,12 @@ function planPriceCents(plan: BillingPlanDefinition, cycle: BillingCycle): numbe
   return planPrice(plan, cycle) * 100;
 }
 
-const featureLabels: Record<string, string> = {
-  playbooks: "Automated playbooks",
-  ai_insights: "AI-powered insights",
-};
+type FeatureKey = "playbooks" | "ai_insights";
+
+const planFeatureLabels: ReadonlyArray<{ key: FeatureKey; label: string }> = [
+  { key: "playbooks", label: "Automated playbooks" },
+  { key: "ai_insights", label: "AI-powered insights" },
+];
 
 function featureFlagsForTier(tier: string): Record<string, boolean> {
   return {
@@ -73,9 +75,9 @@ function featureChanges(
   target: Record<string, boolean>,
 ): string[] {
   const changes: string[] = [];
-  for (const key of Object.keys(featureLabels)) {
+  for (const { key, label } of planFeatureLabels) {
     if (current[key] === target[key]) continue;
-    changes.push(`${target[key] ? "Gain" : "Lose"} ${featureLabels[key]}`);
+    changes.push(`${target[key] ? "Gain" : "Lose"} ${label}`);
   }
   return changes.length > 0 ? changes : ["No feature access changes"];
 }
