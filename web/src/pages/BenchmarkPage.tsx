@@ -68,7 +68,8 @@ export default function BenchmarkPage() {
   const [size, setSize] = useState("51-200");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [participating, setParticipating] = useState(true);
+  const [participating, setParticipating] = useState(false);
+  const [defaultsLoaded, setDefaultsLoaded] = useState(false);
   const [data, setData] = useState<BenchmarksResponse | null>(null);
 
   useEffect(() => {
@@ -79,9 +80,11 @@ export default function BenchmarkPage() {
         );
         if (org.industry) setIndustry(org.industry);
         setSize(defaultSize(org.company_size));
-        setParticipating(org.benchmarking_enabled !== false);
+        setParticipating(org.benchmarking_enabled === true);
       } catch {
-        setParticipating(true);
+        setParticipating(false);
+      } finally {
+        setDefaultsLoaded(true);
       }
     }
     void fetchDefaults();
@@ -103,8 +106,15 @@ export default function BenchmarkPage() {
   }, [industry, size]);
 
   useEffect(() => {
+    if (!defaultsLoaded) return;
+    if (!participating) {
+      setLoading(false);
+      setError(false);
+      setData(null);
+      return;
+    }
     void fetchBenchmarks();
-  }, [fetchBenchmarks]);
+  }, [defaultsLoaded, fetchBenchmarks, participating]);
 
   const metrics = data?.metrics.map(normalizeMetric) ?? [];
   const calloutPercentile = data?.percentile ?? highestPercentile(metrics);
