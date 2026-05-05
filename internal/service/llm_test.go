@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -207,6 +208,39 @@ func TestOpenAIProviderCompleteUsesMockedAPI(t *testing.T) {
 	}
 	if res.Text != "Analyze churn risk." || res.InputTokens != 12 || res.OutputTokens != 6 {
 		t.Fatalf("unexpected response: %+v", res)
+	}
+}
+
+func TestNewOpenAILLMServiceUsesProviderConfigMaxTokens(t *testing.T) {
+	var seenRequest openAIChatRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&seenRequest); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"choices": [{"message": {"role": "assistant", "content": "Configured."}}],
+			"usage": {"prompt_tokens": 4, "completion_tokens": 2, "total_tokens": 6}
+		}`))
+	}))
+	defer server.Close()
+
+	svc := NewOpenAILLMService(OpenAIProviderConfig{
+		APIKey:    "sk-test",
+		Model:     "gpt-test",
+		BaseURL:   server.URL,
+		MaxTokens: 77,
+	}, nil, LLMServiceConfig{
+		RequestsPerMinute: 10,
+		MaxTokensPerDay:   10_000,
+	})
+
+	_, err := svc.Complete(context.Background(), LLMCompletionRequest{OrgID: uuid.New(), Prompt: "configured"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if seenRequest.Model != "gpt-test" || seenRequest.MaxTokens != 77 {
+		t.Fatalf("expected OpenAI config model/max tokens, got %+v", seenRequest)
 	}
 }
 

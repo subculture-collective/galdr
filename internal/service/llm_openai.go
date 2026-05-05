@@ -50,6 +50,14 @@ func NewOpenAIProvider(cfg OpenAIProviderConfig) *OpenAIProvider {
 	return &OpenAIProvider{cfg: cfg, client: client}
 }
 
+// NewOpenAILLMService wires the OpenAI provider into the LLM service.
+func NewOpenAILLMService(openAICfg OpenAIProviderConfig, tracker LLMUsageTracker, svcCfg LLMServiceConfig) *LLMService {
+	if svcCfg.DefaultMaxTokens <= 0 && openAICfg.MaxTokens > 0 {
+		svcCfg.DefaultMaxTokens = openAICfg.MaxTokens
+	}
+	return NewLLMService(NewOpenAIProvider(openAICfg), tracker, svcCfg)
+}
+
 // Name returns the configured model name.
 func (p *OpenAIProvider) Name() string {
 	return p.cfg.Model
