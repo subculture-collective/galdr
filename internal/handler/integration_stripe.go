@@ -7,19 +7,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/onnwee/pulse-score/internal/service"
+	connectorsdk "github.com/onnwee/pulse-score/pkg/connector-sdk"
 )
 
 // IntegrationStripeHandler provides Stripe integration HTTP endpoints.
 type IntegrationStripeHandler struct {
-	oauthSvc     *service.StripeOAuthService
-	orchestrator *service.SyncOrchestratorService
+	oauthSvc *service.StripeOAuthService
+	syncer   service.ConnectorSyncer
 }
 
 // NewIntegrationStripeHandler creates a new IntegrationStripeHandler.
-func NewIntegrationStripeHandler(oauthSvc *service.StripeOAuthService, orchestrator *service.SyncOrchestratorService) *IntegrationStripeHandler {
+func NewIntegrationStripeHandler(oauthSvc *service.StripeOAuthService, syncer service.ConnectorSyncer) *IntegrationStripeHandler {
 	return &IntegrationStripeHandler{
-		oauthSvc:     oauthSvc,
-		orchestrator: orchestrator,
+		oauthSvc: oauthSvc,
+		syncer:   syncer,
 	}
 }
 
@@ -39,7 +40,7 @@ func (h *IntegrationStripeHandler) Callback(w http.ResponseWriter, r *http.Reque
 		"Stripe",
 		"Stripe connected successfully. Initial sync started.",
 		h.oauthSvc.ExchangeCode,
-		func(ctx context.Context, orgID uuid.UUID) { h.orchestrator.RunFullSync(ctx, orgID) },
+		h.runFullSync,
 	)
 }
 
@@ -60,9 +61,19 @@ func (h *IntegrationStripeHandler) TriggerSync(w http.ResponseWriter, r *http.Re
 	integrationTriggerSync(
 		w,
 		r,
-		func(ctx context.Context, orgID uuid.UUID) { h.orchestrator.RunFullSync(ctx, orgID) },
+		h.runFullSync,
 		"sync started",
 	)
+}
+
+func (h *IntegrationStripeHandler) runFullSync(ctx context.Context, orgID uuid.UUID) {
+	if h.syncer == nil {
+		slog.Error("stripe syncer is not configured")
+		return
+	}
+	if _, err := h.syncer.Sync(ctx, "stripe", orgID, connectorsdk.SyncModeFull, nil); err != nil {
+		slog.Error("stripe sync failed", "error", err)
+	}
 }
 
 // WebhookStripeHandler provides Stripe webhook HTTP endpoints.

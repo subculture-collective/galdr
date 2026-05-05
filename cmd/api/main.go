@@ -233,6 +233,19 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			syncOrchestrator := service.NewSyncOrchestratorService(connRepo, stripeSyncSvc, mrrSvc)
 			hubspotSyncOrchestrator := service.NewHubSpotSyncOrchestratorService(connRepo, hubspotSyncSvc, mergeSvc)
 			intercomSyncOrchestrator := service.NewIntercomSyncOrchestratorService(connRepo, intercomSyncSvc, mergeSvc)
+			connectorRegistry, err := service.NewIntegrationConnectorRegistry(
+				stripeOAuthSvc,
+				syncOrchestrator,
+				hubspotOAuthSvc,
+				hubspotSyncOrchestrator,
+				intercomOAuthSvc,
+				intercomSyncOrchestrator,
+			)
+			if err != nil {
+				slog.Error("failed to create connector registry", "error", err)
+				os.Exit(1)
+			}
+			connectorSyncSvc := service.NewConnectorSyncService(connectorRegistry)
 
 			stripeWebhookSvc := service.NewStripeWebhookService(
 				cfg.Stripe.WebhookSecret,
@@ -409,9 +422,8 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			if cfg.Stripe.SyncIntervalMin > 0 {
 				syncScheduler := service.NewSyncSchedulerService(
 					connRepo,
-					syncOrchestrator,
-					hubspotSyncOrchestrator,
-					intercomSyncOrchestrator,
+					connectorSyncSvc,
+					connectorRegistry,
 					cfg.Stripe.SyncIntervalMin,
 				)
 				go syncScheduler.Start(bgCtx)
@@ -522,7 +534,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				r.Get("/dashboard/score-distribution", dashboardHandler.GetScoreDistribution)
 
 				// Integration management routes (admin+ required)
-				integrationSvc := service.NewIntegrationService(connRepo, stripeOAuthSvc, syncOrchestrator)
+				integrationSvc := service.NewIntegrationService(connRepo, connectorSyncSvc, connectorRegistry)
 				integrationHandler := handler.NewIntegrationHandler(integrationSvc)
 				r.Route("/integrations", func(r chi.Router) {
 					r.Get("/", integrationHandler.List)
@@ -596,7 +608,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				r.Get("/alerts/stats", alertHistoryHandler.Stats)
 
 				// Stripe integration routes (admin+ required)
-				stripeHandler := handler.NewIntegrationStripeHandler(stripeOAuthSvc, syncOrchestrator)
+				stripeHandler := handler.NewIntegrationStripeHandler(stripeOAuthSvc, connectorSyncSvc)
 				r.Route("/integrations/stripe", func(r chi.Router) {
 					r.Use(middleware.RequireRole("admin"))
 					r.With(middleware.RequireIntegrationLimit(billingLimitsSvc, "stripe")).Get("/connect", stripeHandler.Connect)
@@ -607,7 +619,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				})
 
 				// HubSpot integration routes (admin+ required)
-				hubspotHandler := handler.NewIntegrationHubSpotHandler(hubspotOAuthSvc, hubspotSyncOrchestrator)
+				hubspotHandler := handler.NewIntegrationHubSpotHandler(hubspotOAuthSvc, connectorSyncSvc)
 				r.Route("/integrations/hubspot", func(r chi.Router) {
 					r.Use(middleware.RequireRole("admin"))
 					r.With(middleware.RequireIntegrationLimit(billingLimitsSvc, "hubspot")).Get("/connect", hubspotHandler.Connect)
@@ -618,7 +630,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				})
 
 				// Intercom integration routes (admin+ required)
-				intercomHandler := handler.NewIntegrationIntercomHandler(intercomOAuthSvc, intercomSyncOrchestrator)
+				intercomHandler := handler.NewIntegrationIntercomHandler(intercomOAuthSvc, connectorSyncSvc)
 				r.Route("/integrations/intercom", func(r chi.Router) {
 					r.Use(middleware.RequireRole("admin"))
 					r.With(middleware.RequireIntegrationLimit(billingLimitsSvc, "intercom")).Get("/connect", intercomHandler.Connect)
