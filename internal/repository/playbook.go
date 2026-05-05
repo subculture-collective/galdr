@@ -75,6 +75,16 @@ func NewPlaybookRepository(pool *pgxpool.Pool) *PlaybookRepository {
 	return &PlaybookRepository{pool: pool}
 }
 
+// CountByOrg returns the number of playbooks configured for an organization.
+func (r *PlaybookRepository) CountByOrg(ctx context.Context, orgID uuid.UUID) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM playbooks WHERE org_id = $1`, orgID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count playbooks: %w", err)
+	}
+	return count, nil
+}
+
 // List returns all playbooks for an organization.
 func (r *PlaybookRepository) List(ctx context.Context, orgID uuid.UUID) ([]*Playbook, error) {
 	rows, err := r.pool.Query(ctx, `

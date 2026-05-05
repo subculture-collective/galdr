@@ -192,6 +192,36 @@ func (r *OrganizationRepository) ListBenchmarkingEnabled(ctx context.Context) ([
 	return orgs, rows.Err()
 }
 
+// ListActive returns all non-deleted organizations for background jobs.
+func (r *OrganizationRepository) ListActive(ctx context.Context) ([]Organization, error) {
+	query := `
+		SELECT id, name, slug, COALESCE(industry, ''), plan, COALESCE(stripe_customer_id, ''),
+			benchmarking_enabled, COALESCE(company_size, 0), created_at, updated_at
+		FROM organizations
+		WHERE deleted_at IS NULL
+		ORDER BY id`
+
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list active orgs: %w", err)
+	}
+	defer rows.Close()
+
+	var orgs []Organization
+	for rows.Next() {
+		var o Organization
+		if err := rows.Scan(
+			&o.ID, &o.Name, &o.Slug, &o.Industry, &o.Plan, &o.StripeCustomerID,
+			&o.BenchmarkingEnabled, &o.CompanySize,
+			&o.CreatedAt, &o.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan active org: %w", err)
+		}
+		orgs = append(orgs, o)
+	}
+	return orgs, rows.Err()
+}
+
 // UpdatePlan updates an org's billing plan.
 func (r *OrganizationRepository) UpdatePlan(ctx context.Context, orgID uuid.UUID, plan string) error {
 	query := `UPDATE organizations SET plan = $2 WHERE id = $1 AND deleted_at IS NULL`

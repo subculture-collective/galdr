@@ -129,6 +129,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			passwordResetRepo := repository.NewPasswordResetRepository(pool.P)
 			billingWebhookEventRepo := repository.NewBillingWebhookEventRepository(pool.P)
 			featureOverrideRepo := repository.NewFeatureOverrideRepository(pool.P)
+			usageSnapshotRepo := repository.NewUsageSnapshotRepository(pool.P)
 
 			emailSvc := service.NewSendGridEmailService(service.SendGridConfig{
 				APIKey:      cfg.SendGrid.APIKey,
@@ -150,6 +151,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			subRepo := repository.NewStripeSubscriptionRepository(pool.P)
 			paymentRepo := repository.NewStripePaymentRepository(pool.P)
 			eventRepo := repository.NewCustomerEventRepository(pool.P)
+			playbookRepo := repository.NewPlaybookRepository(pool.P)
 
 			// HubSpot/Intercom repositories
 			hubspotContactRepo := repository.NewHubSpotContactRepository(pool.P)
@@ -262,6 +264,17 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				planCatalog,
 			)
 			billingSubscriptionSvc.SetFeatureOverrides(featureOverrideRepo)
+
+			usageAnalyticsSvc := billingsvc.NewUsageService(billingsvc.UsageServiceDeps{
+				Subscriptions: orgSubRepo,
+				Organizations: orgRepo,
+				Customers:     customerRepo,
+				Integrations:  connRepo,
+				Playbooks:     playbookRepo,
+				Snapshots:     usageSnapshotRepo,
+				Catalog:       planCatalog,
+				Overrides:     featureOverrideRepo,
+			})
 
 			billingLimitsSvc := billingsvc.NewLimitsService(
 				billingSubscriptionSvc,
@@ -459,6 +472,9 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				go benchmarkScheduler.Start(bgCtx)
 			}
 
+			usageScheduler := billingsvc.NewUsageScheduler(orgRepo, usageAnalyticsSvc, 24*time.Hour)
+			go usageScheduler.Start(bgCtx)
+
 			r.Post("/auth/register", authHandler.Register)
 			r.Post("/auth/login", authHandler.Login)
 			r.Post("/auth/refresh", authHandler.Refresh)
@@ -492,6 +508,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			r.Group(func(r chi.Router) {
 				r.Use(middleware.JWTAuth(jwtMgr))
 				r.Use(middleware.TenantIsolation(orgRepo))
+				r.Use(middleware.TrackAPIUsage(usageAnalyticsSvc))
 
 				// Organization routes
 				orgSvc := service.NewOrganizationService(pool.P, orgRepo)
@@ -504,10 +521,12 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 					billingCheckoutSvc,
 					billingPortalSvc,
 					billingSubscriptionSvc,
+					usageAnalyticsSvc,
 					billingPlanChangeSvc,
 				)
 				r.Route("/billing", func(r chi.Router) {
 					r.Get("/subscription", billingHandler.GetSubscription)
+					r.Get("/usage", billingHandler.GetUsage)
 					r.Group(func(r chi.Router) {
 						r.Use(middleware.RequireRole("admin"))
 						r.Post("/checkout", billingHandler.CreateCheckout)
