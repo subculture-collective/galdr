@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// ConnectorFactory creates a fresh connector instance for registry lookups.
+// ConnectorFactory returns the connector instance for registry lookups.
 type ConnectorFactory func() Connector
 
 // Registry stores connector factories by stable provider name.
@@ -41,7 +41,7 @@ func (r *Registry) Register(name string, factory ConnectorFactory) error {
 	return nil
 }
 
-// Get returns a new connector instance for name.
+// Get returns a connector instance for name.
 func (r *Registry) Get(name string) (Connector, bool) {
 	if r == nil {
 		return nil, false

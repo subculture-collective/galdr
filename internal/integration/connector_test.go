@@ -67,6 +67,22 @@ func TestRegistryRejectsInvalidRegistrations(t *testing.T) {
 	}
 }
 
+func TestNilRegistryIsSafe(t *testing.T) {
+	var registry *Registry
+
+	if err := registry.Register("mock-crm", func() Connector {
+		return &recordingConnector{name: "mock-crm", authType: AuthTypeAPIKey}
+	}); err == nil {
+		t.Fatal("expected nil registry registration to fail")
+	}
+	if connector, ok := registry.Get("mock-crm"); ok || connector != nil {
+		t.Fatalf("expected nil registry lookup to miss, got %#v", connector)
+	}
+	if names := registry.Names(); names != nil {
+		t.Fatalf("expected nil names, got %#v", names)
+	}
+}
+
 func TestRegistryNamesAreSorted(t *testing.T) {
 	registry := NewRegistry()
 	for _, name := range []string{"stripe", "hubspot", "intercom"} {
