@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -60,11 +59,7 @@ func TestBenchmarkContributionModelContainsOnlyOrgLevelFields(t *testing.T) {
 }
 
 func TestBenchmarkMigrationUpFileContainsTablesAndOptInFields(t *testing.T) {
-	data, err := os.ReadFile("../../migrations/000024_create_benchmarking.up.sql")
-	if err != nil {
-		t.Fatalf("failed to read migration file: %v", err)
-	}
-	sql := string(data)
+	sql := readMigrationSQL(t, "../../migrations/000024_create_benchmarking.up.sql")
 
 	required := []string{
 		"benchmarking_enabled",
@@ -85,11 +80,7 @@ func TestBenchmarkMigrationUpFileContainsTablesAndOptInFields(t *testing.T) {
 }
 
 func TestBenchmarkMigrationUpFilePreventsIndividualCustomerData(t *testing.T) {
-	data, err := os.ReadFile("../../migrations/000024_create_benchmarking.up.sql")
-	if err != nil {
-		t.Fatalf("failed to read migration file: %v", err)
-	}
-	sql := string(data)
+	sql := readMigrationSQL(t, "../../migrations/000024_create_benchmarking.up.sql")
 
 	forbidden := []string{"customer_id ", "email ", "full_name ", "external_id ", "metadata "}
 	for _, item := range forbidden {
@@ -100,22 +91,29 @@ func TestBenchmarkMigrationUpFilePreventsIndividualCustomerData(t *testing.T) {
 }
 
 func TestBenchmarkMigrationDownFileDropsTablesAndOptInFields(t *testing.T) {
-	data, err := os.ReadFile("../../migrations/000024_create_benchmarking.down.sql")
-	if err != nil {
-		t.Fatalf("failed to read migration file: %v", err)
-	}
-	sql := string(data)
+	sql := readMigrationSQL(t, "../../migrations/000024_create_benchmarking.down.sql")
 
 	required := []string{
 		"DROP TABLE IF EXISTS benchmark_aggregates",
 		"DROP TABLE IF EXISTS benchmark_contributions",
 		"DROP COLUMN IF EXISTS benchmarking_enabled",
-		"DROP COLUMN IF EXISTS industry",
 		"DROP COLUMN IF EXISTS company_size",
 	}
 	for _, item := range required {
 		if !strings.Contains(sql, item) {
 			t.Errorf("migration down file missing %s", item)
 		}
+	}
+}
+
+func TestBenchmarkMigrationDoesNotOwnIndustryClassification(t *testing.T) {
+	upSQL := readMigrationSQL(t, "../../migrations/000024_create_benchmarking.up.sql")
+	downSQL := readMigrationSQL(t, "../../migrations/000024_create_benchmarking.down.sql")
+
+	if strings.Contains(upSQL, "ADD COLUMN industry") {
+		t.Error("benchmark migration must not add organizations.industry; industry classification owns that column")
+	}
+	if strings.Contains(downSQL, "DROP COLUMN IF EXISTS industry") {
+		t.Error("benchmark migration must not drop organizations.industry; industry classification owns that column")
 	}
 }
