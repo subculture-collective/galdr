@@ -312,6 +312,7 @@ type CustomerListParams struct {
 	Sort           string
 	Order          string
 	Risk           string
+	ChurnRisk      string
 	Search         string
 	Source         string
 	Assignee       string
@@ -321,8 +322,10 @@ type CustomerListParams struct {
 // CustomerWithScore holds a customer with its health score data.
 type CustomerWithScore struct {
 	Customer
-	OverallScore *int
-	RiskLevel    *string
+	OverallScore     *int
+	RiskLevel        *string
+	ChurnProbability *float64
+	ChurnRisk        *string
 }
 
 // CustomerListResult holds paginated customer list results.
@@ -346,6 +349,9 @@ func (r *CustomerRepository) ListWithScores(ctx context.Context, params Customer
 		args = append(args, params.Risk)
 		argIdx++
 	}
+	if params.ChurnRisk != "" {
+		where += churnRiskWhere(params.ChurnRisk)
+	}
 	if params.Search != "" {
 		where += fmt.Sprintf(" AND (c.name ILIKE $%d OR c.email ILIKE $%d)", argIdx, argIdx)
 		args = append(args, "%"+params.Search+"%")
@@ -365,7 +371,12 @@ func (r *CustomerRepository) ListWithScores(ctx context.Context, params Customer
 	argIdx = nextArgIdx
 
 	// Count query
-	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM customers c LEFT JOIN health_scores hs ON c.id = hs.customer_id WHERE %s`, where)
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM customers c
+		LEFT JOIN health_scores hs ON c.id = hs.customer_id
+		LEFT JOIN churn_predictions cp ON c.id = cp.customer_id
+		WHERE %s`, where)
 	var total int
 	if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, fmt.Errorf("count customers with scores: %w", err)
@@ -383,6 +394,7 @@ func (r *CustomerRepository) ListWithScores(ctx context.Context, params Customer
 		"mrr":       "c.mrr_cents",
 		"score":     "hs.overall_score",
 		"last_seen": "c.last_seen_at",
+		"churn":    "cp.probability",
 	}
 	if col, ok := sortAllowlist[params.Sort]; ok {
 		sortColumn = col
@@ -398,9 +410,17 @@ func (r *CustomerRepository) ListWithScores(ctx context.Context, params Customer
 		SELECT c.id, c.org_id, c.external_id, c.source, COALESCE(c.email, ''), COALESCE(c.name, ''),
 			COALESCE(c.company_name, ''), c.mrr_cents, c.currency,
 			c.first_seen_at, c.last_seen_at, COALESCE(c.metadata, '{}'), c.created_at, c.updated_at, c.deleted_at,
-			hs.overall_score, hs.risk_level
+			hs.overall_score, hs.risk_level,
+			cp.probability,
+			CASE
+				WHEN cp.probability >= 0.7 THEN 'high'
+				WHEN cp.probability >= 0.4 THEN 'medium'
+				WHEN cp.probability IS NOT NULL THEN 'low'
+				ELSE NULL
+			END AS churn_risk
 		FROM customers c
 		LEFT JOIN health_scores hs ON c.id = hs.customer_id
+		LEFT JOIN churn_predictions cp ON c.id = cp.customer_id
 		WHERE %s
 		ORDER BY %s %s NULLS LAST
 		LIMIT $%d OFFSET $%d`,
@@ -422,7 +442,7 @@ func (r *CustomerRepository) ListWithScores(ctx context.Context, params Customer
 			&cs.ID, &cs.OrgID, &cs.ExternalID, &cs.Source, &cs.Email, &cs.Name,
 			&cs.CompanyName, &cs.MRRCents, &cs.Currency,
 			&cs.FirstSeenAt, &cs.LastSeenAt, &cs.Metadata, &cs.CreatedAt, &cs.UpdatedAt, &cs.DeletedAt,
-			&cs.OverallScore, &cs.RiskLevel,
+			&cs.OverallScore, &cs.RiskLevel, &cs.ChurnProbability, &cs.ChurnRisk,
 		); err != nil {
 			return nil, fmt.Errorf("scan customer with score: %w", err)
 		}
@@ -459,5 +479,18 @@ func customerAssigneeWhere(params CustomerListParams, argIdx int) (string, []any
 
 		where := fmt.Sprintf(" AND EXISTS (SELECT 1 FROM customer_assignments ca WHERE ca.customer_id = c.id AND ca.user_id = $%d)", argIdx)
 		return where, []any{assigneeID}, argIdx + 1, nil
+	}
+}
+
+func churnRiskWhere(churnRisk string) string {
+	switch churnRisk {
+	case "high":
+		return " AND cp.probability >= 0.7"
+	case "medium":
+		return " AND cp.probability >= 0.4 AND cp.probability < 0.7"
+	case "low":
+		return " AND cp.probability < 0.4"
+	default:
+		return ""
 	}
 }

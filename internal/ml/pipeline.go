@@ -31,6 +31,7 @@ type FeaturePipeline struct {
 	now          func() time.Time
 	interval     time.Duration
 	providers    []string
+	afterBatch   func(context.Context) error
 }
 
 // CustomerSource loads customers for feature extraction.
@@ -75,6 +76,7 @@ type FeaturePipelineDeps struct {
 	Now          func() time.Time
 	Interval     time.Duration
 	Providers    []string
+	AfterBatch   func(context.Context) error
 }
 
 // NewFeaturePipeline creates a feature engineering pipeline.
@@ -104,6 +106,7 @@ func NewFeaturePipeline(deps FeaturePipelineDeps) *FeaturePipeline {
 		now:          now,
 		interval:     interval,
 		providers:    providers,
+		afterBatch:   deps.AfterBatch,
 	}
 }
 
@@ -143,6 +146,11 @@ func (p *FeaturePipeline) RunBatch(ctx context.Context) error {
 	for _, orgID := range orgIDs {
 		if err := p.RecalculateOrg(ctx, orgID); err != nil {
 			return fmt.Errorf("recalculate org features %s: %w", orgID, err)
+		}
+	}
+	if p.afterBatch != nil {
+		if err := p.afterBatch(ctx); err != nil {
+			return fmt.Errorf("run feature pipeline after batch hook: %w", err)
 		}
 	}
 	return nil

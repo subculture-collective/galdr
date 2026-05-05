@@ -13,6 +13,7 @@ import (
 type customerServicer interface {
 	List(ctx context.Context, params repository.CustomerListParams) (*service.CustomerListResponse, error)
 	GetDetail(ctx context.Context, customerID, orgID uuid.UUID) (*service.CustomerDetail, error)
+	GetChurnPrediction(ctx context.Context, customerID, orgID uuid.UUID) (*repository.ChurnPrediction, error)
 	ListEvents(ctx context.Context, params repository.EventListParams) (*service.EventListResponse, error)
 	ListAssignments(ctx context.Context, customerID, orgID uuid.UUID) (*service.CustomerAssignmentsResponse, error)
 	AssignCustomer(ctx context.Context, customerID, orgID, assigneeID, assignedBy uuid.UUID) (*service.CustomerAssignmentResponse, error)

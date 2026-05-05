@@ -351,6 +351,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			benchmarkMetricsRepo := repository.NewBenchmarkMetricsRepository(customerRepo, healthScoreRepo, connRepo)
 			customerFeatureRepo := repository.NewCustomerFeatureRepository(pool.P)
 			customerInsightRepo := repository.NewCustomerInsightRepository(pool.P)
+			churnPredictionRepo := repository.NewChurnPredictionRepository(pool.P)
 
 			paymentRecencyFactor := scoring.NewPaymentRecencyFactor(paymentRecencySvc)
 			mrrTrendFactor := scoring.NewMRRTrendFactor(customerRepo, eventRepo)
@@ -380,6 +381,13 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 
 			scoringConfigSvc := scoring.NewConfigService(scoringConfigRepo, scoreScheduler)
 
+			churnPredictionSvc := service.NewChurnPredictionService(service.ChurnPredictionDeps{
+				Customers:   customerRepo,
+				Features:    customerFeatureRepo,
+				Store:       churnPredictionRepo,
+				Connections: connRepo,
+			})
+
 			featurePipeline := ml.NewFeaturePipeline(ml.FeaturePipelineDeps{
 				Customers:    customerRepo,
 				HealthScores: healthScoreRepo,
@@ -387,6 +395,9 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				Events:       eventRepo,
 				Store:        customerFeatureRepo,
 				Connections:  connRepo,
+				AfterBatch: func(ctx context.Context) error {
+					return churnPredictionSvc.RunBatch(ctx)
+				},
 			})
 
 			llmSvc := service.NewOpenAILLMService(
@@ -583,7 +594,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 
 				// Customer routes
 				customerAssignmentRepo := repository.NewCustomerAssignmentRepository(pool.P)
-				customerSvc := service.NewCustomerService(customerRepo, healthScoreRepo, subRepo, eventRepo, customerNoteRepo, customerAssignmentRepo)
+				customerSvc := service.NewCustomerService(customerRepo, healthScoreRepo, subRepo, eventRepo, customerNoteRepo, customerAssignmentRepo, churnPredictionRepo)
 				customerHandler := handler.NewCustomerHandlerWithInsights(customerSvc, insightPipeline)
 				savedViewSvc := service.NewSavedViewService(savedViewRepo)
 				savedViewHandler := handler.NewSavedViewHandler(savedViewSvc)
@@ -594,6 +605,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				r.Patch("/customers/saved-views/{id}", savedViewHandler.Update)
 				r.Delete("/customers/saved-views/{id}", savedViewHandler.Delete)
 				r.Get("/customers/{id}", customerHandler.GetDetail)
+				r.Get("/customers/{id}/churn-prediction", customerHandler.GetChurnPrediction)
 				r.Get("/customers/{id}/events", customerHandler.ListEvents)
 				r.Get("/customers/{id}/assignments", customerHandler.ListAssignments)
 				r.Post("/customers/{id}/assignments", customerHandler.AssignCustomer)

@@ -21,6 +21,7 @@ import (
 type mockCustomerService struct {
 	listFn       func(ctx context.Context, params repository.CustomerListParams) (*service.CustomerListResponse, error)
 	getDetailFn  func(ctx context.Context, customerID, orgID uuid.UUID) (*service.CustomerDetail, error)
+	getChurnFn   func(ctx context.Context, customerID, orgID uuid.UUID) (*repository.ChurnPrediction, error)
 	listEventsFn func(ctx context.Context, params repository.EventListParams) (*service.EventListResponse, error)
 	listAssignFn func(ctx context.Context, customerID, orgID uuid.UUID) (*service.CustomerAssignmentsResponse, error)
 	listNotesFn  func(ctx context.Context, customerID, orgID, actorID uuid.UUID, actorRole string) (*service.CustomerNotesResponse, error)
@@ -50,6 +51,10 @@ func (m *mockCustomerService) List(ctx context.Context, params repository.Custom
 
 func (m *mockCustomerService) GetDetail(ctx context.Context, customerID, orgID uuid.UUID) (*service.CustomerDetail, error) {
 	return m.getDetailFn(ctx, customerID, orgID)
+}
+
+func (m *mockCustomerService) GetChurnPrediction(ctx context.Context, customerID, orgID uuid.UUID) (*repository.ChurnPrediction, error) {
+	return m.getChurnFn(ctx, customerID, orgID)
 }
 
 func (m *mockCustomerService) ListEvents(ctx context.Context, params repository.EventListParams) (*service.EventListResponse, error) {
@@ -152,7 +157,7 @@ func TestCustomerList_QueryParams(t *testing.T) {
 	}
 
 	h := NewCustomerHandler(mock)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/customers?page=2&per_page=10&sort=mrr&order=desc&risk=high&search=acme&source=stripe&assignee=me", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/customers?page=2&per_page=10&sort=mrr&order=desc&risk=high&churn_risk=high&search=acme&source=stripe&assignee=me", nil)
 	req = req.WithContext(auth.WithOrgID(req.Context(), orgID))
 	rr := httptest.NewRecorder()
 
@@ -175,6 +180,9 @@ func TestCustomerList_QueryParams(t *testing.T) {
 	}
 	if captured.Risk != "high" {
 		t.Errorf("expected risk high, got %s", captured.Risk)
+	}
+	if captured.ChurnRisk != "high" {
+		t.Errorf("expected churn_risk high, got %s", captured.ChurnRisk)
 	}
 	if captured.Search != "acme" {
 		t.Errorf("expected search acme, got %s", captured.Search)
@@ -221,6 +229,48 @@ func TestCustomerAssign_Success(t *testing.T) {
 
 	if rr.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d", rr.Code)
+	}
+}
+
+func TestCustomerGetChurnPrediction_Success(t *testing.T) {
+	orgID := uuid.New()
+	customerID := uuid.New()
+	mock := &mockCustomerService{
+		getChurnFn: func(ctx context.Context, cID, oID uuid.UUID) (*repository.ChurnPrediction, error) {
+			if cID != customerID {
+				t.Errorf("expected customerID %s, got %s", customerID, cID)
+			}
+			if oID != orgID {
+				t.Errorf("expected orgID %s, got %s", orgID, oID)
+			}
+			return &repository.ChurnPrediction{
+				CustomerID:   customerID,
+				OrgID:        orgID,
+				Probability:  0.82,
+				Confidence:   0.9,
+				RiskFactors:  []repository.ChurnRiskFactor{{Feature: "payment_failure_frequency_90d", Contribution: 0.22}},
+				ModelVersion: "heuristic-v1",
+			}, nil
+		},
+	}
+
+	h := NewCustomerHandler(mock)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/customers/"+customerID.String()+"/churn-prediction", nil)
+	req = req.WithContext(auth.WithOrgID(req.Context(), orgID))
+	req = withChiParam(req, "id", customerID.String())
+	rr := httptest.NewRecorder()
+
+	h.GetChurnPrediction(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp repository.ChurnPrediction
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Probability != 0.82 {
+		t.Fatalf("expected probability 0.82, got %f", resp.Probability)
 	}
 }
 
