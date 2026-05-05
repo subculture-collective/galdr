@@ -25,12 +25,26 @@ const (
 type UsageLimits struct {
 	CustomerLimit    int `json:"customer_limit"`
 	IntegrationLimit int `json:"integration_limit"`
+	TeamMemberLimit  int `json:"team_member_limit"`
 }
 
 type FeatureFlags struct {
-	Playbooks  bool `json:"playbooks"`
-	AIInsights bool `json:"ai_insights"`
+	BasicDashboard bool `json:"basic_dashboard"`
+	FullDashboard  bool `json:"full_dashboard"`
+	EmailAlerts    bool `json:"email_alerts"`
+	Playbooks      bool `json:"playbooks"`
+	AIInsights     bool `json:"ai_insights"`
+	Benchmarks     bool `json:"benchmarks"`
 }
+
+const (
+	FeatureBasicDashboard = "basic_dashboard"
+	FeatureFullDashboard  = "full_dashboard"
+	FeatureEmailAlerts    = "email_alerts"
+	FeaturePlaybooks      = "playbooks"
+	FeatureAIInsights     = "ai_insights"
+	FeatureBenchmarks     = "benchmarks"
+)
 
 type Plan struct {
 	Tier                 Tier         `json:"tier"`
@@ -72,8 +86,12 @@ func NewCatalog(cfg PriceConfig) *Catalog {
 			Limits: UsageLimits{
 				CustomerLimit:    10,
 				IntegrationLimit: 1,
+				TeamMemberLimit:  1,
 			},
-			Features: FeatureFlags{},
+			Features: FeatureFlags{
+				BasicDashboard: true,
+				EmailAlerts:    true,
+			},
 		},
 		TierGrowth: {
 			Tier:                 TierGrowth,
@@ -84,11 +102,15 @@ func NewCatalog(cfg PriceConfig) *Catalog {
 			StripeMonthlyPriceID: strings.TrimSpace(cfg.GrowthMonthly),
 			StripeAnnualPriceID:  strings.TrimSpace(cfg.GrowthAnnual),
 			Limits: UsageLimits{
-				CustomerLimit:    250,
+				CustomerLimit:    500,
 				IntegrationLimit: 3,
+				TeamMemberLimit:  5,
 			},
 			Features: FeatureFlags{
-				Playbooks: true,
+				BasicDashboard: true,
+				FullDashboard:  true,
+				EmailAlerts:    true,
+				Playbooks:      true,
 			},
 		},
 		TierScale: {
@@ -102,10 +124,15 @@ func NewCatalog(cfg PriceConfig) *Catalog {
 			Limits: UsageLimits{
 				CustomerLimit:    Unlimited,
 				IntegrationLimit: Unlimited,
+				TeamMemberLimit:  Unlimited,
 			},
 			Features: FeatureFlags{
-				Playbooks:  true,
-				AIInsights: true,
+				BasicDashboard: true,
+				FullDashboard:  true,
+				EmailAlerts:    true,
+				Playbooks:      true,
+				AIInsights:     true,
+				Benchmarks:     true,
 			},
 		},
 	}
@@ -137,6 +164,30 @@ func (c *Catalog) GetLimits(tier string) (UsageLimits, bool) {
 		return UsageLimits{}, false
 	}
 	return plan.Limits, true
+}
+
+func (c *Catalog) HasFeature(tier string, featureName string) (bool, bool) {
+	plan, ok := c.GetPlanByTier(tier)
+	if !ok {
+		return false, false
+	}
+
+	switch strings.ToLower(strings.TrimSpace(featureName)) {
+	case FeatureBasicDashboard:
+		return plan.Features.BasicDashboard, true
+	case FeatureFullDashboard:
+		return plan.Features.FullDashboard, true
+	case FeatureEmailAlerts:
+		return plan.Features.EmailAlerts, true
+	case FeaturePlaybooks:
+		return plan.Features.Playbooks, true
+	case FeatureAIInsights:
+		return plan.Features.AIInsights, true
+	case FeatureBenchmarks:
+		return plan.Features.Benchmarks, true
+	default:
+		return false, false
+	}
 }
 
 func (c *Catalog) GetPriceID(tier string, annual bool) (string, error) {

@@ -10,8 +10,9 @@ export interface BillingPlanDefinition {
   limits: {
     customers: string;
     integrations: string;
-    alerts: string;
-    support: string;
+    team: string;
+    dashboard: string;
+    features: string;
   };
   featured?: boolean;
 }
@@ -26,8 +27,9 @@ export const billingPlans: BillingPlanDefinition[] = [
     limits: {
       customers: "Up to 10 customers",
       integrations: "1 integration",
-      alerts: "Basic alerts",
-      support: "Community support",
+      team: "1 team member",
+      dashboard: "Basic dashboard",
+      features: "Email alerts included",
     },
   },
   {
@@ -38,10 +40,11 @@ export const billingPlans: BillingPlanDefinition[] = [
     description: "For fast-moving teams managing churn at scale.",
     featured: true,
     limits: {
-      customers: "Up to 250 customers",
+      customers: "Up to 500 customers",
       integrations: "Up to 3 integrations",
-      alerts: "Advanced alert rules",
-      support: "Priority email support",
+      team: "Up to 5 team members",
+      dashboard: "Full dashboard",
+      features: "Basic playbooks and alerts",
     },
   },
   {
@@ -53,8 +56,9 @@ export const billingPlans: BillingPlanDefinition[] = [
     limits: {
       customers: "Unlimited customers",
       integrations: "Unlimited integrations",
-      alerts: "Advanced workflows",
-      support: "Dedicated success partner",
+      team: "Unlimited team members",
+      dashboard: "Full dashboard",
+      features: "All playbooks, AI insights, and benchmarks",
     },
   },
 ];
