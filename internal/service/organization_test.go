@@ -15,7 +15,7 @@ func TestOrganizationUpdateCurrentRejectsUnknownIndustry(t *testing.T) {
 		Industry: &industry,
 	})
 
-	assertIndustryValidationError(t, err)
+	assertIndustryValidationError(t, err, industryValidationMessage)
 }
 
 func TestOrganizationUpdateCurrentRequiresIndustryForBenchmarking(t *testing.T) {
@@ -28,7 +28,7 @@ func TestOrganizationUpdateCurrentRequiresIndustryForBenchmarking(t *testing.T) 
 		Industry:            &industry,
 	})
 
-	assertIndustryValidationError(t, err)
+	assertIndustryValidationError(t, err, benchmarkIndustryRequiredMessage)
 }
 
 func TestOrganizationCreateRejectsUnknownIndustry(t *testing.T) {
@@ -39,10 +39,21 @@ func TestOrganizationCreateRejectsUnknownIndustry(t *testing.T) {
 		Industry: "Professional Services",
 	})
 
-	assertIndustryValidationError(t, err)
+	assertIndustryValidationError(t, err, industryValidationMessage)
 }
 
-func assertIndustryValidationError(t *testing.T, err error) {
+func TestOrganizationCreateRequiresIndustry(t *testing.T) {
+	svc := NewOrganizationService(nil, nil)
+
+	_, err := svc.Create(context.Background(), uuid.New(), CreateOrgRequest{
+		Name:     "Acme",
+		Industry: " ",
+	})
+
+	assertIndustryValidationError(t, err, industryRequiredMessage)
+}
+
+func assertIndustryValidationError(t *testing.T, err error, message string) {
 	t.Helper()
 
 	validationErr, ok := err.(*ValidationError)
@@ -51,5 +62,8 @@ func assertIndustryValidationError(t *testing.T, err error) {
 	}
 	if validationErr.Field != "industry" {
 		t.Fatalf("expected industry validation error, got %q", validationErr.Field)
+	}
+	if validationErr.Message != message {
+		t.Fatalf("expected %q validation message, got %q", message, validationErr.Message)
 	}
 }

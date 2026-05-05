@@ -33,20 +33,16 @@ type BenchmarkOrgMetrics struct {
 const unknownBenchmarkIndustry = "unknown"
 
 var benchmarkIndustryAliases = map[string]string{
-	"ai":                      "ai",
-	"artificial intelligence": "ai",
-	"agency":                  "agency",
-	"consumer":                "consumer",
-	"e-commerce":              "e-commerce",
-	"ecommerce":               "e-commerce",
-	"education":               "education",
-	"fintech":                 "fintech",
-	"healthcare":              "healthcare",
-	"marketplace":             "marketplace",
-	"media":                   "media",
-	"other":                   "other",
-	"saas":                    "saas",
-	"software":                "software",
+	"agency":      "agency",
+	"e-commerce":  "e-commerce",
+	"ecommerce":   "e-commerce",
+	"education":   "education",
+	"fintech":     "fintech",
+	"healthcare":  "healthcare",
+	"marketplace": "marketplace",
+	"media":       "media",
+	"other":       "other",
+	"saas":        "saas",
 }
 
 type BenchmarkAnonymizer struct{}
@@ -90,7 +86,7 @@ func averageMRR(totalMRR int64, customerCount int) int64 {
 	return totalMRR / int64(customerCount)
 }
 
-// NormalizeBenchmarkIndustry maps free-form org input to safe benchmark segments.
+// NormalizeBenchmarkIndustry maps organization industry labels to safe benchmark segments.
 func NormalizeBenchmarkIndustry(industry string) string {
 	normalized := strings.ToLower(strings.TrimSpace(industry))
 	if normalized == "" || strings.Contains(normalized, "@") || strings.Contains(normalized, ".") {

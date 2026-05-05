@@ -141,7 +141,7 @@ func (s *AuthService) Register(ctx context.Context, req RegisterRequest) (*AuthR
 	if strings.TrimSpace(req.OrgName) == "" {
 		return nil, &ValidationError{Field: "org_name", Message: "organization name is required"}
 	}
-	industry, err := validateIndustry(req.Industry)
+	industry, err := validateRequiredIndustry(req.Industry)
 	if err != nil {
 		return nil, err
 	}
