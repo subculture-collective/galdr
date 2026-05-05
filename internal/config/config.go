@@ -232,39 +232,41 @@ func Load() *Config {
 
 // Validate checks required configuration for production.
 func (c *Config) Validate() error {
-	if c.IsProd() {
-		if c.Database.URL == "" {
-			return fmt.Errorf("DATABASE_URL is required in production")
-		}
-		if c.JWT.Secret == "" || c.JWT.Secret == "dev-secret-change-me-in-production" {
-			return fmt.Errorf("JWT_SECRET must be set to a secure value in production")
-		}
+	if !c.IsProd() {
+		return nil
+	}
 
-		if strings.TrimSpace(c.BillingStripe.SecretKey) == "" {
-			return fmt.Errorf("STRIPE_BILLING_SECRET_KEY is required in production")
-		}
-		if strings.TrimSpace(c.BillingStripe.PublishableKey) == "" {
-			return fmt.Errorf("STRIPE_BILLING_PUBLISHABLE_KEY is required in production")
-		}
-		if strings.TrimSpace(c.BillingStripe.WebhookSecret) == "" {
-			return fmt.Errorf("STRIPE_BILLING_WEBHOOK_SECRET is required in production")
-		}
+	if c.Database.URL == "" {
+		return fmt.Errorf("DATABASE_URL is required in production")
+	}
+	if c.JWT.Secret == "" || c.JWT.Secret == "dev-secret-change-me-in-production" {
+		return fmt.Errorf("JWT_SECRET must be set to a secure value in production")
+	}
 
-		requiredPriceIDs := map[string]string{
-			"STRIPE_BILLING_PRICE_GROWTH_MONTHLY": c.BillingStripe.PriceGrowthMonthly,
-			"STRIPE_BILLING_PRICE_GROWTH_ANNUAL":  c.BillingStripe.PriceGrowthAnnual,
-			"STRIPE_BILLING_PRICE_SCALE_MONTHLY":  c.BillingStripe.PriceScaleMonthly,
-			"STRIPE_BILLING_PRICE_SCALE_ANNUAL":   c.BillingStripe.PriceScaleAnnual,
-		}
-		for name, value := range requiredPriceIDs {
-			if strings.TrimSpace(value) == "" {
-				return fmt.Errorf("%s is required in production", name)
-			}
-		}
+	if strings.TrimSpace(c.BillingStripe.SecretKey) == "" {
+		return fmt.Errorf("STRIPE_BILLING_SECRET_KEY is required in production")
+	}
+	if strings.TrimSpace(c.BillingStripe.PublishableKey) == "" {
+		return fmt.Errorf("STRIPE_BILLING_PUBLISHABLE_KEY is required in production")
+	}
+	if strings.TrimSpace(c.BillingStripe.WebhookSecret) == "" {
+		return fmt.Errorf("STRIPE_BILLING_WEBHOOK_SECRET is required in production")
+	}
 
-		if strings.TrimSpace(c.LLM.OpenAIAPIKey) == "" {
-			return fmt.Errorf("OPENAI_API_KEY is required in production")
+	requiredPriceIDs := map[string]string{
+		"STRIPE_BILLING_PRICE_GROWTH_MONTHLY": c.BillingStripe.PriceGrowthMonthly,
+		"STRIPE_BILLING_PRICE_GROWTH_ANNUAL":  c.BillingStripe.PriceGrowthAnnual,
+		"STRIPE_BILLING_PRICE_SCALE_MONTHLY":  c.BillingStripe.PriceScaleMonthly,
+		"STRIPE_BILLING_PRICE_SCALE_ANNUAL":   c.BillingStripe.PriceScaleAnnual,
+	}
+	for name, value := range requiredPriceIDs {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%s is required in production", name)
 		}
+	}
+
+	if strings.TrimSpace(c.LLM.OpenAIAPIKey) == "" {
+		return fmt.Errorf("OPENAI_API_KEY is required in production")
 	}
 	return nil
 }

@@ -24,6 +24,22 @@ func clearEnv() {
 	}
 }
 
+func setProductionCoreEnv() {
+	os.Setenv("ENVIRONMENT", "production")
+	os.Setenv("DATABASE_URL", "postgres://prod-db")
+	os.Setenv("JWT_SECRET", "prod-super-secret")
+}
+
+func setProductionBillingStripeEnv() {
+	os.Setenv("STRIPE_BILLING_SECRET_KEY", "sk_live_123")
+	os.Setenv("STRIPE_BILLING_PUBLISHABLE_KEY", "pk_live_123")
+	os.Setenv("STRIPE_BILLING_WEBHOOK_SECRET", "whsec_live_123")
+	os.Setenv("STRIPE_BILLING_PRICE_GROWTH_MONTHLY", "price_growth_monthly")
+	os.Setenv("STRIPE_BILLING_PRICE_GROWTH_ANNUAL", "price_growth_annual")
+	os.Setenv("STRIPE_BILLING_PRICE_SCALE_MONTHLY", "price_scale_monthly")
+	os.Setenv("STRIPE_BILLING_PRICE_SCALE_ANNUAL", "price_scale_annual")
+}
+
 func TestLoadLLMFromEnv(t *testing.T) {
 	clearEnv()
 	os.Setenv("OPENAI_API_KEY", "sk_test_123")
@@ -178,9 +194,7 @@ func TestLoadBillingStripeFromEnv(t *testing.T) {
 
 func TestValidateProductionRequiresBillingStripeConfig(t *testing.T) {
 	clearEnv()
-	os.Setenv("ENVIRONMENT", "production")
-	os.Setenv("DATABASE_URL", "postgres://prod-db")
-	os.Setenv("JWT_SECRET", "prod-super-secret")
+	setProductionCoreEnv()
 	defer clearEnv()
 
 	cfg := Load()
@@ -192,16 +206,8 @@ func TestValidateProductionRequiresBillingStripeConfig(t *testing.T) {
 
 func TestValidateProductionRequiresOpenAIAPIKey(t *testing.T) {
 	clearEnv()
-	os.Setenv("ENVIRONMENT", "production")
-	os.Setenv("DATABASE_URL", "postgres://prod-db")
-	os.Setenv("JWT_SECRET", "prod-super-secret")
-	os.Setenv("STRIPE_BILLING_SECRET_KEY", "sk_live_123")
-	os.Setenv("STRIPE_BILLING_PUBLISHABLE_KEY", "pk_live_123")
-	os.Setenv("STRIPE_BILLING_WEBHOOK_SECRET", "whsec_live_123")
-	os.Setenv("STRIPE_BILLING_PRICE_GROWTH_MONTHLY", "price_growth_monthly")
-	os.Setenv("STRIPE_BILLING_PRICE_GROWTH_ANNUAL", "price_growth_annual")
-	os.Setenv("STRIPE_BILLING_PRICE_SCALE_MONTHLY", "price_scale_monthly")
-	os.Setenv("STRIPE_BILLING_PRICE_SCALE_ANNUAL", "price_scale_annual")
+	setProductionCoreEnv()
+	setProductionBillingStripeEnv()
 	defer clearEnv()
 
 	cfg := Load()
@@ -213,16 +219,8 @@ func TestValidateProductionRequiresOpenAIAPIKey(t *testing.T) {
 
 func TestValidateProductionWithBillingStripeConfig(t *testing.T) {
 	clearEnv()
-	os.Setenv("ENVIRONMENT", "production")
-	os.Setenv("DATABASE_URL", "postgres://prod-db")
-	os.Setenv("JWT_SECRET", "prod-super-secret")
-	os.Setenv("STRIPE_BILLING_SECRET_KEY", "sk_live_123")
-	os.Setenv("STRIPE_BILLING_PUBLISHABLE_KEY", "pk_live_123")
-	os.Setenv("STRIPE_BILLING_WEBHOOK_SECRET", "whsec_live_123")
-	os.Setenv("STRIPE_BILLING_PRICE_GROWTH_MONTHLY", "price_growth_monthly")
-	os.Setenv("STRIPE_BILLING_PRICE_GROWTH_ANNUAL", "price_growth_annual")
-	os.Setenv("STRIPE_BILLING_PRICE_SCALE_MONTHLY", "price_scale_monthly")
-	os.Setenv("STRIPE_BILLING_PRICE_SCALE_ANNUAL", "price_scale_annual")
+	setProductionCoreEnv()
+	setProductionBillingStripeEnv()
 	os.Setenv("OPENAI_API_KEY", "sk_live_123")
 	defer clearEnv()
 
