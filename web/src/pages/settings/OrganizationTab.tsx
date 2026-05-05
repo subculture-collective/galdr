@@ -50,13 +50,15 @@ export default function OrganizationTab() {
 
   if (!org) return null;
 
+  const industryRequiredForBenchmarking = org.benchmarking_enabled && !industry;
+
   async function saveOrganization() {
     const trimmedName = name.trim();
     if (!trimmedName) {
       toast.error("Organization name is required.");
       return;
     }
-    if (org?.benchmarking_enabled && !industry) {
+    if (industryRequiredForBenchmarking) {
       toast.error("Industry is required for benchmarking.");
       return;
     }
@@ -126,7 +128,7 @@ export default function OrganizationTab() {
       <div>
         <button
           onClick={saveOrganization}
-          disabled={saving || !name.trim() || (!!org?.benchmarking_enabled && !industry)}
+          disabled={saving || !name.trim() || industryRequiredForBenchmarking}
           className="galdr-button-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {saving ? "Saving..." : "Save organization"}
