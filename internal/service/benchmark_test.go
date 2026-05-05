@@ -97,6 +97,16 @@ func TestBenchmarkIndustrySegmentsUsePredefinedOrganizationIndustries(t *testing
 	}
 }
 
+func TestBenchmarkIndustrySegmentsRejectFreeFormAliases(t *testing.T) {
+	for _, industry := range []string{"AI", "Artificial Intelligence", "Software", "Consumer"} {
+		t.Run(industry, func(t *testing.T) {
+			if got := NormalizeBenchmarkIndustry(industry); got != "unknown" {
+				t.Fatalf("expected free-form industry to be anonymized as unknown, got %q", got)
+			}
+		})
+	}
+}
+
 func TestBenchmarkAnonymizerRejectsPIIIndustrySegments(t *testing.T) {
 	anonymizer := NewBenchmarkAnonymizer()
 
@@ -146,6 +156,27 @@ func TestBenchmarkAnonymizerRejectsNonpositiveCustomerCounts(t *testing.T) {
 				t.Fatal("expected no contribution for nonpositive customer count")
 			}
 		})
+	}
+}
+
+func TestBenchmarkAnonymizerRejectsNegativeMRR(t *testing.T) {
+	anonymizer := NewBenchmarkAnonymizer()
+
+	contribution, err := anonymizer.Anonymize(BenchmarkOrgMetrics{
+		OrgID:          uuid.New(),
+		Industry:       "SaaS",
+		CompanySize:    25,
+		CustomerCount:  10,
+		TotalMRR:       -1,
+		AvgHealthScore: 70,
+		AvgChurnRate:   0.1,
+	})
+
+	if err == nil {
+		t.Fatal("expected anonymizer to reject negative MRR")
+	}
+	if contribution != nil {
+		t.Fatal("expected no contribution for negative MRR")
 	}
 }
 
