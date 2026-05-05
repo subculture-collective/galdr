@@ -203,7 +203,9 @@ func TestChangePlanDowngradeReturnsStripePeriodEnd(t *testing.T) {
 	if resp.EffectiveAt == nil || !resp.EffectiveAt.Equal(wantEffective) {
 		t.Fatalf("expected Stripe period end %v, got %v", wantEffective, resp.EffectiveAt)
 	}
-	if scheduleForm.Get("phases[0][end_date]") != "1712592000" || scheduleForm.Get("phases[1][items][0][price]") != "price_growth_monthly" {
+	if scheduleForm.Get("phases[0][end_date]") != "1712592000" ||
+		scheduleForm.Get("phases[1][start_date]") != "1712592000" ||
+		scheduleForm.Get("phases[1][items][0][price]") != "price_growth_monthly" {
 		t.Fatalf("expected downgrade schedule at period end, got form %v", scheduleForm)
 	}
 	if store.upserted != nil {
