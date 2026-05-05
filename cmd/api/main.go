@@ -22,6 +22,7 @@ import (
 	"github.com/onnwee/pulse-score/internal/database"
 	"github.com/onnwee/pulse-score/internal/handler"
 	"github.com/onnwee/pulse-score/internal/middleware"
+	"github.com/onnwee/pulse-score/internal/ml"
 	"github.com/onnwee/pulse-score/internal/repository"
 	"github.com/onnwee/pulse-score/internal/service"
 	billingsvc "github.com/onnwee/pulse-score/internal/service/billing"
@@ -313,6 +314,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			healthScoreRepo := repository.NewHealthScoreRepository(pool.P)
 			benchmarkRepo := repository.NewBenchmarkRepository(pool.P)
 			benchmarkMetricsRepo := repository.NewBenchmarkMetricsRepository(customerRepo, healthScoreRepo)
+			customerFeatureRepo := repository.NewCustomerFeatureRepository(pool.P)
 
 			paymentRecencyFactor := scoring.NewPaymentRecencyFactor(paymentRecencySvc)
 			mrrTrendFactor := scoring.NewMRRTrendFactor(customerRepo, eventRepo)
@@ -341,6 +343,15 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			)
 
 			scoringConfigSvc := scoring.NewConfigService(scoringConfigRepo, scoreScheduler)
+
+			featurePipeline := ml.NewFeaturePipeline(ml.FeaturePipelineDeps{
+				Customers:    customerRepo,
+				HealthScores: healthScoreRepo,
+				Payments:     paymentRepo,
+				Events:       eventRepo,
+				Store:        customerFeatureRepo,
+				Connections:  connRepo,
+			})
 
 			// Alert engine + scheduler
 			alertRuleRepo := repository.NewAlertRuleRepository(pool.P)
@@ -408,6 +419,8 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			if cfg.Scoring.RecalcIntervalMin > 0 {
 				go scoreScheduler.Start(bgCtx)
 			}
+
+			go featurePipeline.Start(bgCtx)
 
 			connMonitor := service.NewConnectionMonitorService(
 				connRepo,
