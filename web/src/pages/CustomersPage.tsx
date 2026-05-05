@@ -4,6 +4,7 @@ import api from "@/lib/api";
 import { useToast } from "@/contexts/ToastContext";
 import CustomerTable, { type Customer } from "@/components/CustomerTable";
 import CustomerFilters from "@/components/CustomerFilters";
+import SavedViews from "@/components/SavedViews";
 import TableSkeleton from "@/components/skeletons/TableSkeleton";
 import EmptyState from "@/components/EmptyState";
 import { ChevronLeft, ChevronRight, Users } from "lucide-react";
@@ -14,6 +15,12 @@ interface CustomersResponse {
   page: number;
   per_page: number;
   total_pages: number;
+  pagination?: {
+    total: number;
+    page: number;
+    per_page: number;
+    total_pages: number;
+  };
 }
 
 export default function CustomersPage() {
@@ -46,7 +53,7 @@ export default function CustomersPage() {
       const { data: res } = await api.get<CustomersResponse>("/customers", {
         params,
       });
-      setData(res);
+      setData(normalizeCustomersResponse(res));
     } catch {
       toast.error("Failed to load customers");
     } finally {
@@ -87,6 +94,7 @@ export default function CustomersPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-[var(--galdr-fg)]">Customers</h1>
 
+      <SavedViews />
       <CustomerFilters />
 
       {loading ? (
@@ -134,4 +142,15 @@ export default function CustomersPage() {
       )}
     </div>
   );
+}
+
+function normalizeCustomersResponse(res: CustomersResponse): CustomersResponse {
+  if (!res.pagination) return res;
+  return {
+    ...res,
+    total: res.pagination.total,
+    page: res.pagination.page,
+    per_page: res.pagination.per_page,
+    total_pages: res.pagination.total_pages,
+  };
 }

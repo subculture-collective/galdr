@@ -249,6 +249,58 @@ export const alertsApi = {
     ),
 };
 
+export interface SavedViewFilters {
+  search?: string;
+  risk_level?: string;
+  source?: string;
+  sort?: string;
+  order?: "asc" | "desc" | string;
+  assignee?: string;
+  tags?: string[];
+}
+
+export interface SavedView {
+  id: string;
+  org_id: string;
+  user_id: string;
+  name: string;
+  filters: SavedViewFilters;
+  is_shared: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateSavedViewPayload {
+  name: string;
+  filters: SavedViewFilters;
+  is_shared: boolean;
+}
+
+export interface UpdateSavedViewPayload {
+  name?: string;
+  filters?: SavedViewFilters;
+  is_shared?: boolean;
+}
+
+export const savedViewsApi = {
+  list: () => api.get<{ views: SavedView[] }>("/customers/saved-views"),
+
+  get: (id: string) =>
+    api.get<SavedView>(`/customers/saved-views/${encodeURIComponent(id)}`),
+
+  create: (data: CreateSavedViewPayload) =>
+    api.post<SavedView>("/customers/saved-views", data),
+
+  update: (id: string, data: UpdateSavedViewPayload) =>
+    api.patch<SavedView>(
+      `/customers/saved-views/${encodeURIComponent(id)}`,
+      data,
+    ),
+
+  delete: (id: string) =>
+    api.delete(`/customers/saved-views/${encodeURIComponent(id)}`),
+};
+
 export interface NotificationPreference {
   id: string;
   user_id: string;
