@@ -139,15 +139,10 @@ func TestBenchmarkAnonymizerRejectsNonpositiveCustomerCounts(t *testing.T) {
 		{"negative", -1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			contribution, err := anonymizer.Anonymize(BenchmarkOrgMetrics{
-				OrgID:          uuid.New(),
-				Industry:       "SaaS",
-				CompanySize:    25,
-				CustomerCount:  tc.customerCount,
-				TotalMRR:       0,
-				AvgHealthScore: 0,
-				AvgChurnRate:   0,
-			})
+			metrics := validBenchmarkOrgMetrics()
+			metrics.CustomerCount = tc.customerCount
+
+			contribution, err := anonymizer.Anonymize(metrics)
 
 			if err == nil {
 				t.Fatal("expected anonymizer to reject nonpositive customer count")
@@ -162,21 +157,28 @@ func TestBenchmarkAnonymizerRejectsNonpositiveCustomerCounts(t *testing.T) {
 func TestBenchmarkAnonymizerRejectsNegativeMRR(t *testing.T) {
 	anonymizer := NewBenchmarkAnonymizer()
 
-	contribution, err := anonymizer.Anonymize(BenchmarkOrgMetrics{
-		OrgID:          uuid.New(),
-		Industry:       "SaaS",
-		CompanySize:    25,
-		CustomerCount:  10,
-		TotalMRR:       -1,
-		AvgHealthScore: 70,
-		AvgChurnRate:   0.1,
-	})
+	metrics := validBenchmarkOrgMetrics()
+	metrics.TotalMRR = -1
+
+	contribution, err := anonymizer.Anonymize(metrics)
 
 	if err == nil {
 		t.Fatal("expected anonymizer to reject negative MRR")
 	}
 	if contribution != nil {
 		t.Fatal("expected no contribution for negative MRR")
+	}
+}
+
+func validBenchmarkOrgMetrics() BenchmarkOrgMetrics {
+	return BenchmarkOrgMetrics{
+		OrgID:          uuid.New(),
+		Industry:       "SaaS",
+		CompanySize:    25,
+		CustomerCount:  10,
+		TotalMRR:       100000,
+		AvgHealthScore: 70,
+		AvgChurnRate:   0.1,
 	}
 }
 

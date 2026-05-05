@@ -32,17 +32,17 @@ type BenchmarkOrgMetrics struct {
 
 const unknownBenchmarkIndustry = "unknown"
 
-var benchmarkIndustryAliases = map[string]string{
-	"agency":                  "agency",
-	"e-commerce":              "e-commerce",
-	"ecommerce":               "e-commerce",
-	"education":               "education",
-	"fintech":                 "fintech",
-	"healthcare":              "healthcare",
-	"marketplace":             "marketplace",
-	"media":                   "media",
-	"other":                   "other",
-	"saas":                    "saas",
+var benchmarkIndustrySegments = map[string]string{
+	"agency":      "agency",
+	"e-commerce":  "e-commerce",
+	"ecommerce":   "e-commerce",
+	"education":   "education",
+	"fintech":     "fintech",
+	"healthcare":  "healthcare",
+	"marketplace": "marketplace",
+	"media":       "media",
+	"other":       "other",
+	"saas":        "saas",
 }
 
 type BenchmarkAnonymizer struct{}
@@ -96,7 +96,7 @@ func NormalizeBenchmarkIndustry(industry string) string {
 		return unknownBenchmarkIndustry
 	}
 
-	if canonical, ok := benchmarkIndustryAliases[normalized]; ok {
+	if canonical, ok := benchmarkIndustrySegments[normalized]; ok {
 		return canonical
 	}
 	return unknownBenchmarkIndustry
