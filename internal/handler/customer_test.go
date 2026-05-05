@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -28,6 +29,19 @@ type mockCustomerService struct {
 	createNoteFn func(ctx context.Context, customerID, orgID, userID uuid.UUID, req service.CustomerNoteRequest) (*service.CustomerNoteResponse, error)
 	updateNoteFn func(ctx context.Context, customerID, noteID, orgID, userID uuid.UUID, actorRole string, req service.CustomerNoteRequest) (*service.CustomerNoteResponse, error)
 	deleteNoteFn func(ctx context.Context, customerID, noteID, orgID, userID uuid.UUID, actorRole string) error
+}
+
+type mockCustomerInsightService struct {
+	generateFn func(ctx context.Context, orgID, customerID uuid.UUID, opts service.InsightGenerationOptions) (*service.CustomerInsightResponse, error)
+	listFn     func(ctx context.Context, orgID, customerID uuid.UUID, limit int) ([]*repository.CustomerInsight, error)
+}
+
+func (m *mockCustomerInsightService) GenerateCustomerInsight(ctx context.Context, orgID, customerID uuid.UUID, opts service.InsightGenerationOptions) (*service.CustomerInsightResponse, error) {
+	return m.generateFn(ctx, orgID, customerID, opts)
+}
+
+func (m *mockCustomerInsightService) ListCustomerInsights(ctx context.Context, orgID, customerID uuid.UUID, limit int) ([]*repository.CustomerInsight, error) {
+	return m.listFn(ctx, orgID, customerID, limit)
 }
 
 func (m *mockCustomerService) List(ctx context.Context, params repository.CustomerListParams) (*service.CustomerListResponse, error) {
@@ -520,5 +534,62 @@ func TestCustomerDeleteNote_Success(t *testing.T) {
 
 	if rr.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", rr.Code)
+	}
+}
+
+func TestCustomerGenerateInsight_ManualRequest(t *testing.T) {
+	orgID := uuid.New()
+	customerID := uuid.New()
+	insightID := uuid.New()
+	var captured service.InsightGenerationOptions
+	mockInsights := &mockCustomerInsightService{
+		generateFn: func(ctx context.Context, oID, cID uuid.UUID, opts service.InsightGenerationOptions) (*service.CustomerInsightResponse, error) {
+			if oID != orgID {
+				t.Errorf("expected orgID %s, got %s", orgID, oID)
+			}
+			if cID != customerID {
+				t.Errorf("expected customerID %s, got %s", customerID, cID)
+			}
+			captured = opts
+			return &service.CustomerInsightResponse{
+				Insight: &repository.CustomerInsight{
+					ID:          insightID,
+					OrgID:       orgID,
+					CustomerID:  customerID,
+					InsightType: service.InsightTypeCustomerAnalysis,
+					Content:     map[string]any{"summary": "Revenue risk increasing"},
+					Model:       "gpt-4o-mini",
+					TokenCost:   0.001,
+				},
+				Cached: false,
+			}, nil
+		},
+	}
+
+	h := NewCustomerHandlerWithInsights(&mockCustomerService{}, mockInsights)
+	reqBody := bytes.NewBufferString(`{"force":true}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/customers/"+customerID.String()+"/insights", reqBody)
+	req = req.WithContext(auth.WithOrgID(req.Context(), orgID))
+	req = withChiParam(req, "id", customerID.String())
+	rr := httptest.NewRecorder()
+
+	h.GenerateInsight(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rr.Code)
+	}
+	if !captured.Force {
+		t.Error("expected forced generation")
+	}
+	if captured.Trigger != service.InsightTriggerManual {
+		t.Errorf("expected manual trigger, got %s", captured.Trigger)
+	}
+
+	var resp service.CustomerInsightResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Insight == nil || resp.Insight.ID != insightID {
+		t.Fatalf("expected insight %s, got %#v", insightID, resp.Insight)
 	}
 }

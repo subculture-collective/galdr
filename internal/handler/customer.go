@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -17,11 +19,17 @@ import (
 // CustomerHandler provides customer HTTP endpoints.
 type CustomerHandler struct {
 	customerService customerServicer
+	insightService  customerInsightServicer
 }
 
 // NewCustomerHandler creates a new CustomerHandler.
 func NewCustomerHandler(cs customerServicer) *CustomerHandler {
 	return &CustomerHandler{customerService: cs}
+}
+
+// NewCustomerHandlerWithInsights creates a CustomerHandler with AI insight endpoints enabled.
+func NewCustomerHandlerWithInsights(cs customerServicer, insights customerInsightServicer) *CustomerHandler {
+	return &CustomerHandler{customerService: cs, insightService: insights}
 }
 
 // List handles GET /api/v1/customers.
@@ -71,8 +79,7 @@ func (h *CustomerHandler) GetDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customerIDStr := chi.URLParam(r, "id")
-	customerID, err := uuid.Parse(customerIDStr)
+	customerID, err := parseCustomerID(r)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse("invalid customer ID"))
 		return
@@ -95,8 +102,7 @@ func (h *CustomerHandler) ListEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customerIDStr := chi.URLParam(r, "id")
-	customerID, err := uuid.Parse(customerIDStr)
+	customerID, err := parseCustomerID(r)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse("invalid customer ID"))
 		return
@@ -326,6 +332,71 @@ func (h *CustomerHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// GenerateInsight handles POST /api/v1/customers/{id}/insights.
+func (h *CustomerHandler) GenerateInsight(w http.ResponseWriter, r *http.Request) {
+	if h.insightService == nil {
+		writeJSON(w, http.StatusNotFound, errorResponse("insights not configured"))
+		return
+	}
+	orgID, ok := auth.GetOrgID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	customerID, err := parseCustomerID(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse("invalid customer ID"))
+		return
+	}
+
+	var opts service.InsightGenerationOptions
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&opts); err != nil && !errors.Is(err, io.EOF) {
+			writeJSON(w, http.StatusBadRequest, errorResponse("invalid request body"))
+			return
+		}
+	}
+	opts.Trigger = service.InsightTriggerManual
+
+	resp, err := h.insightService.GenerateCustomerInsight(r.Context(), orgID, customerID, opts)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	status := http.StatusCreated
+	if resp != nil && resp.Cached {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, resp)
+}
+
+// ListInsights handles GET /api/v1/customers/{id}/insights.
+func (h *CustomerHandler) ListInsights(w http.ResponseWriter, r *http.Request) {
+	if h.insightService == nil {
+		writeJSON(w, http.StatusNotFound, errorResponse("insights not configured"))
+		return
+	}
+	orgID, ok := auth.GetOrgID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	customerID, err := parseCustomerID(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse("invalid customer ID"))
+		return
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	insights, err := h.insightService.ListCustomerInsights(r.Context(), orgID, customerID, limit)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"insights": insights})
+}
+
 func notesActorContext(r *http.Request) (uuid.UUID, uuid.UUID, string, bool) {
 	orgID, ok := auth.GetOrgID(r.Context())
 	if !ok {
@@ -349,4 +420,8 @@ func parseUUIDParam(w http.ResponseWriter, r *http.Request, name, msg string) (u
 		return uuid.Nil, false
 	}
 	return value, true
+}
+
+func parseCustomerID(r *http.Request) (uuid.UUID, error) {
+	return uuid.Parse(chi.URLParam(r, "id"))
 }

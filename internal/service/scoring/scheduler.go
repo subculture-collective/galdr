@@ -14,6 +14,9 @@ import (
 // AlertCallback is called after a score is calculated, for real-time alert evaluation.
 type AlertCallback func(ctx context.Context, customerID, orgID uuid.UUID)
 
+// InsightCallback is called after a score is stored, with previous and current scores.
+type InsightCallback func(ctx context.Context, previous, current *repository.HealthScore)
+
 // ScoreScheduler handles periodic and event-triggered score recalculation.
 type ScoreScheduler struct {
 	aggregator      *ScoreAggregator
@@ -22,6 +25,7 @@ type ScoreScheduler struct {
 	connections     *repository.IntegrationConnectionRepository
 	changeDetector  *ChangeDetector
 	alertCallback   AlertCallback
+	insightCallback InsightCallback
 	interval        time.Duration
 	workers         int
 }
@@ -53,6 +57,11 @@ func NewScoreScheduler(
 // SetAlertCallback registers a callback for real-time alert evaluation after score changes.
 func (s *ScoreScheduler) SetAlertCallback(cb AlertCallback) {
 	s.alertCallback = cb
+}
+
+// SetInsightCallback registers a callback for AI insight generation after score changes.
+func (s *ScoreScheduler) SetInsightCallback(cb InsightCallback) {
+	s.insightCallback = cb
 }
 
 // Start begins the periodic score recalculation. Cancel the context to stop.
@@ -212,6 +221,10 @@ func (s *ScoreScheduler) calculateAndStore(ctx context.Context, customerID, orgI
 	// Fire alert callback for real-time evaluation
 	if s.alertCallback != nil {
 		s.alertCallback(ctx, customerID, orgID)
+	}
+
+	if s.insightCallback != nil {
+		s.insightCallback(ctx, previous, healthScore)
 	}
 
 	return nil

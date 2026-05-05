@@ -350,6 +350,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			benchmarkRepo := repository.NewBenchmarkRepository(pool.P)
 			benchmarkMetricsRepo := repository.NewBenchmarkMetricsRepository(customerRepo, healthScoreRepo, connRepo)
 			customerFeatureRepo := repository.NewCustomerFeatureRepository(pool.P)
+			customerInsightRepo := repository.NewCustomerInsightRepository(pool.P)
 
 			paymentRecencyFactor := scoring.NewPaymentRecencyFactor(paymentRecencySvc)
 			mrrTrendFactor := scoring.NewMRRTrendFactor(customerRepo, eventRepo)
@@ -386,6 +387,23 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				Events:       eventRepo,
 				Store:        customerFeatureRepo,
 				Connections:  connRepo,
+			})
+
+			llmSvc := service.NewOpenAILLMService(
+				service.OpenAIProviderConfig{APIKey: cfg.OpenAI.APIKey, Model: cfg.OpenAI.Model, MaxTokens: cfg.OpenAI.MaxTokens},
+				nil,
+				service.LLMServiceConfig{
+					RequestsPerMinute: cfg.OpenAI.RequestsPerMinute,
+					MaxTokensPerDay:   cfg.OpenAI.MaxTokensPerDay,
+					DefaultMaxTokens:  cfg.OpenAI.MaxTokens,
+				},
+			)
+			insightPipeline := service.NewInsightPipeline(service.InsightPipelineDeps{
+				Customers:    customerRepo,
+				HealthScores: healthScoreRepo,
+				Events:       eventRepo,
+				Insights:     customerInsightRepo,
+				LLM:          llmSvc,
 			})
 
 			// Alert engine + scheduler
@@ -433,6 +451,15 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				}
 				for _, match := range matches {
 					alertScheduler.ProcessMatch(ctx, match)
+				}
+			})
+
+			// Generate per-customer AI insights for meaningful score changes.
+			scoreScheduler.SetInsightCallback(func(ctx context.Context, previous, current *repository.HealthScore) {
+				if _, triggered, err := insightPipeline.GenerateForScoreChange(ctx, previous, current); err != nil {
+					slog.Error("score-triggered insight generation error", "customer_id", current.CustomerID, "error", err)
+				} else if triggered {
+					slog.Info("score-triggered insight generated", "customer_id", current.CustomerID, "risk_level", current.RiskLevel)
 				}
 			})
 
@@ -557,7 +584,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				// Customer routes
 				customerAssignmentRepo := repository.NewCustomerAssignmentRepository(pool.P)
 				customerSvc := service.NewCustomerService(customerRepo, healthScoreRepo, subRepo, eventRepo, customerNoteRepo, customerAssignmentRepo)
-				customerHandler := handler.NewCustomerHandler(customerSvc)
+				customerHandler := handler.NewCustomerHandlerWithInsights(customerSvc, insightPipeline)
 				savedViewSvc := service.NewSavedViewService(savedViewRepo)
 				savedViewHandler := handler.NewSavedViewHandler(savedViewSvc)
 				r.Get("/customers", customerHandler.List)
@@ -575,6 +602,8 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				r.Post("/customers/{id}/notes", customerHandler.CreateNote)
 				r.Put("/customers/{id}/notes/{noteID}", customerHandler.UpdateNote)
 				r.Delete("/customers/{id}/notes/{noteID}", customerHandler.DeleteNote)
+				r.Get("/customers/{id}/insights", customerHandler.ListInsights)
+				r.Post("/customers/{id}/insights", customerHandler.GenerateInsight)
 
 				// Dashboard routes
 				dashboardSvc := service.NewDashboardService(customerRepo, healthScoreRepo)
