@@ -19,6 +19,7 @@ func clearEnv() {
 		"STRIPE_BILLING_PRICE_SCALE_MONTHLY", "STRIPE_BILLING_PRICE_SCALE_ANNUAL",
 		"OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_MAX_TOKENS",
 		"OPENAI_REQUESTS_PER_MINUTE", "OPENAI_MAX_TOKENS_PER_DAY",
+		"BENCHMARK_CONTRIBUTION_INTERVAL_HR",
 	} {
 		os.Unsetenv(key)
 	}
@@ -68,6 +69,18 @@ func TestLoadOpenAIFromEnv(t *testing.T) {
 	}
 }
 
+func TestLoadBenchmarkContributionIntervalFromEnv(t *testing.T) {
+	clearEnv()
+	os.Setenv("BENCHMARK_CONTRIBUTION_INTERVAL_HR", "12")
+	defer clearEnv()
+
+	cfg := Load()
+
+	if cfg.Benchmark.ContributionIntervalHr != 12 {
+		t.Errorf("expected benchmark contribution interval 12h, got %d", cfg.Benchmark.ContributionIntervalHr)
+	}
+}
+
 func TestLoadDefaults(t *testing.T) {
 	clearEnv()
 
@@ -102,6 +115,9 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.Rate.RequestsPerMinute != 100 {
 		t.Errorf("expected rate limit 100, got %d", cfg.Rate.RequestsPerMinute)
+	}
+	if cfg.Benchmark.ContributionIntervalHr != 24 {
+		t.Errorf("expected benchmark contribution interval 24h, got %d", cfg.Benchmark.ContributionIntervalHr)
 	}
 	if len(cfg.CORS.AllowedOrigins) != 1 || cfg.CORS.AllowedOrigins[0] != "http://localhost:5173" {
 		t.Errorf("expected default CORS origin, got %v", cfg.CORS.AllowedOrigins)
