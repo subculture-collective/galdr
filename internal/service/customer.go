@@ -19,6 +19,7 @@ type CustomerService struct {
 	subRepo      *repository.StripeSubscriptionRepository
 	eventRepo    *repository.CustomerEventRepository
 	noteRepo     *repository.CustomerNoteRepository
+	churnRepo    *repository.ChurnPredictionRepository
 }
 
 // NewCustomerService creates a new CustomerService.
@@ -28,6 +29,7 @@ func NewCustomerService(
 	sr *repository.StripeSubscriptionRepository,
 	er *repository.CustomerEventRepository,
 	nr *repository.CustomerNoteRepository,
+	chr *repository.ChurnPredictionRepository,
 ) *CustomerService {
 	return &CustomerService{
 		customerRepo: cr,
@@ -35,6 +37,7 @@ func NewCustomerService(
 		subRepo:      sr,
 		eventRepo:    er,
 		noteRepo:     nr,
+		churnRepo:    chr,
 	}
 }
 
@@ -46,15 +49,17 @@ type CustomerListResponse struct {
 
 // CustomerListItem is a single customer in the list response.
 type CustomerListItem struct {
-	ID           uuid.UUID  `json:"id"`
-	Name         string     `json:"name"`
-	Email        string     `json:"email"`
-	CompanyName  string     `json:"company_name"`
-	MRRCents     int        `json:"mrr_cents"`
-	Source       string     `json:"source"`
-	LastSeenAt   *time.Time `json:"last_seen_at"`
-	OverallScore *int       `json:"overall_score"`
-	RiskLevel    *string    `json:"risk_level"`
+	ID               uuid.UUID  `json:"id"`
+	Name             string     `json:"name"`
+	Email            string     `json:"email"`
+	CompanyName      string     `json:"company_name"`
+	MRRCents         int        `json:"mrr_cents"`
+	Source           string     `json:"source"`
+	LastSeenAt       *time.Time `json:"last_seen_at"`
+	OverallScore     *int       `json:"overall_score"`
+	RiskLevel        *string    `json:"risk_level"`
+	ChurnProbability *float64   `json:"churn_probability"`
+	ChurnRisk        *string    `json:"churn_risk"`
 }
 
 // PaginationMeta holds pagination metadata for list responses.
@@ -78,7 +83,7 @@ func (s *CustomerService) List(ctx context.Context, params repository.CustomerLi
 		params.PerPage = 100
 	}
 
-	validSorts := map[string]bool{"name": true, "mrr": true, "score": true, "last_seen": true}
+	validSorts := map[string]bool{"name": true, "mrr": true, "score": true, "last_seen": true, "churn": true}
 	if !validSorts[params.Sort] {
 		params.Sort = "name"
 	}
@@ -90,6 +95,10 @@ func (s *CustomerService) List(ctx context.Context, params repository.CustomerLi
 	if params.Risk != "" && !validRisks[params.Risk] {
 		return nil, &ValidationError{Field: "risk", Message: "invalid risk level"}
 	}
+	validChurnRisks := map[string]bool{"low": true, "medium": true, "high": true}
+	if params.ChurnRisk != "" && !validChurnRisks[params.ChurnRisk] {
+		return nil, &ValidationError{Field: "churn_risk", Message: "invalid churn risk"}
+	}
 
 	result, err := s.customerRepo.ListWithScores(ctx, params)
 	if err != nil {
@@ -99,15 +108,17 @@ func (s *CustomerService) List(ctx context.Context, params repository.CustomerLi
 	items := make([]CustomerListItem, len(result.Customers))
 	for i, c := range result.Customers {
 		items[i] = CustomerListItem{
-			ID:           c.ID,
-			Name:         c.Name,
-			Email:        c.Email,
-			CompanyName:  c.CompanyName,
-			MRRCents:     c.MRRCents,
-			Source:       c.Source,
-			LastSeenAt:   c.LastSeenAt,
-			OverallScore: c.OverallScore,
-			RiskLevel:    c.RiskLevel,
+			ID:               c.ID,
+			Name:             c.Name,
+			Email:            c.Email,
+			CompanyName:      c.CompanyName,
+			MRRCents:         c.MRRCents,
+			Source:           c.Source,
+			LastSeenAt:       c.LastSeenAt,
+			OverallScore:     c.OverallScore,
+			RiskLevel:        c.RiskLevel,
+			ChurnProbability: c.ChurnProbability,
+			ChurnRisk:        c.ChurnRisk,
 		}
 	}
 
@@ -120,6 +131,28 @@ func (s *CustomerService) List(ctx context.Context, params repository.CustomerLi
 			TotalPages: result.TotalPages,
 		},
 	}, nil
+}
+
+// GetChurnPrediction returns the current churn prediction for a customer.
+func (s *CustomerService) GetChurnPrediction(ctx context.Context, customerID, orgID uuid.UUID) (*repository.ChurnPrediction, error) {
+	customer, err := s.customerRepo.GetByIDAndOrg(ctx, customerID, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("get customer: %w", err)
+	}
+	if customer == nil {
+		return nil, &NotFoundError{Resource: "customer", Message: "customer not found"}
+	}
+	if s.churnRepo == nil {
+		return nil, &NotFoundError{Resource: "churn_prediction", Message: "churn prediction not found"}
+	}
+	prediction, err := s.churnRepo.GetByCustomerID(ctx, customerID, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("get churn prediction: %w", err)
+	}
+	if prediction == nil {
+		return nil, &NotFoundError{Resource: "churn_prediction", Message: "churn prediction not found"}
+	}
+	return prediction, nil
 }
 
 // CustomerDetail is the full detail response for a customer.

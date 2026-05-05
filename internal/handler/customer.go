@@ -38,14 +38,15 @@ func (h *CustomerHandler) List(w http.ResponseWriter, r *http.Request) {
 	perPage, _ := strconv.Atoi(q.Get("per_page"))
 
 	params := repository.CustomerListParams{
-		OrgID:   orgID,
-		Page:    page,
-		PerPage: perPage,
-		Sort:    q.Get("sort"),
-		Order:   q.Get("order"),
-		Risk:    q.Get("risk"),
-		Search:  q.Get("search"),
-		Source:  q.Get("source"),
+		OrgID:     orgID,
+		Page:      page,
+		PerPage:   perPage,
+		Sort:      q.Get("sort"),
+		Order:     q.Get("order"),
+		Risk:      q.Get("risk"),
+		ChurnRisk: q.Get("churn_risk"),
+		Search:    q.Get("search"),
+		Source:    q.Get("source"),
 	}
 
 	resp, err := h.customerService.List(r.Context(), params)
@@ -79,6 +80,30 @@ func (h *CustomerHandler) GetDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, detail)
+}
+
+// GetChurnPrediction handles GET /api/v1/customers/{id}/churn-prediction.
+func (h *CustomerHandler) GetChurnPrediction(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := auth.GetOrgID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	customerIDStr := chi.URLParam(r, "id")
+	customerID, err := uuid.Parse(customerIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse("invalid customer ID"))
+		return
+	}
+
+	prediction, err := h.customerService.GetChurnPrediction(r.Context(), customerID, orgID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, prediction)
 }
 
 // ListEvents handles GET /api/v1/customers/{id}/events.

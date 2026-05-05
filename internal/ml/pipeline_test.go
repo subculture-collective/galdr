@@ -115,6 +115,40 @@ func TestFeaturePipelineRunBatchDedupesActiveIntegrationOrgs(t *testing.T) {
 	}
 }
 
+func TestFeaturePipelineRunBatchRunsAfterBatchHook(t *testing.T) {
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	orgID := uuid.New()
+	customer := &repository.Customer{ID: uuid.New(), OrgID: orgID}
+	store := &recordingFeatureStore{}
+	afterBatchCalls := 0
+	pipeline := NewFeaturePipeline(FeaturePipelineDeps{
+		Customers:    &singleCustomerSource{customer: customer},
+		HealthScores: &historySource{},
+		Payments:     &paymentSource{},
+		Events:       &eventSource{},
+		Store:        store,
+		Connections: &connectionSource{connections: map[string][]*repository.IntegrationConnection{
+			"stripe": {{OrgID: orgID}},
+		}},
+		Now: func() time.Time { return now },
+		AfterBatch: func(ctx context.Context) error {
+			afterBatchCalls++
+			if len(store.savedAll) != 1 {
+				t.Fatalf("expected feature vectors before after batch hook")
+			}
+			return nil
+		},
+	})
+
+	if err := pipeline.RunBatch(context.Background()); err != nil {
+		t.Fatalf("run batch: %v", err)
+	}
+
+	if afterBatchCalls != 1 {
+		t.Fatalf("after batch hook called %d times, want 1", afterBatchCalls)
+	}
+}
+
 func TestFeaturePipelineStartRunsInitialBatch(t *testing.T) {
 	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
 	orgID := uuid.New()
