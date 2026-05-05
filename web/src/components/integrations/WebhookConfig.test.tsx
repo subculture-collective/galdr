@@ -87,6 +87,7 @@ describe("WebhookConfig", () => {
       await screen.findByText("Zapier lifecycle events"),
     ).toBeInTheDocument();
     expect(screen.getByText("42 events")).toBeInTheDocument();
+    expect(screen.getByText("company.name -> company_name")).toBeInTheDocument();
 
     await user.type(
       screen.getByLabelText("Webhook name"),

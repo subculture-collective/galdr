@@ -434,6 +434,18 @@ export default function WebhookConfig() {
                     {webhook.mappings.length} mappings
                   </span>
                 </div>
+                {webhook.mappings.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {webhook.mappings.map((mapping) => (
+                      <span
+                        key={`${mapping.source_path}:${mapping.target_field}`}
+                        className="rounded-full border border-[var(--galdr-border)] bg-[color:rgb(0_0_0_/_0.18)] px-2.5 py-1 font-mono text-xs text-[var(--galdr-fg-muted)]"
+                      >
+                        {mapping.source_path} -&gt; {mapping.target_field}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </article>
             ))}
           </div>
