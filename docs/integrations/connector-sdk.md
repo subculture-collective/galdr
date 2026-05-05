@@ -43,6 +43,8 @@ Required fields:
 | `sync.default_mode` | Default sync mode and must be included in `supported_modes`. |
 | `sync.resources` | Provider resources the connector can import. |
 
+`sync.supported_modes` and `sync.resources[].name` values must be unique so marketplace installs have one default execution path and one import counter per resource.
+
 Optional fields:
 
 | Field | Description |
