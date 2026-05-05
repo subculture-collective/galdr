@@ -26,15 +26,17 @@ const (
 )
 
 const (
-	eventLogin               = "login"
-	eventFeatureUse          = "feature_use"
-	eventAPICall             = "api_call"
-	eventTicketOpened        = "ticket.opened"
-	eventTicketResolved      = "ticket.resolved"
-	eventConversationCreated = "conversation_created"
-	eventConversationOpen    = "conversation_open"
-	eventConversationClosed  = "conversation_closed"
-	eventMRRChanged          = "mrr.changed"
+	eventLogin                  = "login"
+	eventFeatureUse             = "feature_use"
+	eventAPICall                = "api_call"
+	eventTicketOpened           = "ticket.opened"
+	eventTicketResolved         = "ticket.resolved"
+	eventConversationCreated    = "conversation_created"
+	eventConversationCreatedDot = "conversation.created"
+	eventConversationOpen       = "conversation_open"
+	eventConversationClosed     = "conversation_closed"
+	eventConversationClosedDot  = "conversation.closed"
+	eventMRRChanged             = "mrr.changed"
 )
 
 const (
@@ -346,7 +348,6 @@ func countEventsMatching(events []*repository.CustomerEvent, matches func(string
 	}
 	return count
 }
-}
 
 func countAllEvents(events []*repository.CustomerEvent, start, end time.Time) int {
 	return countMatchingEvents(events, start, end, func(event *repository.CustomerEvent) bool {
@@ -372,7 +373,7 @@ func isUsageEvent(eventType string) bool {
 
 func isSupportOpenedEvent(eventType string) bool {
 	switch eventType {
-	case eventTicketOpened, eventConversationCreated, eventConversationOpen:
+	case eventTicketOpened, eventConversationCreated, eventConversationCreatedDot, eventConversationOpen:
 		return true
 	default:
 		return false
@@ -381,7 +382,7 @@ func isSupportOpenedEvent(eventType string) bool {
 
 func isSupportResolvedEvent(eventType string) bool {
 	switch eventType {
-	case eventTicketResolved, eventConversationClosed:
+	case eventTicketResolved, eventConversationClosed, eventConversationClosedDot:
 		return true
 	default:
 		return false
