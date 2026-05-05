@@ -95,6 +95,23 @@ func TestBenchmarkAnonymizerRejectsPIIIndustrySegments(t *testing.T) {
 	}
 }
 
+func TestNormalizeBenchmarkIndustryKeepsPredefinedSegments(t *testing.T) {
+	cases := map[string]string{
+		"Agency":      "agency",
+		"Other":       "other",
+		"E-commerce":  "e-commerce",
+		"Healthcare ": "healthcare",
+	}
+
+	for input, expected := range cases {
+		t.Run(input, func(t *testing.T) {
+			if got := NormalizeBenchmarkIndustry(input); got != expected {
+				t.Fatalf("expected %q, got %q", expected, got)
+			}
+		})
+	}
+}
+
 func TestBenchmarkPipelineSkipsOptedOutOrganizations(t *testing.T) {
 	optedInOrg := repository.Organization{ID: uuid.New(), Industry: "saas", CompanySize: 25, BenchmarkingEnabled: true}
 	optedOutOrg := repository.Organization{ID: uuid.New(), Industry: "fintech", CompanySize: 80, BenchmarkingEnabled: false}

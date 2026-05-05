@@ -34,6 +34,7 @@ const unknownBenchmarkIndustry = "unknown"
 
 var benchmarkIndustryAliases = map[string]string{
 	"ai":                      "ai",
+	"agency":                  "agency",
 	"artificial intelligence": "ai",
 	"consumer":                "consumer",
 	"e-commerce":              "e-commerce",
@@ -43,6 +44,7 @@ var benchmarkIndustryAliases = map[string]string{
 	"healthcare":              "healthcare",
 	"marketplace":             "marketplace",
 	"media":                   "media",
+	"other":                   "other",
 	"saas":                    "saas",
 	"software":                "software",
 }
