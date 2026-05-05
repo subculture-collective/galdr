@@ -23,6 +23,7 @@
 
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import { spawnSync } from "node:child_process";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -108,6 +109,88 @@ function opencodeService(opts: {
       return [];
     },
   };
+}
+
+function commandOutput(command: string, args: string[]) {
+  return spawnSync(command, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+function currentShortSha() {
+  const result = commandOutput("git", ["rev-parse", "--short", "HEAD"]);
+  if (result.status !== 0) {
+    throw new Error(`Unable to resolve current HEAD: ${result.stderr || result.stdout}`);
+  }
+
+  return result.stdout.trim();
+}
+
+function branchIsMerged(branch: string) {
+  return commandOutput("git", ["merge-base", "--is-ancestor", branch, "HEAD"]).status === 0;
+}
+
+function issueNumber(issueID: string) {
+  return issueID.match(/#?(\d+)/)?.[1];
+}
+
+function issueIsClosed(number: string) {
+  const result = commandOutput("gh", ["issue", "view", number, "--json", "state", "--jq", ".state"]);
+  if (result.status !== 0) {
+    throw new Error(`Unable to read issue #${number}: ${result.stderr || result.stdout}`);
+  }
+
+  return result.stdout.trim().toUpperCase() === "CLOSED";
+}
+
+function closeMergedIssues(issues: { id: string; title: string; branch: string }[]) {
+  const mergedSha = currentShortSha();
+  const failures: string[] = [];
+  const seen = new Set<string>();
+
+  for (const issue of issues) {
+    const number = issueNumber(issue.id);
+    if (!number || seen.has(number)) {
+      continue;
+    }
+
+    seen.add(number);
+
+    if (!branchIsMerged(issue.branch)) {
+      console.log(`issue #${number} not closed; branch ${issue.branch} is not merged into HEAD.`);
+      continue;
+    }
+
+    try {
+      if (issueIsClosed(number)) {
+        console.log(`issue #${number} already closed.`);
+        continue;
+      }
+    } catch (error) {
+      failures.push(String(error));
+      continue;
+    }
+
+    const close = commandOutput("gh", [
+      "issue",
+      "close",
+      number,
+      "--comment",
+      `Merged by Sandcastle in ${mergedSha}.`,
+    ]);
+
+    if (close.status === 0) {
+      console.log(`closed issue #${number}`);
+      continue;
+    }
+
+    failures.push(`Unable to close issue #${number}: ${close.stderr || close.stdout}`);
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`Merged branches, but failed to close issue(s):\n${failures.join("\n")}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -256,7 +339,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // resolving any conflicts and running tests to confirm everything works.
   //
   // The {{BRANCHES}} and {{ISSUES}} prompt arguments are lists that the agent
-  // uses to know which branches to merge and which issues to close.
+  // uses to know which branches to merge. Issue closing is handled
+  // deterministically below, after branch ancestry is verified.
   // -------------------------------------------------------------------------
   await sandcastle.run({
     hooks,
@@ -274,6 +358,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   });
 
   console.log("\nBranches merged.");
+  closeMergedIssues(completedIssues);
 }
 
 console.log("\nAll done.");
