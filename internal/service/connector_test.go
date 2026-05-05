@@ -52,12 +52,12 @@ func TestConnectorSyncServiceMissingProvider(t *testing.T) {
 }
 
 func TestNewIntegrationConnectorRegistryContainsBuiltIns(t *testing.T) {
-	registry, err := NewIntegrationConnectorRegistry(nil, nil, nil, nil, nil, nil, nil, nil)
+	registry, err := NewIntegrationConnectorRegistry(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("create registry: %v", err)
 	}
 
-	for _, provider := range []string{"hubspot", "intercom", "stripe", "zendesk"} {
+	for _, provider := range []string{"hubspot", "intercom", "salesforce", "stripe", "zendesk"} {
 		if _, ok := registry.Get(provider); !ok {
 			t.Fatalf("expected %s connector to be registered", provider)
 		}
