@@ -137,7 +137,7 @@ func ExtractCustomerFeatures(input FeatureInput) FeatureVector {
 	vector.Values[FeatureSupportTicketTrend] = supportTicketTrend(input.Events, now)
 	vector.Values[FeatureUnresolvedTicketRatio] = unresolvedTicketRatio(input.Events, now)
 	vector.Values[FeatureUsageFrequencyChange30d] = usageFrequencyChange(input.Events, now)
-	vector.Values[FeatureMRRChangeRate] = mrrChangeRate(input.Events, now)
+	vector.Values[FeatureMRRChangeRate] = mrrChangeRate(input.Customer, input.Events, now)
 	vector.Values[FeatureDaysSinceLastActivity] = daysSinceLastActivity(input.Customer, input.Events, now)
 	vector.Values[FeatureEngagementEventsPerDay] = engagementEventsPerDay(input.Events, now)
 	vector.Values[FeatureContractTenure] = contractTenure(input.Customer, now)
@@ -258,7 +258,7 @@ func usageFrequencyChange(events []*repository.CustomerEvent, now time.Time) flo
 	return NormalizeMinMax(change, -1, 1)
 }
 
-func mrrChangeRate(events []*repository.CustomerEvent, now time.Time) float64 {
+func mrrChangeRate(customer *repository.Customer, events []*repository.CustomerEvent, now time.Time) float64 {
 	var oldest, latest *repository.CustomerEvent
 	start := daysAgo(now, mrrWindowDays)
 	for _, event := range events {
@@ -277,6 +277,9 @@ func mrrChangeRate(events []*repository.CustomerEvent, now time.Time) float64 {
 	}
 	oldMRR := numberFromEvent(oldest, "old_mrr_cents")
 	newMRR := numberFromEvent(latest, "new_mrr_cents")
+	if customer != nil && customer.MRRCents > 0 {
+		newMRR = float64(customer.MRRCents)
+	}
 	if oldMRR <= 0 {
 		return 0.5
 	}
