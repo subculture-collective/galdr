@@ -12,7 +12,10 @@ BEGIN
     ) THEN
         ALTER TABLE organizations
             ADD CONSTRAINT organizations_industry_check
-            CHECK (industry IS NULL OR industry IN ('SaaS', 'E-commerce', 'Fintech', 'Healthcare', 'Education', 'Media', 'Marketplace', 'Agency', 'Other'));
+            CHECK (
+                industry IS NULL
+                OR industry IN ('SaaS', 'E-commerce', 'Fintech', 'Healthcare', 'Education', 'Media', 'Marketplace', 'Agency', 'Other')
+            );
     END IF;
 END $$;
 
