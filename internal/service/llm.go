@@ -120,6 +120,11 @@ func NewLLMService(provider LLMProvider, tracker LLMUsageTracker, cfg LLMService
 	if len(cfg.RetryDelays) == 0 {
 		cfg.RetryDelays = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
 	}
+	if cfg.Templates == nil {
+		if templates, err := prompts.Templates(); err == nil {
+			cfg.Templates = templates
+		}
+	}
 
 	providers := make([]LLMProvider, 0, 1+len(cfg.FallbackProviders))
 	if provider != nil {
