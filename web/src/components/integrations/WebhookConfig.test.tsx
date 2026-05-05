@@ -1,10 +1,17 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
+import type { AxiosResponse } from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "@/contexts/ToastContext";
 import WebhookConfig from "@/components/integrations/WebhookConfig";
-import { webhooksApi } from "@/lib/webhooks";
+import { type WebhookConfiguration, webhooksApi } from "@/lib/webhooks";
 
 vi.mock("@/lib/webhooks", () => ({
   webhooksApi: {
@@ -16,50 +23,52 @@ vi.mock("@/lib/webhooks", () => ({
 
 const mockedWebhooksApi = vi.mocked(webhooksApi);
 
+const existingWebhook: WebhookConfiguration = {
+  id: "wh_existing",
+  name: "Zapier lifecycle events",
+  url: "https://api.pulsescore.test/api/v1/webhooks/generic/wh_existing",
+  secret: "whsec_existing",
+  mappings: [{ source_path: "company.name", target_field: "company_name" }],
+  last_event_at: "2026-05-04T12:30:00Z",
+  event_count: 42,
+  status: "active",
+};
+
+const createdWebhook: WebhookConfiguration = {
+  id: "wh_created",
+  name: "Customer.io product events",
+  url: "https://api.pulsescore.test/api/v1/webhooks/generic/wh_created",
+  secret: "whsec_created",
+  mappings: [
+    { source_path: "user.email", target_field: "email" },
+    { source_path: "account.mrr", target_field: "mrr_cents" },
+  ],
+  last_event_at: null,
+  event_count: 0,
+  status: "active",
+};
+
+function apiResponse<T>(data: T) {
+  return { data } as AxiosResponse<T>;
+}
+
 describe("WebhookConfig", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mockedWebhooksApi.list.mockResolvedValue({
-      data: {
-        webhooks: [
-          {
-            id: "wh_existing",
-            name: "Zapier lifecycle events",
-            url: "https://api.pulsescore.test/api/v1/webhooks/generic/wh_existing",
-            secret: "whsec_existing",
-            mappings: [{ source_path: "company.name", target_field: "company_name" }],
-            last_event_at: "2026-05-04T12:30:00Z",
-            event_count: 42,
-            status: "active",
-          },
-        ],
-      },
-    } as unknown as Awaited<ReturnType<typeof webhooksApi.list>>);
-    mockedWebhooksApi.create.mockResolvedValue({
-      data: {
-        webhook: {
-          id: "wh_created",
-          name: "Customer.io product events",
-          url: "https://api.pulsescore.test/api/v1/webhooks/generic/wh_created",
-          secret: "whsec_created",
-          mappings: [
-            { source_path: "user.email", target_field: "email" },
-            { source_path: "account.mrr", target_field: "mrr_cents" },
-          ],
-          last_event_at: null,
-          event_count: 0,
-          status: "active",
-        },
-      },
-    } as unknown as Awaited<ReturnType<typeof webhooksApi.create>>);
-    mockedWebhooksApi.testMapping.mockResolvedValue({
-      data: {
+    mockedWebhooksApi.list.mockResolvedValue(
+      apiResponse({ webhooks: [existingWebhook] }),
+    );
+    mockedWebhooksApi.create.mockResolvedValue(
+      apiResponse({ webhook: createdWebhook }),
+    );
+    mockedWebhooksApi.testMapping.mockResolvedValue(
+      apiResponse({
         mapped_result: {
           email: "founder@acme.test",
           mrr_cents: 12900,
         },
-      },
-    } as unknown as Awaited<ReturnType<typeof webhooksApi.testMapping>>);
+      }),
+    );
   });
 
   afterEach(() => {
@@ -74,10 +83,15 @@ describe("WebhookConfig", () => {
       </ToastProvider>,
     );
 
-    expect(await screen.findByText("Zapier lifecycle events")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Zapier lifecycle events"),
+    ).toBeInTheDocument();
     expect(screen.getByText("42 events")).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("Webhook name"), "Customer.io product events");
+    await user.type(
+      screen.getByLabelText("Webhook name"),
+      "Customer.io product events",
+    );
     await user.type(screen.getByLabelText("Source path 1"), "user.email");
     await user.type(screen.getByLabelText("Target field 1"), "email");
     await user.click(screen.getByRole("button", { name: "Add mapping" }));
@@ -99,7 +113,10 @@ describe("WebhookConfig", () => {
 
     fireEvent.change(screen.getByLabelText("Sample payload"), {
       target: {
-        value: JSON.stringify({ user: { email: "founder@acme.test" }, account: { mrr: 12900 } }),
+        value: JSON.stringify({
+          user: { email: "founder@acme.test" },
+          account: { mrr: 12900 },
+        }),
       },
     });
     await user.click(screen.getByRole("button", { name: "Test mapping" }));
@@ -116,7 +133,9 @@ describe("WebhookConfig", () => {
         },
       });
     });
-    expect(await screen.findByText(/"email": "founder@acme.test"/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/"email": "founder@acme.test"/),
+    ).toBeInTheDocument();
   });
 
   it("loads common webhook example payloads for testing", async () => {

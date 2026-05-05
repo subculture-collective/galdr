@@ -66,6 +66,15 @@ const targetFields = [
   "occurred_at",
 ];
 
+const webhookStatusStyles: Record<WebhookConfiguration["status"], string> = {
+  active:
+    "border-[color:rgb(52_211_153_/_0.35)] bg-[color:rgb(52_211_153_/_0.14)] text-[var(--galdr-success)]",
+  error:
+    "border-[color:rgb(244_63_94_/_0.35)] bg-[color:rgb(244_63_94_/_0.14)] text-[var(--galdr-danger)]",
+  paused:
+    "border-[color:rgb(245_158_11_/_0.35)] bg-[color:rgb(245_158_11_/_0.14)] text-[var(--galdr-at-risk)]",
+};
+
 function getCleanMappings(mappings: WebhookFieldMapping[]) {
   return mappings
     .map((mapping) => ({
@@ -75,6 +84,14 @@ function getCleanMappings(mappings: WebhookFieldMapping[]) {
     .filter((mapping) => mapping.source_path && mapping.target_field);
 }
 
+function parseSamplePayload(value: string) {
+  const parsed = JSON.parse(value) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("payload must be an object");
+  }
+  return parsed as Record<string, unknown>;
+}
+
 export default function WebhookConfig() {
   const [webhooks, setWebhooks] = useState<WebhookConfiguration[]>([]);
   const [name, setName] = useState("");
@@ -82,12 +99,12 @@ export default function WebhookConfig() {
     emptyMapping(),
   ]);
   const [samplePayload, setSamplePayload] = useState(defaultPayload);
-  const [mappedResult, setMappedResult] = useState<Record<string, unknown> | null>(
-    null,
-  );
-  const [latestCreated, setLatestCreated] = useState<WebhookConfiguration | null>(
-    null,
-  );
+  const [mappedResult, setMappedResult] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [latestCreated, setLatestCreated] =
+    useState<WebhookConfiguration | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -160,11 +177,7 @@ export default function WebhookConfig() {
     }
     let parsedPayload: Record<string, unknown>;
     try {
-      const parsed = JSON.parse(samplePayload) as unknown;
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("payload must be an object");
-      }
-      parsedPayload = parsed as Record<string, unknown>;
+      parsedPayload = parseSamplePayload(samplePayload);
     } catch {
       toast.error("Sample payload must be valid JSON object.");
       return;
@@ -201,8 +214,9 @@ export default function WebhookConfig() {
                 Webhook Configuration
               </h3>
               <p className="mt-2 max-w-2xl text-sm text-[var(--galdr-fg-muted)]">
-                Generate a signed endpoint, map incoming JSON paths to PulseScore
-                customer fields, then test the payload before wiring automation tools.
+                Generate a signed endpoint, map incoming JSON paths to
+                PulseScore customer fields, then test the payload before wiring
+                automation tools.
               </p>
             </div>
             <Webhook className="hidden h-12 w-12 text-[var(--galdr-accent-2)] md:block" />
@@ -234,7 +248,9 @@ export default function WebhookConfig() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setMappings((current) => [...current, emptyMapping()])}
+                  onClick={() =>
+                    setMappings((current) => [...current, emptyMapping()])
+                  }
                   className="galdr-button-secondary inline-flex items-center gap-2 px-3 py-2 text-xs font-medium"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -252,7 +268,9 @@ export default function WebhookConfig() {
                     <input
                       value={mapping.source_path}
                       onChange={(event) =>
-                        updateMapping(index, { source_path: event.target.value })
+                        updateMapping(index, {
+                          source_path: event.target.value,
+                        })
                       }
                       className="galdr-input mt-1 w-full px-3 py-2 text-sm font-mono"
                       placeholder="user.email"
@@ -266,7 +284,9 @@ export default function WebhookConfig() {
                     <input
                       value={mapping.target_field}
                       onChange={(event) =>
-                        updateMapping(index, { target_field: event.target.value })
+                        updateMapping(index, {
+                          target_field: event.target.value,
+                        })
                       }
                       list="webhook-target-fields"
                       className="galdr-input mt-1 w-full px-3 py-2 text-sm font-mono"
@@ -339,7 +359,11 @@ export default function WebhookConfig() {
             {latestCreated && (
               <div className="galdr-alert-success p-4 text-sm">
                 <p className="font-semibold">Webhook generated</p>
-                <SecretRow label="URL" value={latestCreated.url} onCopy={copyValue} />
+                <SecretRow
+                  label="URL"
+                  value={latestCreated.url}
+                  onCopy={copyValue}
+                />
                 <SecretRow
                   label="Secret"
                   value={latestCreated.secret}
@@ -457,16 +481,10 @@ function SecretRow({
 
 function StatusBadge({ status }: { status: WebhookConfiguration["status"] }) {
   const label = status === "active" ? "Active" : status;
-  const className =
-    status === "active"
-      ? "border-[color:rgb(52_211_153_/_0.35)] bg-[color:rgb(52_211_153_/_0.14)] text-[var(--galdr-success)]"
-      : status === "error"
-        ? "border-[color:rgb(244_63_94_/_0.35)] bg-[color:rgb(244_63_94_/_0.14)] text-[var(--galdr-danger)]"
-        : "border-[color:rgb(245_158_11_/_0.35)] bg-[color:rgb(245_158_11_/_0.14)] text-[var(--galdr-at-risk)]";
 
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${className}`}
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${webhookStatusStyles[status]}`}
     >
       {label}
     </span>
