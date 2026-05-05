@@ -129,6 +129,7 @@ func (s *UsageService) GetUsage(ctx context.Context, orgID uuid.UUID) (*UsageSum
 		UsageMetricIntegrations: integrations,
 		UsageMetricPlaybooks:    playbooks,
 		UsageMetricTeamMembers:  members,
+		UsageMetricAPIRequests:  apiRequests,
 	} {
 		if err := s.snapshots.Record(ctx, repository.UsageSnapshotRecord{OrgID: orgID, Metric: metric, Value: value, RecordedAt: recordedAt}); err != nil {
 			return nil, fmt.Errorf("record usage snapshot: %w", err)

@@ -91,14 +91,14 @@ func TestUsageServiceReturnsCurrentUsageAndRecordsDailySnapshot(t *testing.T) {
 		t.Fatalf("expected api request usage 1/unlimited, got %+v", summary.APIRequestsCount)
 	}
 
-	if len(store.recorded) != 4 {
-		t.Fatalf("expected four daily resource snapshots, got %d", len(store.recorded))
+	if len(store.recorded) != 5 {
+		t.Fatalf("expected five daily resource snapshots, got %d", len(store.recorded))
 	}
 	metrics := map[string]int{}
 	for _, record := range store.recorded {
 		metrics[record.Metric] = record.Value
 	}
-	if metrics[UsageMetricCustomers] != 42 || metrics[UsageMetricIntegrations] != 2 || metrics[UsageMetricTeamMembers] != 4 || metrics[UsageMetricPlaybooks] != 7 {
+	if metrics[UsageMetricCustomers] != 42 || metrics[UsageMetricIntegrations] != 2 || metrics[UsageMetricTeamMembers] != 4 || metrics[UsageMetricPlaybooks] != 7 || metrics[UsageMetricAPIRequests] != 1 {
 		t.Fatalf("unexpected recorded metrics: %+v", metrics)
 	}
 }
