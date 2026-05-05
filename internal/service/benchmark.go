@@ -192,7 +192,8 @@ func (s *BenchmarkAggregationService) RunOnce(ctx context.Context) error {
 	}
 
 	calculatedAt := time.Now().UTC()
-	segments := groupBenchmarkContributions(validBenchmarkContributions(contributions, calculatedAt))
+	validContributions := validBenchmarkContributions(contributions, calculatedAt)
+	segments := groupBenchmarkContributions(validContributions)
 	for _, segment := range segments {
 		if len(segment.contributions) < benchmarkMinimumSampleSize {
 			continue
@@ -234,8 +235,9 @@ type benchmarkMetricObservation struct {
 
 func validBenchmarkContributions(contributions []repository.BenchmarkContribution, now time.Time) []repository.BenchmarkContribution {
 	valid := make([]repository.BenchmarkContribution, 0, len(contributions))
+	freshAfter := now.Add(-benchmarkContributionFreshnessWindow)
 	for _, contribution := range contributions {
-		if !isFreshBenchmarkContribution(contribution, now) || !isValidBenchmarkContribution(contribution) {
+		if !isFreshBenchmarkContribution(contribution, freshAfter) || !isValidBenchmarkContribution(contribution) {
 			continue
 		}
 		valid = append(valid, contribution)
@@ -243,11 +245,11 @@ func validBenchmarkContributions(contributions []repository.BenchmarkContributio
 	return valid
 }
 
-func isFreshBenchmarkContribution(contribution repository.BenchmarkContribution, now time.Time) bool {
+func isFreshBenchmarkContribution(contribution repository.BenchmarkContribution, freshAfter time.Time) bool {
 	if contribution.ContributedAt.IsZero() {
 		return false
 	}
-	return !contribution.ContributedAt.Before(now.Add(-benchmarkContributionFreshnessWindow))
+	return !contribution.ContributedAt.Before(freshAfter)
 }
 
 func isValidBenchmarkContribution(contribution repository.BenchmarkContribution) bool {

@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { closeSync, openSync } from "node:fs";
-import { chmod, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, chmod, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -35,7 +35,7 @@ let servicePort: number | undefined;
 
 async function pathExists(filePath: string): Promise<boolean> {
   try {
-    await readFile(filePath);
+    await access(filePath);
     return true;
   } catch {
     return false;
