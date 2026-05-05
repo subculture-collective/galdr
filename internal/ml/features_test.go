@@ -180,9 +180,10 @@ func TestFeatureVectorValuesInOrderReturnsStableModelInput(t *testing.T) {
 	}}
 
 	values := vector.ValuesInOrder()
+	names := FeatureNames()
 
-	if len(values) != len(FeatureNames()) {
-		t.Fatalf("ordered values length %d, want %d", len(values), len(FeatureNames()))
+	if len(values) != len(names) {
+		t.Fatalf("ordered values length %d, want %d", len(values), len(names))
 	}
 	assertClose(t, values[1], 0.25)
 	assertClose(t, values[len(values)-1], 0.8)
