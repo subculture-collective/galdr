@@ -67,6 +67,25 @@ func TestPlanChangeImpactDowngradeAtPeriodEnd(t *testing.T) {
 	}
 }
 
+func TestPlanChangeImpactSameTierAnnualToMonthlySchedulesDowngrade(t *testing.T) {
+	renewal := time.Now().Add(24 * time.Hour).UTC()
+	sub := &repository.OrgSubscription{PlanTier: "scale", BillingCycle: "annual", CurrentPeriodEnd: &renewal}
+	resp, err := buildPlanChangeImpact(planmodel.NewCatalog(planmodel.PriceConfig{}), sub, planmodel.TierScale, planmodel.BillingCycleMonthly)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if resp.Action != "downgrade" || resp.Status != "scheduled" || !resp.EffectiveAtPeriodEnd {
+		t.Fatalf("expected same-tier price decrease to schedule as downgrade, got %+v", resp)
+	}
+	if resp.ProrationCents != 0 {
+		t.Fatalf("expected no proration estimate for scheduled downgrade, got %d", resp.ProrationCents)
+	}
+	if resp.EffectiveAt == nil || !resp.EffectiveAt.Equal(renewal) {
+		t.Fatalf("expected downgrade effective at renewal, got %v", resp.EffectiveAt)
+	}
+}
+
 func TestChangePlanUpgradePaidSubscriptionProratesAndUpdatesImmediately(t *testing.T) {
 	orgID := uuid.New()
 	userID := uuid.New()
