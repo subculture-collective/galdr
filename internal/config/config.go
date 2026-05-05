@@ -239,39 +239,40 @@ func Load() *Config {
 
 // Validate checks required configuration for production.
 func (c *Config) Validate() error {
-	if c.IsProd() {
-		if c.Database.URL == "" {
-			return fmt.Errorf("DATABASE_URL is required in production")
-		}
-		if c.JWT.Secret == "" || c.JWT.Secret == "dev-secret-change-me-in-production" {
-			return fmt.Errorf("JWT_SECRET must be set to a secure value in production")
-		}
+	if !c.IsProd() {
+		return nil
+	}
 
-		if err := requireProductionValue("STRIPE_BILLING_SECRET_KEY", c.BillingStripe.SecretKey); err != nil {
-			return err
-		}
-		if err := requireProductionValue("STRIPE_BILLING_PUBLISHABLE_KEY", c.BillingStripe.PublishableKey); err != nil {
-			return err
-		}
-		if err := requireProductionValue("STRIPE_BILLING_WEBHOOK_SECRET", c.BillingStripe.WebhookSecret); err != nil {
-			return err
-		}
+	if err := requireProductionValue("DATABASE_URL", c.Database.URL); err != nil {
+		return err
+	}
+	if c.JWT.Secret == "" || c.JWT.Secret == "dev-secret-change-me-in-production" {
+		return fmt.Errorf("JWT_SECRET must be set to a secure value in production")
+	}
 
-		requiredPriceIDs := map[string]string{
-			"STRIPE_BILLING_PRICE_GROWTH_MONTHLY": c.BillingStripe.PriceGrowthMonthly,
-			"STRIPE_BILLING_PRICE_GROWTH_ANNUAL":  c.BillingStripe.PriceGrowthAnnual,
-			"STRIPE_BILLING_PRICE_SCALE_MONTHLY":  c.BillingStripe.PriceScaleMonthly,
-			"STRIPE_BILLING_PRICE_SCALE_ANNUAL":   c.BillingStripe.PriceScaleAnnual,
-		}
-		for name, value := range requiredPriceIDs {
-			if err := requireProductionValue(name, value); err != nil {
-				return err
-			}
-		}
+	if err := requireProductionValue("STRIPE_BILLING_SECRET_KEY", c.BillingStripe.SecretKey); err != nil {
+		return err
+	}
+	if err := requireProductionValue("STRIPE_BILLING_PUBLISHABLE_KEY", c.BillingStripe.PublishableKey); err != nil {
+		return err
+	}
+	if err := requireProductionValue("STRIPE_BILLING_WEBHOOK_SECRET", c.BillingStripe.WebhookSecret); err != nil {
+		return err
+	}
 
-		if err := requireProductionValue("OPENAI_API_KEY", c.OpenAI.APIKey); err != nil {
+	requiredPriceIDs := map[string]string{
+		"STRIPE_BILLING_PRICE_GROWTH_MONTHLY": c.BillingStripe.PriceGrowthMonthly,
+		"STRIPE_BILLING_PRICE_GROWTH_ANNUAL":  c.BillingStripe.PriceGrowthAnnual,
+		"STRIPE_BILLING_PRICE_SCALE_MONTHLY":  c.BillingStripe.PriceScaleMonthly,
+		"STRIPE_BILLING_PRICE_SCALE_ANNUAL":   c.BillingStripe.PriceScaleAnnual,
+	}
+	for name, value := range requiredPriceIDs {
+		if err := requireProductionValue(name, value); err != nil {
 			return err
 		}
+	}
+	if err := requireProductionValue("OPENAI_API_KEY", c.OpenAI.APIKey); err != nil {
+		return err
 	}
 	return nil
 }
