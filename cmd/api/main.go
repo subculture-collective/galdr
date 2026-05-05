@@ -153,6 +153,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			paymentRepo := repository.NewStripePaymentRepository(pool.P)
 			eventRepo := repository.NewCustomerEventRepository(pool.P)
 			playbookRepo := repository.NewPlaybookRepository(pool.P)
+			savedViewRepo := repository.NewSavedViewRepository(pool.P)
 
 			// HubSpot/Intercom repositories
 			hubspotContactRepo := repository.NewHubSpotContactRepository(pool.P)
@@ -551,7 +552,14 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				// Customer routes
 				customerSvc := service.NewCustomerService(customerRepo, healthScoreRepo, subRepo, eventRepo, customerNoteRepo)
 				customerHandler := handler.NewCustomerHandler(customerSvc)
+				savedViewSvc := service.NewSavedViewService(savedViewRepo)
+				savedViewHandler := handler.NewSavedViewHandler(savedViewSvc)
 				r.Get("/customers", customerHandler.List)
+				r.Get("/customers/saved-views", savedViewHandler.List)
+				r.Post("/customers/saved-views", savedViewHandler.Create)
+				r.Get("/customers/saved-views/{id}", savedViewHandler.Get)
+				r.Patch("/customers/saved-views/{id}", savedViewHandler.Update)
+				r.Delete("/customers/saved-views/{id}", savedViewHandler.Delete)
 				r.Get("/customers/{id}", customerHandler.GetDetail)
 				r.Get("/customers/{id}/events", customerHandler.ListEvents)
 				r.Get("/customers/{id}/notes", customerHandler.ListNotes)

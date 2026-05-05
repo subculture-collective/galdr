@@ -58,6 +58,15 @@ type alertRuleServicer interface {
 	Delete(ctx context.Context, id, orgID uuid.UUID) error
 }
 
+// savedViewServicer defines the methods the SavedViewHandler needs.
+type savedViewServicer interface {
+	List(ctx context.Context, orgID, userID uuid.UUID) ([]*repository.SavedView, error)
+	GetByID(ctx context.Context, id, orgID, userID uuid.UUID) (*repository.SavedView, error)
+	Create(ctx context.Context, orgID, userID uuid.UUID, req service.CreateSavedViewRequest) (*repository.SavedView, error)
+	Update(ctx context.Context, id, orgID, userID uuid.UUID, req service.UpdateSavedViewRequest) (*repository.SavedView, error)
+	Delete(ctx context.Context, id, orgID, userID uuid.UUID) error
+}
+
 // organizationServicer defines the methods the OrganizationHandler needs.
 type organizationServicer interface {
 	GetCurrent(ctx context.Context, orgID uuid.UUID) (*service.OrgDetailResponse, error)
