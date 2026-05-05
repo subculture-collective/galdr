@@ -464,24 +464,30 @@ func estimateProrationCents(current planmodel.Plan, currentCycle planmodel.Billi
 	if action != planChangeActionUpgrade {
 		return 0
 	}
+
 	delta := planPriceCents(target, targetCycle) - planPriceCents(current, currentCycle)
 	if delta < 0 {
 		return 0
 	}
+
+	return prorateCentsForRemainingPeriod(delta, sub, now)
+}
+
+func prorateCentsForRemainingPeriod(delta int, sub *repository.OrgSubscription, now time.Time) int {
 	if sub == nil || sub.CurrentPeriodStart == nil || sub.CurrentPeriodEnd == nil {
 		return delta
 	}
 
-	total := sub.CurrentPeriodEnd.Sub(*sub.CurrentPeriodStart)
-	remaining := sub.CurrentPeriodEnd.Sub(now)
-	if total <= 0 || remaining <= 0 {
+	periodDuration := sub.CurrentPeriodEnd.Sub(*sub.CurrentPeriodStart)
+	remainingPeriod := sub.CurrentPeriodEnd.Sub(now)
+	if periodDuration <= 0 || remainingPeriod <= 0 {
 		return 0
 	}
-	if remaining >= total {
+	if remainingPeriod >= periodDuration {
 		return delta
 	}
 
-	return int(float64(delta) * remaining.Seconds() / total.Seconds())
+	return int(float64(delta) * remainingPeriod.Seconds() / periodDuration.Seconds())
 }
 
 func planPriceCents(plan planmodel.Plan, cycle planmodel.BillingCycle) int {

@@ -14,6 +14,11 @@ interface SubscriptionManagerProps {
   checkoutState?: "success" | "cancelled" | null;
 }
 
+interface SelectedPlanChange {
+  plan: (typeof billingPlans)[number];
+  cycle: BillingCycle;
+}
+
 function normalizeTier(value?: string): PlanTier {
   const normalized = value?.toLowerCase();
   if (normalized === "growth" || normalized === "scale") return normalized;
@@ -44,9 +49,8 @@ export default function SubscriptionManager({
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [openingPortal, setOpeningPortal] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<
-    { plan: (typeof billingPlans)[number]; cycle: BillingCycle } | null
-  >(null);
+  const [selectedPlan, setSelectedPlan] =
+    useState<SelectedPlanChange | null>(null);
   const [targetCycle, setTargetCycle] = useState<BillingCycle>("monthly");
 
   const toast = useToast();
@@ -254,6 +258,10 @@ export default function SubscriptionManager({
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           {recommendedPlans.map((plan) => {
             const isCurrent = plan.tier === currentTier && targetCycle === cycle;
+            const price =
+              targetCycle === "monthly" ? plan.monthlyPrice : plan.annualPrice;
+            const cycleLabel = targetCycle === "monthly" ? "mo" : "yr";
+
             return (
               <div
                 key={plan.tier}
@@ -273,11 +281,7 @@ export default function SubscriptionManager({
                     </p>
                   </div>
                   <p className="text-sm font-medium text-[var(--galdr-fg-muted)]">
-                    $
-                    {targetCycle === "monthly"
-                      ? plan.monthlyPrice
-                      : plan.annualPrice}
-                    /{targetCycle === "monthly" ? "mo" : "yr"}
+                    ${price}/{cycleLabel}
                   </p>
                 </div>
                 <button

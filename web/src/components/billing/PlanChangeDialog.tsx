@@ -52,16 +52,33 @@ function planPrice(plan: BillingPlanDefinition, cycle: BillingCycle): number {
   return cycle === "monthly" ? plan.monthlyPrice : plan.annualPrice;
 }
 
-function estimatedProrationDollars(
+function planPriceCents(plan: BillingPlanDefinition, cycle: BillingCycle): number {
+  return planPrice(plan, cycle) * 100;
+}
+
+function isDowngradeChange(
+  currentPlan: BillingPlanDefinition | undefined,
+  currentTier: string,
+  currentCycle: BillingCycle,
+  targetPlan: BillingPlanDefinition,
+  targetCycle: BillingCycle,
+): boolean {
+  if (planRank(targetPlan.tier) < planRank(currentTier)) return true;
+  if (!currentPlan || targetPlan.tier !== currentTier) return false;
+  return planPrice(targetPlan, targetCycle) < planPrice(currentPlan, currentCycle);
+}
+
+function estimatedProrationCents(
   currentPlan: BillingPlanDefinition | undefined,
   currentCycle: BillingCycle,
   targetPlan: BillingPlanDefinition,
   targetCycle: BillingCycle,
 ): number {
-  if (!currentPlan) return planPrice(targetPlan, targetCycle);
+  if (!currentPlan) return planPriceCents(targetPlan, targetCycle);
   return Math.max(
     0,
-    planPrice(targetPlan, targetCycle) - planPrice(currentPlan, currentCycle),
+    planPriceCents(targetPlan, targetCycle) -
+      planPriceCents(currentPlan, currentCycle),
   );
 }
 
@@ -78,13 +95,17 @@ export default function PlanChangeDialog({
   const toast = useToast();
 
   const price = cycle === "monthly" ? plan.monthlyPrice : plan.annualPrice;
-  const currentPlan = billingPlans.find((candidate) => candidate.tier === currentTier);
-  const isDowngrade =
-    planRank(plan.tier) < planRank(currentTier) ||
-    (currentPlan !== undefined &&
-      plan.tier === currentTier &&
-      planPrice(plan, cycle) < planPrice(currentPlan, currentCycle));
-  const prorationEstimate = estimatedProrationDollars(
+  const currentPlan = billingPlans.find(
+    (candidate) => candidate.tier === currentTier,
+  );
+  const isDowngrade = isDowngradeChange(
+    currentPlan,
+    currentTier,
+    currentCycle,
+    plan,
+    cycle,
+  );
+  const prorationEstimate = estimatedProrationCents(
     currentPlan,
     currentCycle,
     plan,
@@ -92,7 +113,7 @@ export default function PlanChangeDialog({
   );
   const billingImpact = isDowngrade
     ? "No immediate credit. New lower limits apply at renewal."
-    : `Estimated proration: ${response ? money(response.proration_cents) : money(prorationEstimate * 100)}`;
+    : `Estimated proration: ${response ? money(response.proration_cents) : money(prorationEstimate)}`;
 
   async function confirmChange() {
     setSubmitting(true);
