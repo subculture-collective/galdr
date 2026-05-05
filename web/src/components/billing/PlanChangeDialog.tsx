@@ -52,7 +52,10 @@ function planPrice(plan: BillingPlanDefinition, cycle: BillingCycle): number {
   return cycle === "monthly" ? plan.monthlyPrice : plan.annualPrice;
 }
 
-function planPriceCents(plan: BillingPlanDefinition, cycle: BillingCycle): number {
+function planPriceCents(
+  plan: BillingPlanDefinition,
+  cycle: BillingCycle,
+): number {
   return planPrice(plan, cycle) * 100;
 }
 
@@ -91,7 +94,9 @@ function isDowngradeChange(
 ): boolean {
   if (planRank(targetPlan.tier) < planRank(currentTier)) return true;
   if (!currentPlan || targetPlan.tier !== currentTier) return false;
-  return planPrice(targetPlan, targetCycle) < planPrice(currentPlan, currentCycle);
+  return (
+    planPrice(targetPlan, targetCycle) < planPrice(currentPlan, currentCycle)
+  );
 }
 
 function estimatedProrationCents(

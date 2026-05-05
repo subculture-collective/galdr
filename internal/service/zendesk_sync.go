@@ -74,7 +74,15 @@ func (s *ZendeskSyncService) syncUsers(ctx context.Context, orgID uuid.UUID, ste
 }
 
 func (s *ZendeskSyncService) upsertUserAndCustomer(ctx context.Context, orgID uuid.UUID, user ZendeskAPIUser) error {
-	zUser := &repository.ZendeskUser{OrgID: orgID, ZendeskUserID: zendeskInt64ID(user.ID), Email: user.Email, Name: user.Name, Role: user.Role, Metadata: map[string]any{"active": user.Active}}
+	zendeskUserID := zendeskInt64ID(user.ID)
+	zUser := &repository.ZendeskUser{
+		OrgID:         orgID,
+		ZendeskUserID: zendeskUserID,
+		Email:         user.Email,
+		Name:          user.Name,
+		Role:          user.Role,
+		Metadata:      map[string]any{"active": user.Active},
+	}
 	if err := s.users.Upsert(ctx, zUser); err != nil {
 		return err
 	}
@@ -91,12 +99,25 @@ func (s *ZendeskSyncService) upsertUserAndCustomer(ctx context.Context, orgID uu
 	}
 	if customerID == uuid.Nil {
 		now := time.Now()
-		customer := &repository.Customer{OrgID: orgID, ExternalID: zendeskInt64ID(user.ID), Source: zendeskProvider, Email: user.Email, Name: user.Name, FirstSeenAt: &now, LastSeenAt: &now, Metadata: map[string]any{"zendesk": map[string]any{"role": user.Role, "active": user.Active}}}
+		customer := &repository.Customer{
+			OrgID:       orgID,
+			ExternalID:  zendeskUserID,
+			Source:      zendeskProvider,
+			Email:       user.Email,
+			Name:        user.Name,
+			FirstSeenAt: &now,
+			LastSeenAt:  &now,
+			Metadata: map[string]any{
+				"zendesk": map[string]any{"role": user.Role, "active": user.Active},
+			},
+		}
 		if err := s.customers.UpsertByExternal(ctx, customer); err != nil {
 			return err
 		}
 		customerID = customer.ID
-	} else if err := s.customers.UpdateCompanyAndMetadata(ctx, customerID, "", map[string]any{"zendesk": map[string]any{"user_id": zendeskInt64ID(user.ID), "role": user.Role, "active": user.Active}}); err != nil {
+	} else if err := s.customers.UpdateCompanyAndMetadata(ctx, customerID, "", map[string]any{
+		"zendesk": map[string]any{"user_id": zendeskUserID, "role": user.Role, "active": user.Active},
+	}); err != nil {
 		return err
 	}
 
@@ -148,7 +169,11 @@ func (s *ZendeskSyncService) syncTickets(ctx context.Context, orgID uuid.UUID, s
 }
 
 func (s *ZendeskSyncService) upsertTicket(ctx context.Context, orgID uuid.UUID, ticket ZendeskAPITicket, emitEvent bool) error {
-	user, err := s.users.GetByZendeskID(ctx, orgID, zendeskInt64ID(ticket.RequesterID))
+	zendeskTicketID := zendeskInt64ID(ticket.ID)
+	zendeskRequesterID := zendeskInt64ID(ticket.RequesterID)
+	zendeskSubmitterID := zendeskInt64ID(ticket.SubmitterID)
+
+	user, err := s.users.GetByZendeskID(ctx, orgID, zendeskRequesterID)
 	if err != nil {
 		return err
 	}
@@ -156,12 +181,38 @@ func (s *ZendeskSyncService) upsertTicket(ctx context.Context, orgID uuid.UUID, 
 	if user != nil && user.CustomerID != nil {
 		customerID = user.CustomerID
 	}
-	zTicket := &repository.ZendeskTicket{OrgID: orgID, CustomerID: customerID, ZendeskTicketID: zendeskInt64ID(ticket.ID), ZendeskUserID: zendeskInt64ID(ticket.RequesterID), Subject: ticket.Subject, Status: ticket.Status, Priority: ticket.Priority, Type: ticket.Type, CreatedAtRemote: &ticket.CreatedAt, UpdatedAtRemote: &ticket.UpdatedAt, SolvedAt: ticket.SolvedAt, Metadata: map[string]any{"submitter_id": zendeskInt64ID(ticket.SubmitterID)}}
+	zTicket := &repository.ZendeskTicket{
+		OrgID:             orgID,
+		CustomerID:        customerID,
+		ZendeskTicketID:   zendeskTicketID,
+		ZendeskUserID:     zendeskRequesterID,
+		Subject:           ticket.Subject,
+		Status:            ticket.Status,
+		Priority:          ticket.Priority,
+		Type:              ticket.Type,
+		CreatedAtRemote:   &ticket.CreatedAt,
+		UpdatedAtRemote:   &ticket.UpdatedAt,
+		SolvedAt:          ticket.SolvedAt,
+		Metadata:          map[string]any{"submitter_id": zendeskSubmitterID},
+	}
 	if err := s.tickets.Upsert(ctx, zTicket); err != nil {
 		return err
 	}
 	if emitEvent && customerID != nil {
-		return s.events.Upsert(ctx, &repository.CustomerEvent{OrgID: orgID, CustomerID: *customerID, EventType: zendeskTicketEventType(ticket), Source: zendeskProvider, ExternalEventID: "ticket_" + zendeskInt64ID(ticket.ID), OccurredAt: ticket.UpdatedAt, Data: map[string]any{"ticket_id": zendeskInt64ID(ticket.ID), "status": ticket.Status, "priority": ticket.Priority, "subject": ticket.Subject}})
+		return s.events.Upsert(ctx, &repository.CustomerEvent{
+			OrgID:           orgID,
+			CustomerID:      *customerID,
+			EventType:       zendeskTicketEventType(ticket),
+			Source:          zendeskProvider,
+			ExternalEventID: "ticket_" + zendeskTicketID,
+			OccurredAt:      ticket.UpdatedAt,
+			Data: map[string]any{
+				"ticket_id": zendeskTicketID,
+				"status":    ticket.Status,
+				"priority":  ticket.Priority,
+				"subject":   ticket.Subject,
+			},
+		})
 	}
 	return nil
 }

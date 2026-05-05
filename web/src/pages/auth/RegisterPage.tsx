@@ -23,7 +23,9 @@ export default function RegisterPage() {
 
   function validate(): boolean {
     if (!email || !password || !orgName || !industry) {
-      setError("Email, password, organization name, and industry are required.");
+      setError(
+        "Email, password, organization name, and industry are required.",
+      );
       return false;
     }
     if (password.length < 8) {

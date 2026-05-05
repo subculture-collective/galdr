@@ -59,16 +59,10 @@ export default function LandingPage() {
           </Link>
 
           <nav className="hidden items-center gap-6 text-sm text-[var(--galdr-fg-muted)] md:flex">
-            <a
-              href="#features"
-              className="hover:text-[var(--galdr-accent)]"
-            >
+            <a href="#features" className="hover:text-[var(--galdr-accent)]">
               Features
             </a>
-            <a
-              href="#pricing"
-              className="hover:text-[var(--galdr-accent)]"
-            >
+            <a href="#pricing" className="hover:text-[var(--galdr-accent)]">
               Pricing
             </a>
           </nav>

@@ -201,16 +201,16 @@ function buildH1(seed: SeoPageSeed): string {
   }
 }
 
-export const seoHubs: SeoHub[] = (
-  Object.keys(familyConfig) as SeoFamily[]
-).map((family) => ({
-  family,
-  path: familyConfig[family].path,
-  label: familyConfig[family].label,
-  title: familyConfig[family].hubTitle,
-  description: familyConfig[family].hubDescription,
-  hero: familyConfig[family].hero,
-}));
+export const seoHubs: SeoHub[] = (Object.keys(familyConfig) as SeoFamily[]).map(
+  (family) => ({
+    family,
+    path: familyConfig[family].path,
+    label: familyConfig[family].label,
+    title: familyConfig[family].hubTitle,
+    description: familyConfig[family].hubDescription,
+    hero: familyConfig[family].hero,
+  }),
+);
 
 export const seoPages: SeoPage[] = seoPageSeeds.map((seed) => ({
   ...seed,
@@ -254,10 +254,10 @@ export function getRelatedPages(page: SeoPage, limit = 6): SeoPage[] {
   const safeLimit = Math.max(0, limit);
   const sameFamilyLimit = Math.max(0, safeLimit - 2);
 
-  return [...sameFamily.slice(0, sameFamilyLimit), ...crossFamily.slice(0, 2)].slice(
-    0,
-    safeLimit,
-  );
+  return [
+    ...sameFamily.slice(0, sameFamilyLimit),
+    ...crossFamily.slice(0, 2),
+  ].slice(0, safeLimit);
 }
 
 export function getCrossFamilyHubs(activeFamily: SeoFamily): SeoHub[] {

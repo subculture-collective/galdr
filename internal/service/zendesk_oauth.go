@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -180,7 +181,7 @@ func (s *ZendeskOAuthService) exchangeCodeWithZendesk(code, subdomain string) (*
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("https://%s.zendesk.com/oauth/tokens", subdomain), strings.NewReader(string(payload)))
+	req, err := http.NewRequest("POST", fmt.Sprintf("https://%s.zendesk.com/oauth/tokens", subdomain), bytes.NewReader(payload))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
