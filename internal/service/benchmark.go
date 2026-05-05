@@ -33,8 +33,8 @@ type BenchmarkOrgMetrics struct {
 const unknownBenchmarkIndustry = "unknown"
 
 var benchmarkIndustryAliases = map[string]string{
-	"ai":                      "ai",
 	"agency":                  "agency",
+	"ai":                      "ai",
 	"artificial intelligence": "ai",
 	"consumer":                "consumer",
 	"e-commerce":              "e-commerce",

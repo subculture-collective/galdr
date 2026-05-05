@@ -96,17 +96,20 @@ func TestBenchmarkAnonymizerRejectsPIIIndustrySegments(t *testing.T) {
 }
 
 func TestNormalizeBenchmarkIndustryKeepsPredefinedSegments(t *testing.T) {
-	cases := map[string]string{
-		"Agency":      "agency",
-		"Other":       "other",
-		"E-commerce":  "e-commerce",
-		"Healthcare ": "healthcare",
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{input: "Agency", expected: "agency"},
+		{input: "Other", expected: "other"},
+		{input: "E-commerce", expected: "e-commerce"},
+		{input: "Healthcare ", expected: "healthcare"},
 	}
 
-	for input, expected := range cases {
-		t.Run(input, func(t *testing.T) {
-			if got := NormalizeBenchmarkIndustry(input); got != expected {
-				t.Fatalf("expected %q, got %q", expected, got)
+	for _, tc := range cases {
+		t.Run(tc.input, func(t *testing.T) {
+			if got := NormalizeBenchmarkIndustry(tc.input); got != tc.expected {
+				t.Fatalf("expected %q, got %q", tc.expected, got)
 			}
 		})
 	}
