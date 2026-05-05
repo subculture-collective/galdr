@@ -26,12 +26,15 @@ const (
 )
 
 const (
-	eventLogin          = "login"
-	eventFeatureUse     = "feature_use"
-	eventAPICall        = "api_call"
-	eventTicketOpened   = "ticket.opened"
-	eventTicketResolved = "ticket.resolved"
-	eventMRRChanged     = "mrr.changed"
+	eventLogin               = "login"
+	eventFeatureUse          = "feature_use"
+	eventAPICall             = "api_call"
+	eventTicketOpened        = "ticket.opened"
+	eventTicketResolved      = "ticket.resolved"
+	eventConversationCreated = "conversation_created"
+	eventConversationOpen    = "conversation_open"
+	eventConversationClosed  = "conversation_closed"
+	eventMRRChanged          = "mrr.changed"
 )
 
 const (
@@ -187,8 +190,8 @@ func paymentCounts90d(payments []*repository.StripePayment, now time.Time) (int,
 func supportTicketTrend(events []*repository.CustomerEvent, now time.Time) float64 {
 	recentStart := daysAgo(now, supportWindowDays)
 	previousStart := daysAgo(now, supportWindowDays*2)
-	recent := countEvents(events, eventTicketOpened, recentStart, now)
-	previous := countEvents(events, eventTicketOpened, previousStart, recentStart)
+	recent := countSupportOpenedEvents(events, recentStart, now)
+	previous := countSupportOpenedEvents(events, previousStart, recentStart)
 	if recent > previous {
 		return 1
 	}
@@ -199,11 +202,11 @@ func supportTicketTrend(events []*repository.CustomerEvent, now time.Time) float
 }
 
 func unresolvedTicketRatio(events []*repository.CustomerEvent, now time.Time) float64 {
-	opened := countEvents(events, eventTicketOpened, daysAgo(now, ticketWindowDays), now)
+	opened := countSupportOpenedEvents(events, daysAgo(now, ticketWindowDays), now)
 	if opened == 0 {
 		return 0
 	}
-	resolved := countEvents(events, eventTicketResolved, daysAgo(now, ticketWindowDays), now)
+	resolved := countSupportResolvedEvents(events, daysAgo(now, ticketWindowDays), now)
 	unresolved := opened - resolved
 	if unresolved < 0 {
 		unresolved = 0
@@ -327,6 +330,28 @@ func countEvents(events []*repository.CustomerEvent, eventType string, start, en
 	return count
 }
 
+func countSupportOpenedEvents(events []*repository.CustomerEvent, start, end time.Time) int {
+	count := 0
+	for _, event := range events {
+		if event == nil || !isSupportOpenedEvent(event.EventType) || !occurredInHalfOpenWindow(event.OccurredAt, start, end) {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+func countSupportResolvedEvents(events []*repository.CustomerEvent, start, end time.Time) int {
+	count := 0
+	for _, event := range events {
+		if event == nil || !isSupportResolvedEvent(event.EventType) || !occurredInHalfOpenWindow(event.OccurredAt, start, end) {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
 func countAllEvents(events []*repository.CustomerEvent, start, end time.Time) int {
 	count := 0
 	for _, event := range events {
@@ -341,6 +366,24 @@ func countAllEvents(events []*repository.CustomerEvent, start, end time.Time) in
 func isUsageEvent(eventType string) bool {
 	_, ok := usageEventTypes[eventType]
 	return ok
+}
+
+func isSupportOpenedEvent(eventType string) bool {
+	switch eventType {
+	case eventTicketOpened, eventConversationCreated, eventConversationOpen:
+		return true
+	default:
+		return false
+	}
+}
+
+func isSupportResolvedEvent(eventType string) bool {
+	switch eventType {
+	case eventTicketResolved, eventConversationClosed:
+		return true
+	default:
+		return false
+	}
 }
 
 func occurredInHalfOpenWindow(occurredAt, start, end time.Time) bool {
