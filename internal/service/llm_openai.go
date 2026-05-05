@@ -15,6 +15,8 @@ import (
 const (
 	defaultOpenAIBaseURL = "https://api.openai.com/v1"
 	defaultOpenAIModel   = "gpt-4o-mini"
+	retryAfterHeader     = "Retry-After"
+	retryAfterMsHeader   = "Retry-After-Ms"
 )
 
 // OpenAIProviderConfig holds OpenAI provider settings.
@@ -182,10 +184,14 @@ func parseRetryAfter(value string) time.Duration {
 }
 
 func parseRetryDelay(header http.Header) time.Duration {
-	if delay := parseRetryAfter(header.Get("Retry-After")); delay > 0 {
+	if delay := parseRetryAfter(header.Get(retryAfterHeader)); delay > 0 {
 		return delay
 	}
-	milliseconds, err := strconv.Atoi(header.Get("Retry-After-Ms"))
+	return parseRetryAfterMilliseconds(header.Get(retryAfterMsHeader))
+}
+
+func parseRetryAfterMilliseconds(value string) time.Duration {
+	milliseconds, err := strconv.Atoi(value)
 	if err != nil || milliseconds <= 0 {
 		return 0
 	}
