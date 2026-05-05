@@ -199,18 +199,29 @@ type benchmarkSegment struct {
 	contributions       []repository.BenchmarkContribution
 }
 
+type benchmarkSegmentKey struct {
+	industry          string
+	companySizeBucket string
+}
+
 type benchmarkMetricValueSet struct {
 	name   string
 	values []float64
 }
 
 func groupBenchmarkContributions(contributions []repository.BenchmarkContribution) []benchmarkSegment {
-	segmentByKey := make(map[string]*benchmarkSegment)
+	segmentByKey := make(map[benchmarkSegmentKey]*benchmarkSegment)
 	for _, contribution := range contributions {
-		key := contribution.Industry + "\x00" + contribution.CompanySizeBucket
+		key := benchmarkSegmentKey{
+			industry:          contribution.Industry,
+			companySizeBucket: contribution.CompanySizeBucket,
+		}
 		segment, ok := segmentByKey[key]
 		if !ok {
-			segment = &benchmarkSegment{industry: contribution.Industry, companySizeBucket: contribution.CompanySizeBucket}
+			segment = &benchmarkSegment{
+				industry:          contribution.Industry,
+				companySizeBucket: contribution.CompanySizeBucket,
+			}
 			segmentByKey[key] = segment
 		}
 		segment.contributions = append(segment.contributions, contribution)
@@ -267,7 +278,7 @@ func benchmarkAggregate(segment benchmarkSegment, metric benchmarkMetricValueSet
 	}
 }
 
-func percentile(sortedValues []float64, percentile float64) float64 {
+func percentile(sortedValues []float64, quantile float64) float64 {
 	if len(sortedValues) == 0 {
 		return 0
 	}
@@ -275,7 +286,7 @@ func percentile(sortedValues []float64, percentile float64) float64 {
 		return sortedValues[0]
 	}
 
-	position := percentile * float64(len(sortedValues)-1)
+	position := quantile * float64(len(sortedValues)-1)
 	lowerIndex := int(position)
 	upperIndex := lowerIndex + 1
 	if upperIndex >= len(sortedValues) {

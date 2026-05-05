@@ -22,10 +22,6 @@ const (
 	BenchmarkMetricMRRPerCustomer   = "mrr_per_customer"
 	BenchmarkMetricChurnRate        = "churn_rate"
 	BenchmarkMetricIntegrationUsage = "integration_usage"
-
-	BenchmarkMetricAvgHealthScore = BenchmarkMetricHealthScore
-	BenchmarkMetricAvgMRR         = BenchmarkMetricMRRPerCustomer
-	BenchmarkMetricAvgChurnRate   = BenchmarkMetricChurnRate
 )
 
 type BenchmarkContribution struct {
