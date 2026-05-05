@@ -68,16 +68,7 @@ func TestTemplatesReturnsSystemPromptPrefixedTemplateText(t *testing.T) {
 }
 
 func TestParseStructuredOutputValidatesInsight(t *testing.T) {
-	valid := `{
-		"insight_type":"risk_assessment",
-		"summary":"Acme is at high churn risk because payments failed and engagement dropped.",
-		"risk_level":"red",
-		"confidence":"high",
-		"signals":[{"name":"Failed payments","evidence":"Three recent failed payments","impact":"negative"}],
-		"recommendations":[{"action":"Schedule billing recovery call","owner":"customer_success","priority":"high","rationale":"Recover payment method before renewal"}]
-	}`
-
-	insight, err := ParseStructuredOutput([]byte(valid))
+	insight, err := ParseStructuredOutput([]byte(validStructuredOutput()))
 	if err != nil {
 		t.Fatalf("expected parse success, got %v", err)
 	}
@@ -92,19 +83,21 @@ func TestParseStructuredOutputValidatesInsight(t *testing.T) {
 }
 
 func TestParseStructuredOutputRejectsTrailingText(t *testing.T) {
-	valid := `{
-		"insight_type":"summary",
-		"summary":"Acme needs billing follow-up.",
-		"risk_level":"red",
-		"confidence":"medium",
-		"signals":[{"name":"Failed payments","evidence":"Two recent failed payments","impact":"negative"}],
-		"recommendations":[{"action":"Confirm payment method","owner":"billing","priority":"high","rationale":"Reduce involuntary churn risk"}]
-	}`
-
-	_, err := ParseStructuredOutput([]byte(valid + "\nHere is why."))
+	_, err := ParseStructuredOutput([]byte(validStructuredOutput() + "\nHere is why."))
 	if err == nil {
 		t.Fatal("expected trailing text to be rejected")
 	}
+}
+
+func validStructuredOutput() string {
+	return `{
+		"insight_type":"risk_assessment",
+		"summary":"Acme is at high churn risk because payments failed and engagement dropped.",
+		"risk_level":"red",
+		"confidence":"high",
+		"signals":[{"name":"Failed payments","evidence":"Three recent failed payments","impact":"negative"}],
+		"recommendations":[{"action":"Schedule billing recovery call","owner":"customer_success","priority":"high","rationale":"Recover payment method before renewal"}]
+	}`
 }
 
 func sampleCustomerAnalysisData() CustomerAnalysisData {
