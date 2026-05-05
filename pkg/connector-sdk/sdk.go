@@ -287,6 +287,9 @@ func validateConnectorMetadata(manifest ConnectorManifest) error {
 	if !semverPattern.MatchString(manifest.Version) {
 		return fmt.Errorf("manifest version %q must be semantic version", manifest.Version)
 	}
+	if strings.TrimSpace(manifest.Description) == "" {
+		return errors.New("manifest description is required")
+	}
 	return nil
 }
 

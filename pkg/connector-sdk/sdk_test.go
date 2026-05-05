@@ -96,6 +96,11 @@ func TestValidateManifestRejectsInvalidConnectorMetadata(t *testing.T) {
 			wantError: "semantic version",
 		},
 		{
+			name:      "missing description",
+			mutate:    func(m *ConnectorManifest) { m.Description = "" },
+			wantError: "description is required",
+		},
+		{
 			name:      "api key without header",
 			mutate:    func(m *ConnectorManifest) { m.Auth.APIKey.HeaderName = "" },
 			wantError: "header_name",
