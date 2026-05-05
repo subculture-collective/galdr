@@ -115,6 +115,36 @@ func TestFeaturePipelineRunBatchDedupesActiveIntegrationOrgs(t *testing.T) {
 	}
 }
 
+func TestFeaturePipelineStartRunsInitialBatch(t *testing.T) {
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	orgID := uuid.New()
+	customer := &repository.Customer{ID: uuid.New(), OrgID: orgID}
+	store := &recordingFeatureStore{savedSignal: make(chan struct{}, 1)}
+	pipeline := NewFeaturePipeline(FeaturePipelineDeps{
+		Customers:    &singleCustomerSource{customer: customer},
+		HealthScores: &historySource{},
+		Payments:     &paymentSource{},
+		Events:       &eventSource{},
+		Store:        store,
+		Connections: &connectionSource{connections: map[string][]*repository.IntegrationConnection{
+			"stripe": {{OrgID: orgID}},
+		}},
+		Now:      func() time.Time { return now },
+		Interval: time.Hour,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go pipeline.Start(ctx)
+
+	select {
+	case <-store.savedSignal:
+		cancel()
+	case <-time.After(time.Second):
+		t.Fatalf("expected initial feature batch before first interval")
+	}
+}
+
 type singleCustomerSource struct {
 	customer  *repository.Customer
 	customers []*repository.Customer
@@ -175,14 +205,26 @@ func (s *eventSource) ListByCustomerSince(_ context.Context, _ uuid.UUID, since 
 }
 
 type recordingFeatureStore struct {
-	saved    *repository.CustomerFeature
-	savedAll []*repository.CustomerFeature
+	saved       *repository.CustomerFeature
+	savedAll    []*repository.CustomerFeature
+	savedSignal chan struct{}
 }
 
 func (s *recordingFeatureStore) Upsert(_ context.Context, feature *repository.CustomerFeature) error {
 	s.saved = feature
 	s.savedAll = append(s.savedAll, feature)
+	s.signalSaved()
 	return nil
+}
+
+func (s *recordingFeatureStore) signalSaved() {
+	if s.savedSignal == nil {
+		return
+	}
+	select {
+	case s.savedSignal <- struct{}{}:
+	default:
+	}
 }
 
 type connectionSource struct {

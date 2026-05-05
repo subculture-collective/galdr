@@ -109,6 +109,8 @@ func NewFeaturePipeline(deps FeaturePipelineDeps) *FeaturePipeline {
 
 // Start runs daily feature-vector recalculation until ctx is cancelled.
 func (p *FeaturePipeline) Start(ctx context.Context) {
+	p.runBatchAndLog(ctx)
+
 	ticker := time.NewTicker(p.interval)
 	defer ticker.Stop()
 
@@ -117,10 +119,14 @@ func (p *FeaturePipeline) Start(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := p.RunBatch(ctx); err != nil {
-				slog.Error("feature pipeline batch failed", "error", err)
-			}
+			p.runBatchAndLog(ctx)
 		}
+	}
+}
+
+func (p *FeaturePipeline) runBatchAndLog(ctx context.Context) {
+	if err := p.RunBatch(ctx); err != nil {
+		slog.Error("feature pipeline batch failed", "error", err)
 	}
 }
 
