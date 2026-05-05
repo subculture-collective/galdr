@@ -478,7 +478,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				r.Use(middleware.TenantIsolation(orgRepo))
 
 				// Organization routes
-				orgSvc := service.NewOrganizationService(pool.P, orgRepo)
+				orgSvc := service.NewOrganizationService(pool.P, orgRepo, benchmarkRepo)
 				orgHandler := handler.NewOrganizationHandler(orgSvc)
 				r.Post("/organizations", orgHandler.Create)
 				r.Get("/organizations/current", orgHandler.GetCurrent)

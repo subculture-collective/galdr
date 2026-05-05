@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/onnwee/pulse-score/internal/repository"
@@ -73,12 +74,31 @@ type OrgResponse struct {
 // OrganizationService handles organization logic.
 type OrganizationService struct {
 	pool *pgxpool.Pool
-	orgs *repository.OrganizationRepository
+	orgs organizationStore
+	benchmarkContributions benchmarkContributionDeleter
+}
+
+type organizationStore interface {
+	GetByID(ctx context.Context, id uuid.UUID) (*repository.Organization, error)
+	GetWithStats(ctx context.Context, orgID uuid.UUID) (*repository.OrganizationWithStats, error)
+	Update(ctx context.Context, orgID uuid.UUID, name, slug, industry string) error
+	UpdateBenchmarkSettings(ctx context.Context, orgID uuid.UUID, benchmarkingEnabled bool, industry string, companySize int) error
+	SlugExists(ctx context.Context, slug string) (bool, error)
+	Create(ctx context.Context, tx pgx.Tx, org *repository.Organization) error
+	AddMember(ctx context.Context, tx pgx.Tx, userID, orgID uuid.UUID, role string) error
+}
+
+type benchmarkContributionDeleter interface {
+	DeleteContributionsByOrg(ctx context.Context, orgID uuid.UUID) error
 }
 
 // NewOrganizationService creates a new OrganizationService.
-func NewOrganizationService(pool *pgxpool.Pool, orgs *repository.OrganizationRepository) *OrganizationService {
-	return &OrganizationService{pool: pool, orgs: orgs}
+func NewOrganizationService(pool *pgxpool.Pool, orgs organizationStore, benchmarkContributions ...benchmarkContributionDeleter) *OrganizationService {
+	var deleter benchmarkContributionDeleter
+	if len(benchmarkContributions) > 0 {
+		deleter = benchmarkContributions[0]
+	}
+	return &OrganizationService{pool: pool, orgs: orgs, benchmarkContributions: deleter}
 }
 
 // UpdateOrgRequest holds input for updating an organization.
@@ -186,6 +206,11 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 	}
 	if err := s.orgs.UpdateBenchmarkSettings(ctx, orgID, benchmarkingEnabled, industry, companySize); err != nil {
 		return nil, fmt.Errorf("update org benchmark settings: %w", err)
+	}
+	if org.BenchmarkingEnabled && !benchmarkingEnabled && s.benchmarkContributions != nil {
+		if err := s.benchmarkContributions.DeleteContributionsByOrg(ctx, orgID); err != nil {
+			return nil, fmt.Errorf("delete benchmark contributions on opt-out: %w", err)
+		}
 	}
 
 	return s.GetCurrent(ctx, orgID)

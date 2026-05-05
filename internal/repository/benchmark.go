@@ -89,6 +89,14 @@ func (r *BenchmarkRepository) CreateContribution(ctx context.Context, contributi
 	return nil
 }
 
+func (r *BenchmarkRepository) DeleteContributionsByOrg(ctx context.Context, orgID uuid.UUID) error {
+	query := `DELETE FROM benchmark_contributions WHERE org_id = $1`
+	if _, err := r.pool.Exec(ctx, query, orgID); err != nil {
+		return fmt.Errorf("delete benchmark contributions by org: %w", err)
+	}
+	return nil
+}
+
 func (r *BenchmarkRepository) CreateAggregate(ctx context.Context, aggregate *BenchmarkAggregate) error {
 	if aggregate.ID == uuid.Nil {
 		aggregate.ID = uuid.New()
