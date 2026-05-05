@@ -356,21 +356,13 @@ func (r *CustomerRepository) ListWithScores(ctx context.Context, params Customer
 		args = append(args, params.Source)
 		argIdx++
 	}
-	if params.Assignee == "unassigned" {
-		where += " AND NOT EXISTS (SELECT 1 FROM customer_assignments ca WHERE ca.customer_id = c.id)"
-	} else if params.Assignee != "" {
-		assigneeID := params.AssigneeUserID
-		if assigneeID == uuid.Nil {
-			parsed, err := uuid.Parse(params.Assignee)
-			if err != nil {
-				return nil, fmt.Errorf("invalid assignee filter: %w", err)
-			}
-			assigneeID = parsed
-		}
-		where += fmt.Sprintf(" AND EXISTS (SELECT 1 FROM customer_assignments ca WHERE ca.customer_id = c.id AND ca.user_id = $%d)", argIdx)
-		args = append(args, assigneeID)
-		argIdx++
+	assigneeWhere, assigneeArgs, nextArgIdx, err := customerAssigneeWhere(params, argIdx)
+	if err != nil {
+		return nil, err
 	}
+	where += assigneeWhere
+	args = append(args, assigneeArgs...)
+	argIdx = nextArgIdx
 
 	// Count query
 	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM customers c LEFT JOIN health_scores hs ON c.id = hs.customer_id WHERE %s`, where)
@@ -447,4 +439,25 @@ func (r *CustomerRepository) ListWithScores(ctx context.Context, params Customer
 		PerPage:    params.PerPage,
 		TotalPages: totalPages,
 	}, nil
+}
+
+func customerAssigneeWhere(params CustomerListParams, argIdx int) (string, []any, int, error) {
+	switch params.Assignee {
+	case "":
+		return "", nil, argIdx, nil
+	case "unassigned":
+		return " AND NOT EXISTS (SELECT 1 FROM customer_assignments ca WHERE ca.customer_id = c.id)", nil, argIdx, nil
+	default:
+		assigneeID := params.AssigneeUserID
+		if assigneeID == uuid.Nil {
+			parsed, err := uuid.Parse(params.Assignee)
+			if err != nil {
+				return "", nil, argIdx, fmt.Errorf("invalid assignee filter: %w", err)
+			}
+			assigneeID = parsed
+		}
+
+		where := fmt.Sprintf(" AND EXISTS (SELECT 1 FROM customer_assignments ca WHERE ca.customer_id = c.id AND ca.user_id = $%d)", argIdx)
+		return where, []any{assigneeID}, argIdx + 1, nil
+	}
 }

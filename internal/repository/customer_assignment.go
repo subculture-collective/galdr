@@ -21,7 +21,6 @@ type CustomerAssignment struct {
 	AssigneeLastName  string
 	AssigneeEmail     string
 	AssigneeAvatarURL string
-	AssignedByEmail   string
 }
 
 // CustomerAssignmentRepository stores account assignments.
@@ -32,7 +31,7 @@ type CustomerAssignmentRepository struct {
 const customerAssignmentSelectColumns = `
 	a.customer_id, a.user_id, a.assigned_at, a.assigned_by,
 	COALESCE(assignee.first_name, ''), COALESCE(assignee.last_name, ''), assignee.email::text,
-	COALESCE(assignee.avatar_url, ''), assigner.email::text`
+	COALESCE(assignee.avatar_url, '')`
 
 // NewCustomerAssignmentRepository creates a new CustomerAssignmentRepository.
 func NewCustomerAssignmentRepository(pool *pgxpool.Pool) *CustomerAssignmentRepository {
@@ -45,7 +44,6 @@ func (r *CustomerAssignmentRepository) ListByCustomer(ctx context.Context, custo
 		SELECT `+customerAssignmentSelectColumns+`
 		FROM customer_assignments a
 		JOIN users assignee ON assignee.id = a.user_id
-		JOIN users assigner ON assigner.id = a.assigned_by
 		WHERE a.customer_id = $1
 		ORDER BY a.assigned_at DESC`, customerID)
 	if err != nil {
@@ -74,13 +72,12 @@ func (r *CustomerAssignmentRepository) Get(ctx context.Context, customerID, user
 		SELECT `+customerAssignmentSelectColumns+`
 		FROM customer_assignments a
 		JOIN users assignee ON assignee.id = a.user_id
-		JOIN users assigner ON assigner.id = a.assigned_by
 		WHERE a.customer_id = $1 AND a.user_id = $2`, customerID, userID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("get customer assignment: %w", err)
 	}
 	return assignment, nil
 }
@@ -93,14 +90,17 @@ func (r *CustomerAssignmentRepository) Upsert(ctx context.Context, customerID, u
 		ON CONFLICT (customer_id, user_id) DO UPDATE SET
 			assigned_at = NOW(),
 			assigned_by = EXCLUDED.assigned_by`, customerID, userID, assignedBy)
-	return err
+	if err != nil {
+		return fmt.Errorf("upsert customer assignment: %w", err)
+	}
+	return nil
 }
 
 // Delete removes an assignment.
 func (r *CustomerAssignmentRepository) Delete(ctx context.Context, customerID, userID uuid.UUID) error {
 	tag, err := r.pool.Exec(ctx, `DELETE FROM customer_assignments WHERE customer_id = $1 AND user_id = $2`, customerID, userID)
 	if err != nil {
-		return err
+		return fmt.Errorf("delete customer assignment: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return pgx.ErrNoRows
@@ -137,7 +137,6 @@ func scanCustomerAssignment(row assignmentRow) (*CustomerAssignment, error) {
 		&assignment.AssigneeLastName,
 		&assignment.AssigneeEmail,
 		&assignment.AssigneeAvatarURL,
-		&assignment.AssignedByEmail,
 	); err != nil {
 		return nil, err
 	}

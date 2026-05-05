@@ -347,11 +347,7 @@ func (s *CustomerService) GetDetail(ctx context.Context, customerID, orgID uuid.
 	}
 	detail.RecentEvents = eventInfos
 
-	assignmentInfos := make([]CustomerAssignmentResponse, len(assignments))
-	for i, assignment := range assignments {
-		assignmentInfos[i] = mapCustomerAssignment(assignment)
-	}
-	detail.Assignments = assignmentInfos
+	detail.Assignments = mapCustomerAssignments(assignments)
 
 	return detail, nil
 }
@@ -367,12 +363,7 @@ func (s *CustomerService) ListAssignments(ctx context.Context, customerID, orgID
 		return nil, fmt.Errorf("list customer assignments: %w", err)
 	}
 
-	resp := make([]CustomerAssignmentResponse, len(assignments))
-	for i, assignment := range assignments {
-		resp[i] = mapCustomerAssignment(assignment)
-	}
-
-	return &CustomerAssignmentsResponse{Assignments: resp}, nil
+	return &CustomerAssignmentsResponse{Assignments: mapCustomerAssignments(assignments)}, nil
 }
 
 // AssignCustomer assigns an org member to a customer.
@@ -635,6 +626,14 @@ func mapCustomerAssignment(assignment *repository.CustomerAssignment) CustomerAs
 		AssignedAt: assignment.AssignedAt,
 		AssignedBy: assignment.AssignedBy,
 	}
+}
+
+func mapCustomerAssignments(assignments []*repository.CustomerAssignment) []CustomerAssignmentResponse {
+	responses := make([]CustomerAssignmentResponse, len(assignments))
+	for i, assignment := range assignments {
+		responses[i] = mapCustomerAssignment(assignment)
+	}
+	return responses
 }
 
 func customerAssignmentUserName(assignment *repository.CustomerAssignment) string {
