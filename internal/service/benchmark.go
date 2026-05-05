@@ -21,15 +21,16 @@ type BenchmarkPIISample struct {
 }
 
 type BenchmarkOrgMetrics struct {
-	OrgID          uuid.UUID
-	OrgName        string
-	Industry       string
-	CompanySize    int
-	CustomerCount  int
-	TotalMRR       int64
-	AvgHealthScore float64
-	AvgChurnRate   float64
-	PIISamples     []BenchmarkPIISample
+	OrgID                  uuid.UUID
+	OrgName                string
+	Industry               string
+	CompanySize            int
+	CustomerCount          int
+	TotalMRR               int64
+	AvgHealthScore         float64
+	AvgChurnRate           float64
+	ActiveIntegrationCount int
+	PIISamples             []BenchmarkPIISample
 }
 
 const unknownBenchmarkIndustry = "unknown"
@@ -69,18 +70,22 @@ func (a *BenchmarkAnonymizer) Anonymize(metrics BenchmarkOrgMetrics) (*repositor
 	if metrics.TotalMRR < 0 {
 		return nil, fmt.Errorf("total mrr must be nonnegative")
 	}
+	if metrics.ActiveIntegrationCount < 0 {
+		return nil, fmt.Errorf("active integration count must be nonnegative")
+	}
 
 	industry := NormalizeBenchmarkIndustry(metrics.Industry)
 
 	return &repository.BenchmarkContribution{
-		OrgID:               metrics.OrgID,
-		Industry:            industry,
-		CompanySizeBucket:   BucketCompanySize(metrics.CompanySize),
-		AvgHealthScore:      metrics.AvgHealthScore,
-		AvgMRR:              averageMRR(metrics.TotalMRR, metrics.CustomerCount),
-		AvgChurnRate:        metrics.AvgChurnRate,
-		CustomerCountBucket: BucketCustomerCount(metrics.CustomerCount),
-		ContributedAt:       time.Now().UTC(),
+		OrgID:                  metrics.OrgID,
+		Industry:               industry,
+		CompanySizeBucket:      BucketCompanySize(metrics.CompanySize),
+		AvgHealthScore:         metrics.AvgHealthScore,
+		AvgMRR:                 averageMRR(metrics.TotalMRR, metrics.CustomerCount),
+		AvgChurnRate:           metrics.AvgChurnRate,
+		ActiveIntegrationCount: metrics.ActiveIntegrationCount,
+		CustomerCountBucket:    BucketCustomerCount(metrics.CustomerCount),
+		ContributedAt:          time.Now().UTC(),
 	}, nil
 }
 
@@ -136,6 +141,7 @@ type BenchmarkMetricsReader interface {
 	TotalMRR(ctx context.Context, orgID uuid.UUID) (int64, error)
 	AverageHealthScore(ctx context.Context, orgID uuid.UUID) (float64, error)
 	ChurnRate(ctx context.Context, orgID uuid.UUID) (float64, error)
+	ActiveIntegrationCount(ctx context.Context, orgID uuid.UUID) (int, error)
 }
 
 type BenchmarkContributionWriter interface {
@@ -343,15 +349,20 @@ func (p *BenchmarkPipeline) contributeOrg(ctx context.Context, org repository.Or
 	if err != nil {
 		return fmt.Errorf("benchmark churn rate: %w", err)
 	}
+	integrationCount, err := p.metrics.ActiveIntegrationCount(ctx, org.ID)
+	if err != nil {
+		return fmt.Errorf("count benchmark active integrations: %w", err)
+	}
 
 	contribution, err := p.anonymizer.Anonymize(BenchmarkOrgMetrics{
-		OrgID:          org.ID,
-		Industry:       org.Industry,
-		CompanySize:    org.CompanySize,
-		CustomerCount:  customerCount,
-		TotalMRR:       totalMRR,
-		AvgHealthScore: avgScore,
-		AvgChurnRate:   churnRate,
+		OrgID:                  org.ID,
+		Industry:               org.Industry,
+		CompanySize:            org.CompanySize,
+		CustomerCount:          customerCount,
+		TotalMRR:               totalMRR,
+		AvgHealthScore:         avgScore,
+		AvgChurnRate:           churnRate,
+		ActiveIntegrationCount: integrationCount,
 	})
 	if err != nil {
 		return fmt.Errorf("anonymize benchmark contribution: %w", err)
