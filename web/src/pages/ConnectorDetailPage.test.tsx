@@ -25,6 +25,7 @@ const connector: MarketplaceConnector = {
     version: "1.2.0",
     description:
       "Full connector detail for account records and sales activity.",
+    icon_url: "https://example.com/mock-crm.svg",
     categories: ["crm", "sales"],
     auth: { type: "oauth2" },
     sync: {
@@ -68,6 +69,7 @@ function assertMatch(input: string, pattern: RegExp) {
 
 const detail = render();
 assertMatch(detail, /Mock CRM/);
+assertMatch(detail, /Mock CRM icon/);
 assertMatch(detail, /Full connector detail/);
 assertMatch(detail, /PulseScore Labs/);
 assertMatch(detail, /4\.7 rating/);

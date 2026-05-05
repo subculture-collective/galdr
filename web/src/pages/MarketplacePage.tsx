@@ -22,6 +22,7 @@ export interface MarketplaceManifest {
   name: string;
   version: string;
   description: string;
+  icon_url?: string;
   categories?: string[];
   auth: { type: string };
   sync: {
@@ -201,7 +202,15 @@ function MarketplaceResults({
         >
           <div className="flex items-start justify-between gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[color:rgb(34_211_238_/_0.26)] bg-[color:rgb(34_211_238_/_0.11)] text-[var(--galdr-accent-2)]">
-              <PlugZap className="h-6 w-6" />
+              {connector.manifest.icon_url ? (
+                <img
+                  src={connector.manifest.icon_url}
+                  alt={`${connector.name} icon`}
+                  className="h-8 w-8 rounded-xl object-cover"
+                />
+              ) : (
+                <PlugZap className="h-6 w-6" />
+              )}
             </div>
             <span className="galdr-pill px-2.5 py-1 text-xs font-medium">
               v{connector.version}

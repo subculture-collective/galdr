@@ -22,6 +22,7 @@ const connectors: MarketplaceConnector[] = [
       name: "Mock CRM",
       version: "1.2.0",
       description: "Sync account records and sales activity from Mock CRM.",
+      icon_url: "https://example.com/mock-crm.svg",
       categories: ["crm"],
       auth: { type: "oauth2" },
       sync: {
@@ -54,6 +55,31 @@ const connectors: MarketplaceConnector[] = [
         default_mode: "full",
         resources: [
           { name: "tickets", description: "Tickets", required: true },
+        ],
+      },
+    },
+  },
+  {
+    id: "analytics-lab",
+    version: "0.9.0",
+    developer_id: "dev_3",
+    name: "Analytics Lab",
+    description: "Experimental product analytics connector.",
+    status: "approved",
+    created_at: "2026-05-01T00:00:00Z",
+    updated_at: "2026-05-02T00:00:00Z",
+    manifest: {
+      id: "analytics-lab",
+      name: "Analytics Lab",
+      version: "0.9.0",
+      description: "Experimental product analytics connector.",
+      categories: ["analytics"],
+      auth: { type: "none" },
+      sync: {
+        supported_modes: ["incremental"],
+        default_mode: "incremental",
+        resources: [
+          { name: "events", description: "Product events", required: true },
         ],
       },
     },
@@ -102,6 +128,7 @@ assertMatch(browse, /Integration Marketplace/);
 assertMatch(browse, /Search connectors/);
 assertMatch(browse, /Mock CRM/);
 assertMatch(browse, /SupportDesk/);
+assertMatch(browse, /Mock CRM icon/);
 assertMatch(browse, /1\.2\.0/);
 assertMatch(browse, /OAuth 2/);
 assertMatch(browse, /Install/);
@@ -113,6 +140,10 @@ assertNoMatch(filtered, /Mock CRM/);
 const searched = render({ search: "crm" });
 assertMatch(searched, /Mock CRM/);
 assertNoMatch(searched, /SupportDesk/);
+
+const statusFiltered = render({ status: "approved" });
+assertMatch(statusFiltered, /Analytics Lab/);
+assertNoMatch(statusFiltered, /Mock CRM/);
 
 const empty = render({ search: "warehouse" });
 assertMatch(empty, /No connectors found/);
