@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { salesforceApi, type SalesforceStatus } from "@/lib/salesforce";
 
+type SyncedResource = {
+  label: string;
+  count?: number;
+};
+
+function isConnectedStatus(status?: string) {
+  return status === "active" || status === "syncing";
+}
+
 export default function SalesforceConnectionCard() {
   const [status, setStatus] = useState<SalesforceStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,8 +85,12 @@ export default function SalesforceConnectionCard() {
     );
   }
 
-  const isConnected =
-    status?.status === "active" || status?.status === "syncing";
+  const isConnected = isConnectedStatus(status?.status);
+  const syncedResources: SyncedResource[] = [
+    { label: "Accounts synced", count: status?.account_count },
+    { label: "Contacts synced", count: status?.contact_count },
+    { label: "Opportunities synced", count: status?.opportunity_count },
+  ];
 
   return (
     <div className="galdr-card p-6">
@@ -129,16 +142,9 @@ export default function SalesforceConnectionCard() {
           {status.last_sync_at && (
             <p>Last sync: {new Date(status.last_sync_at).toLocaleString()}</p>
           )}
-          {status.account_count !== undefined && status.account_count > 0 && (
-            <p>Accounts synced: {status.account_count}</p>
-          )}
-          {status.contact_count !== undefined && status.contact_count > 0 && (
-            <p>Contacts synced: {status.contact_count}</p>
-          )}
-          {status.opportunity_count !== undefined &&
-            status.opportunity_count > 0 && (
-              <p>Opportunities synced: {status.opportunity_count}</p>
-            )}
+          {syncedResources.map((resource) => (
+            <SyncedResourceCount key={resource.label} resource={resource} />
+          ))}
           {status.last_sync_error && (
             <p className="text-[var(--galdr-danger)]">
               Last error: {status.last_sync_error}
@@ -179,38 +185,50 @@ export default function SalesforceConnectionCard() {
   );
 }
 
-function StatusBadge({ status }: { status?: string }) {
-  if (!status || status === "disconnected") {
-    return (
-      <span className="galdr-pill inline-flex items-center px-2.5 py-0.5 text-xs font-medium">
-        Not connected
-      </span>
-    );
+function SyncedResourceCount({ resource }: { resource: SyncedResource }) {
+  if (resource.count === undefined || resource.count <= 0) {
+    return null;
   }
-  if (status === "active") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-[color:rgb(52_211_153_/_0.35)] bg-[color:rgb(52_211_153_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-success)]">
-        Connected
-      </span>
-    );
-  }
-  if (status === "syncing") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-[color:rgb(34_211_238_/_0.35)] bg-[color:rgb(34_211_238_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-accent-2)]">
-        Syncing
-      </span>
-    );
-  }
-  if (status === "error") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-[color:rgb(244_63_94_/_0.35)] bg-[color:rgb(244_63_94_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-danger)]">
-        Error
-      </span>
-    );
-  }
+
   return (
-    <span className="inline-flex items-center rounded-full border border-[color:rgb(245_158_11_/_0.35)] bg-[color:rgb(245_158_11_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-at-risk)]">
-      {status}
-    </span>
+    <p>
+      {resource.label}: {resource.count}
+    </p>
   );
+}
+
+function StatusBadge({ status }: { status?: string }) {
+  switch (status) {
+    case undefined:
+    case "disconnected":
+      return (
+        <span className="galdr-pill inline-flex items-center px-2.5 py-0.5 text-xs font-medium">
+          Not connected
+        </span>
+      );
+    case "active":
+      return (
+        <span className="inline-flex items-center rounded-full border border-[color:rgb(52_211_153_/_0.35)] bg-[color:rgb(52_211_153_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-success)]">
+          Connected
+        </span>
+      );
+    case "syncing":
+      return (
+        <span className="inline-flex items-center rounded-full border border-[color:rgb(34_211_238_/_0.35)] bg-[color:rgb(34_211_238_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-accent-2)]">
+          Syncing
+        </span>
+      );
+    case "error":
+      return (
+        <span className="inline-flex items-center rounded-full border border-[color:rgb(244_63_94_/_0.35)] bg-[color:rgb(244_63_94_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-danger)]">
+          Error
+        </span>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center rounded-full border border-[color:rgb(245_158_11_/_0.35)] bg-[color:rgb(245_158_11_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-at-risk)]">
+          {status}
+        </span>
+      );
+  }
 }

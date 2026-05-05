@@ -16,6 +16,13 @@ interface IntegrationConnection {
   customer_count?: number;
 }
 
+const DEDICATED_INTEGRATION_PROVIDERS = new Set([
+  "stripe",
+  "hubspot",
+  "intercom",
+  "salesforce",
+]);
+
 export default function IntegrationsTab() {
   const [integrations, setIntegrations] = useState<IntegrationConnection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,13 +53,8 @@ export default function IntegrationsTab() {
     );
   }
 
-  // Filter out providers with dedicated connection cards.
   const otherIntegrations = integrations.filter(
-    (i) =>
-      i.provider !== "stripe" &&
-      i.provider !== "hubspot" &&
-      i.provider !== "intercom" &&
-      i.provider !== "salesforce",
+    (i) => !DEDICATED_INTEGRATION_PROVIDERS.has(i.provider),
   );
 
   return (
