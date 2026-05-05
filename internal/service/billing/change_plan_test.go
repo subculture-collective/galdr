@@ -90,14 +90,7 @@ func TestChangePlanUpgradePaidSubscriptionProratesAndUpdatesImmediately(t *testi
 		case req.Method == http.MethodGet && req.URL.Path == "/v1/subscriptions/sub_123":
 			return stripeJSON(`{"id":"sub_123","current_period_start":1710000000,"current_period_end":1712592000,"items":{"data":[{"id":"si_123","quantity":1,"price":{"id":"price_growth_monthly"}}]}}`), nil
 		case req.Method == http.MethodPost && req.URL.Path == "/v1/subscriptions/sub_123":
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				return nil, err
-			}
-			updateForm, err = url.ParseQuery(string(body))
-			if err != nil {
-				return nil, err
-			}
+			updateForm = readStripeForm(t, req)
 			return stripeJSON(`{"id":"sub_123","status":"active","current_period_start":1710000000,"current_period_end":1712592000}`), nil
 		default:
 			t.Fatalf("unexpected Stripe request: %s %s", req.Method, req.URL.Path)
@@ -124,10 +117,79 @@ func TestChangePlanUpgradePaidSubscriptionProratesAndUpdatesImmediately(t *testi
 	}
 }
 
+func TestChangePlanDowngradeReturnsStripePeriodEnd(t *testing.T) {
+	orgID := uuid.New()
+	userID := uuid.New()
+	store := &changePlanSubscriptionStore{sub: &repository.OrgSubscription{
+		OrgID:                orgID,
+		StripeSubscriptionID: "sub_123",
+		StripeCustomerID:     "cus_123",
+		PlanTier:             "scale",
+		BillingCycle:         "monthly",
+		Status:               "active",
+	}}
+	catalog := planmodel.NewCatalog(planmodel.PriceConfig{
+		ScaleMonthly:  "price_scale_monthly",
+		GrowthMonthly: "price_growth_monthly",
+	})
+
+	periodEnd := int64(1712592000)
+	var scheduleForm url.Values
+	svc := NewChangePlanService("sk_test", nil, store, catalog)
+	svc.httpClient = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case req.Method == http.MethodGet && req.URL.Path == "/v1/subscriptions/sub_123":
+			return stripeJSON(`{"id":"sub_123","current_period_start":1710000000,"current_period_end":1712592000,"items":{"data":[{"id":"si_123","quantity":1,"price":{"id":"price_scale_monthly"}}]}}`), nil
+		case req.Method == http.MethodPost && req.URL.Path == "/v1/subscription_schedules":
+			return stripeJSON(`{"id":"sched_123"}`), nil
+		case req.Method == http.MethodPost && req.URL.Path == "/v1/subscription_schedules/sched_123":
+			scheduleForm = readStripeForm(t, req)
+			return stripeJSON(`{"id":"sched_123"}`), nil
+		default:
+			t.Fatalf("unexpected Stripe request: %s %s", req.Method, req.URL.Path)
+			return nil, nil
+		}
+	})}
+
+	resp, err := svc.ChangePlan(context.Background(), orgID, userID, ChangePlanRequest{Tier: "growth", Cycle: "monthly"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	wantEffective := time.Unix(periodEnd, 0)
+	if resp.Action != "downgrade" || resp.Status != "scheduled" || !resp.EffectiveAtPeriodEnd {
+		t.Fatalf("unexpected downgrade response: %+v", resp)
+	}
+	if resp.EffectiveAt == nil || !resp.EffectiveAt.Equal(wantEffective) {
+		t.Fatalf("expected Stripe period end %v, got %v", wantEffective, resp.EffectiveAt)
+	}
+	if scheduleForm.Get("phases[0][end_date]") != "1712592000" || scheduleForm.Get("phases[1][items][0][price]") != "price_growth_monthly" {
+		t.Fatalf("expected downgrade schedule at period end, got form %v", scheduleForm)
+	}
+	if store.upserted != nil {
+		t.Fatalf("expected current plan access to remain until renewal, got local update %+v", store.upserted)
+	}
+}
+
 func stripeJSON(body string) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Header:     make(http.Header),
 	}
+}
+
+func readStripeForm(t *testing.T, req *http.Request) url.Values {
+	t.Helper()
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		t.Fatalf("read Stripe form body: %v", err)
+	}
+
+	values, err := url.ParseQuery(string(body))
+	if err != nil {
+		t.Fatalf("parse Stripe form body: %v", err)
+	}
+	return values
 }

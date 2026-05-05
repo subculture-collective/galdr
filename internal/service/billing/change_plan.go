@@ -117,9 +117,11 @@ func (s *ChangePlanService) ChangePlan(ctx context.Context, orgID, userID uuid.U
 			resp.Status = planChangeStatusActive
 		}
 	case planChangeActionDowngrade:
-		if err := s.scheduleDowngrade(ctx, sub, targetTier, targetCycle); err != nil {
+		effectiveAt, err := s.scheduleDowngrade(ctx, sub, targetTier, targetCycle)
+		if err != nil {
 			return nil, err
 		}
+		resp.EffectiveAt = effectiveAt
 	}
 
 	return resp, nil
@@ -226,37 +228,45 @@ func buildPlanChangeImpact(catalog *planmodel.Catalog, sub *repository.OrgSubscr
 	}, nil
 }
 
-func (s *ChangePlanService) scheduleDowngrade(ctx context.Context, sub *repository.OrgSubscription, targetTier planmodel.Tier, targetCycle planmodel.BillingCycle) error {
+func (s *ChangePlanService) scheduleDowngrade(ctx context.Context, sub *repository.OrgSubscription, targetTier planmodel.Tier, targetCycle planmodel.BillingCycle) (*time.Time, error) {
 	if s.stripeSecretKey == "" {
-		return &core.ValidationError{Field: "billing", Message: "stripe billing is not configured"}
+		return nil, &core.ValidationError{Field: "billing", Message: "stripe billing is not configured"}
 	}
 	if sub == nil || strings.TrimSpace(sub.StripeSubscriptionID) == "" {
-		return &core.NotFoundError{Resource: "subscription", Message: "no active Stripe subscription found"}
+		return nil, &core.NotFoundError{Resource: "subscription", Message: "no active Stripe subscription found"}
 	}
 
 	annual := targetCycle == planmodel.BillingCycleAnnual
 	priceID, err := s.catalog.GetPriceID(string(targetTier), annual)
 	if err != nil {
-		return &core.ValidationError{Field: "tier", Message: err.Error()}
+		return nil, &core.ValidationError{Field: "tier", Message: err.Error()}
 	}
 
 	stripeSub, err := s.fetchStripeSubscription(ctx, sub.StripeSubscriptionID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if stripeSub.ItemPriceID == "" {
-		return &core.ValidationError{Field: "subscription", Message: "subscription has no billable item"}
+		return nil, &core.ValidationError{Field: "subscription", Message: "subscription has no billable item"}
 	}
 
 	scheduleID := stripeSub.ScheduleID
 	if scheduleID == "" {
 		scheduleID, err = s.createScheduleFromSubscription(ctx, sub.StripeSubscriptionID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return s.updateScheduleForDowngrade(ctx, scheduleID, stripeSub, priceID, targetTier, targetCycle)
+	if err := s.updateScheduleForDowngrade(ctx, scheduleID, stripeSub, priceID, targetTier, targetCycle); err != nil {
+		return nil, err
+	}
+
+	if stripeSub.CurrentPeriodEnd == 0 {
+		return nil, nil
+	}
+	effectiveAt := time.Unix(stripeSub.CurrentPeriodEnd, 0)
+	return &effectiveAt, nil
 }
 
 type stripeSubscriptionSnapshot struct {
