@@ -301,6 +301,24 @@ func validateWebhooks(webhooks []WebhookConfig) error {
 		if len(webhook.EventTypes) == 0 {
 			return fmt.Errorf("webhook %q must declare event types", webhook.Path)
 		}
+		if err := validateWebhookEventTypes(webhook); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateWebhookEventTypes(webhook WebhookConfig) error {
+	seen := make(map[string]struct{}, len(webhook.EventTypes))
+	for _, eventType := range webhook.EventTypes {
+		eventType = strings.TrimSpace(eventType)
+		if eventType == "" {
+			return fmt.Errorf("webhook %q event type is required", webhook.Path)
+		}
+		if _, exists := seen[eventType]; exists {
+			return fmt.Errorf("duplicate webhook event type %q", eventType)
+		}
+		seen[eventType] = struct{}{}
 	}
 	return nil
 }

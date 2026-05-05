@@ -139,6 +139,20 @@ func TestValidateManifestRejectsInvalidConnectorMetadata(t *testing.T) {
 			mutate:    func(m *ConnectorManifest) { m.Webhooks[0].EventTypes = nil },
 			wantError: "event types",
 		},
+		{
+			name: "webhook duplicate event type",
+			mutate: func(m *ConnectorManifest) {
+				m.Webhooks[0].EventTypes = []string{"customer.updated", "customer.updated"}
+			},
+			wantError: "duplicate webhook event type",
+		},
+		{
+			name: "webhook blank event type",
+			mutate: func(m *ConnectorManifest) {
+				m.Webhooks[0].EventTypes = []string{"customer.updated", " "}
+			},
+			wantError: "event type is required",
+		},
 	}
 
 	for _, tt := range tests {
