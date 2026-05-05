@@ -11,6 +11,7 @@ import IntercomConnectionCard from "@/components/integrations/IntercomConnection
 import ZendeskConnectionCard from "@/components/integrations/ZendeskConnectionCard";
 import SalesforceConnectionCard from "@/components/integrations/SalesforceConnectionCard";
 import PostHogConnectionCard from "@/components/integrations/PostHogConnectionCard";
+import WebhookConfig from "@/components/integrations/WebhookConfig";
 import IntegrationCard from "@/components/IntegrationCard";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import { Loader2 } from "lucide-react";
@@ -120,6 +121,8 @@ export default function IntegrationsTab() {
         </h3>
         <PostHogConnectionCard />
       </div>
+
+      <WebhookConfig />
 
       {otherIntegrations.length > 0 && (
         <div>
