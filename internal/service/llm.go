@@ -120,6 +120,9 @@ func NewLLMService(provider LLMProvider, tracker LLMUsageTracker, cfg LLMService
 	if len(cfg.RetryDelays) == 0 {
 		cfg.RetryDelays = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
 	}
+	if cfg.Templates == nil {
+		cfg.Templates = loadDefaultLLMTemplates()
+	}
 
 	providers := make([]LLMProvider, 0, 1+len(cfg.FallbackProviders))
 	if provider != nil {
@@ -138,6 +141,14 @@ func NewLLMService(provider LLMProvider, tracker LLMUsageTracker, cfg LLMService
 		limiters:    make(map[uuid.UUID]*rate.Limiter),
 		dailyTokens: make(map[llmTokenBudgetKey]int),
 	}
+}
+
+func loadDefaultLLMTemplates() map[string]string {
+	templates, err := prompts.Templates()
+	if err != nil {
+		return nil
+	}
+	return templates
 }
 
 // Complete renders the prompt, enforces org limits, calls the provider, and tracks cost.
