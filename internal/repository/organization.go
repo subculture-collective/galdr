@@ -166,7 +166,7 @@ func (r *OrganizationRepository) UpdateBenchmarkSettings(ctx context.Context, or
 func (r *OrganizationRepository) ListBenchmarkingEnabled(ctx context.Context) ([]Organization, error) {
 	query := `
 		SELECT id, name, slug, plan, COALESCE(stripe_customer_id, ''),
-			benchmarking_enabled, industry, company_size, created_at, updated_at
+			benchmarking_enabled, COALESCE(industry, ''), company_size, created_at, updated_at
 		FROM organizations
 		WHERE benchmarking_enabled = true AND deleted_at IS NULL
 		ORDER BY id`

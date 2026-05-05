@@ -59,7 +59,7 @@ func TestBenchmarkContributionModelContainsOnlyOrgLevelFields(t *testing.T) {
 }
 
 func TestBenchmarkMigrationUpFileContainsTablesAndOptInFields(t *testing.T) {
-	sql := readMigrationSQL(t, "../../migrations/000024_create_benchmarking.up.sql")
+	sql := readMigrationSQL(t, "../../migrations/000026_create_benchmarking.up.sql")
 
 	required := []string{
 		"benchmarking_enabled",
@@ -80,7 +80,7 @@ func TestBenchmarkMigrationUpFileContainsTablesAndOptInFields(t *testing.T) {
 }
 
 func TestBenchmarkMigrationUpFilePreventsIndividualCustomerData(t *testing.T) {
-	sql := readMigrationSQL(t, "../../migrations/000024_create_benchmarking.up.sql")
+	sql := readMigrationSQL(t, "../../migrations/000026_create_benchmarking.up.sql")
 
 	forbidden := []string{"customer_id ", "email ", "full_name ", "external_id ", "metadata "}
 	for _, item := range forbidden {
@@ -91,7 +91,7 @@ func TestBenchmarkMigrationUpFilePreventsIndividualCustomerData(t *testing.T) {
 }
 
 func TestBenchmarkMigrationDownFileDropsTablesAndOptInFields(t *testing.T) {
-	sql := readMigrationSQL(t, "../../migrations/000024_create_benchmarking.down.sql")
+	sql := readMigrationSQL(t, "../../migrations/000026_create_benchmarking.down.sql")
 
 	required := []string{
 		"DROP TABLE IF EXISTS benchmark_aggregates",
@@ -107,8 +107,8 @@ func TestBenchmarkMigrationDownFileDropsTablesAndOptInFields(t *testing.T) {
 }
 
 func TestBenchmarkMigrationDoesNotOwnIndustryClassification(t *testing.T) {
-	upSQL := readMigrationSQL(t, "../../migrations/000024_create_benchmarking.up.sql")
-	downSQL := readMigrationSQL(t, "../../migrations/000024_create_benchmarking.down.sql")
+	upSQL := readMigrationSQL(t, "../../migrations/000026_create_benchmarking.up.sql")
+	downSQL := readMigrationSQL(t, "../../migrations/000026_create_benchmarking.down.sql")
 
 	if strings.Contains(upSQL, "ADD COLUMN industry") {
 		t.Error("benchmark migration must not add organizations.industry; industry classification owns that column")
