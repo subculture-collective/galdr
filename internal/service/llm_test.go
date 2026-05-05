@@ -112,6 +112,35 @@ func TestLLMServiceRetriesProviderRateLimits(t *testing.T) {
 	}
 }
 
+func TestLLMServiceRetriesProviderRateLimitsUsingRetryAfter(t *testing.T) {
+	orgID := uuid.New()
+	provider := &fakeLLMProvider{
+		errors: []error{
+			&LLMProviderError{StatusCode: http.StatusTooManyRequests, Message: "slow down", RetryAfter: time.Millisecond},
+			nil,
+		},
+		completions: []LLMProviderResponse{
+			{},
+			{Text: "retried", InputTokens: 10, OutputTokens: 2},
+		},
+	}
+	svc := NewLLMService(provider, nil, LLMServiceConfig{
+		RequestsPerMinute: 10,
+		MaxTokensPerDay:   10_000,
+		RetryDelays:       []time.Duration{time.Hour},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	res, err := svc.Complete(ctx, LLMCompletionRequest{OrgID: orgID, Prompt: "retry"})
+	if err != nil {
+		t.Fatalf("expected retry-after success, got %v", err)
+	}
+	if res.Text != "retried" || provider.calls != 2 {
+		t.Fatalf("expected retried response and two calls, got res=%+v calls=%d", res, provider.calls)
+	}
+}
+
 func TestLLMServiceFallsBackToAlternateProvider(t *testing.T) {
 	orgID := uuid.New()
 	primary := &fakeLLMProvider{
