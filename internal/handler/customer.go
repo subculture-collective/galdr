@@ -73,8 +73,7 @@ func (h *CustomerHandler) GetDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customerIDStr := chi.URLParam(r, "id")
-	customerID, err := uuid.Parse(customerIDStr)
+	customerID, err := parseCustomerID(r)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse("invalid customer ID"))
 		return
@@ -97,8 +96,7 @@ func (h *CustomerHandler) ListEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customerIDStr := chi.URLParam(r, "id")
-	customerID, err := uuid.Parse(customerIDStr)
+	customerID, err := parseCustomerID(r)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse("invalid customer ID"))
 		return

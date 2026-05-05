@@ -119,13 +119,10 @@ func NewInsightPipeline(deps InsightPipelineDeps) *InsightPipeline {
 
 // GenerateCustomerInsight creates a customer insight or returns a fresh cached one.
 func (p *InsightPipeline) GenerateCustomerInsight(ctx context.Context, orgID, customerID uuid.UUID, opts InsightGenerationOptions) (*CustomerInsightResponse, error) {
-	if p == nil || p.customers == nil || p.healthScores == nil || p.events == nil || p.insights == nil || p.llm == nil {
+	if !p.configured() {
 		return nil, fmt.Errorf("insight pipeline not configured")
 	}
-	insightType := opts.InsightType
-	if insightType == "" {
-		insightType = InsightTypeCustomerAnalysis
-	}
+	insightType := insightTypeOrDefault(opts.InsightType)
 	if !opts.Force {
 		cached, err := p.insights.GetRecent(ctx, orgID, customerID, insightType, p.now().Add(-p.cacheTTL))
 		if err != nil {
@@ -155,10 +152,7 @@ func (p *InsightPipeline) GenerateCustomerInsight(ctx context.Context, orgID, cu
 		return nil, fmt.Errorf("list customer events: %w", err)
 	}
 
-	data, err := p.buildPromptData(ctx, customer, healthScore, events)
-	if err != nil {
-		return nil, err
-	}
+	data := p.buildPromptData(ctx, customer, healthScore, events)
 	completion, err := p.llm.Complete(ctx, LLMCompletionRequest{
 		OrgID:        orgID,
 		TemplateName: prompts.CustomerAnalysisTemplate,
@@ -199,7 +193,7 @@ func (p *InsightPipeline) ListCustomerInsights(ctx context.Context, orgID, custo
 	return p.insights.ListByCustomer(ctx, orgID, customerID, limit)
 }
 
-// GenerateForScoreChange generates a fresh insight when a score change crosses insight thresholds.
+// GenerateForScoreChange generates an insight when a score change crosses insight thresholds.
 func (p *InsightPipeline) GenerateForScoreChange(ctx context.Context, previous, current *repository.HealthScore) (*CustomerInsightResponse, bool, error) {
 	trigger, ok := InsightTriggerForScoreChange(previous, current, 0)
 	if !ok {
@@ -211,7 +205,7 @@ func (p *InsightPipeline) GenerateForScoreChange(ctx context.Context, previous, 
 
 // ProcessBatch generates insights for lowest-score customers first.
 func (p *InsightPipeline) ProcessBatch(ctx context.Context, orgID uuid.UUID, limit int) (*InsightBatchResponse, error) {
-	if p == nil || p.customers == nil || p.healthScores == nil || p.events == nil || p.insights == nil || p.llm == nil {
+	if !p.configured() {
 		return nil, fmt.Errorf("insight pipeline not configured")
 	}
 	if limit <= 0 || limit > p.batchLimit {
@@ -233,7 +227,18 @@ func (p *InsightPipeline) ProcessBatch(ctx context.Context, orgID uuid.UUID, lim
 	return resp, nil
 }
 
-func (p *InsightPipeline) buildPromptData(ctx context.Context, customer *repository.Customer, healthScore *repository.HealthScore, events []*repository.CustomerEvent) (prompts.CustomerAnalysisData, error) {
+func (p *InsightPipeline) configured() bool {
+	return p != nil && p.customers != nil && p.healthScores != nil && p.events != nil && p.insights != nil && p.llm != nil
+}
+
+func insightTypeOrDefault(insightType string) string {
+	if insightType == "" {
+		return InsightTypeCustomerAnalysis
+	}
+	return insightType
+}
+
+func (p *InsightPipeline) buildPromptData(ctx context.Context, customer *repository.Customer, healthScore *repository.HealthScore, events []*repository.CustomerEvent) prompts.CustomerAnalysisData {
 	now := p.now()
 	return prompts.CustomerAnalysisData{
 		Customer: prompts.CustomerSnapshot{
@@ -253,7 +258,7 @@ func (p *InsightPipeline) buildPromptData(ctx context.Context, customer *reposit
 			Factors:        scoreFactors(healthScore.Factors),
 		},
 		Events: eventSummaries(events, now),
-	}, nil
+	}
 }
 
 func (p *InsightPipeline) scoreChange(ctx context.Context, current *repository.HealthScore, at time.Time) int {

@@ -12,6 +12,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	defaultCustomerInsightLimit = 10
+	maxCustomerInsightLimit     = 50
+)
+
 // CustomerInsight stores one generated AI insight for a customer.
 type CustomerInsight struct {
 	ID          uuid.UUID      `json:"id"`
@@ -65,8 +70,8 @@ func (r *CustomerInsightRepository) GetRecent(ctx context.Context, orgID, custom
 
 // ListByCustomer lists recent insights for a customer.
 func (r *CustomerInsightRepository) ListByCustomer(ctx context.Context, orgID, customerID uuid.UUID, limit int) ([]*CustomerInsight, error) {
-	if limit <= 0 || limit > 50 {
-		limit = 10
+	if limit <= 0 || limit > maxCustomerInsightLimit {
+		limit = defaultCustomerInsightLimit
 	}
 	query := `
 		SELECT id, org_id, customer_id, insight_type, content, generated_at, model, token_cost, created_at, updated_at
