@@ -86,7 +86,7 @@ func averageMRR(totalMRR int64, customerCount int) int64 {
 	return totalMRR / int64(customerCount)
 }
 
-// NormalizeBenchmarkIndustry maps free-form org input to safe benchmark segments.
+// NormalizeBenchmarkIndustry maps organization industry labels to safe benchmark segments.
 func NormalizeBenchmarkIndustry(industry string) string {
 	normalized := strings.ToLower(strings.TrimSpace(industry))
 	if normalized == "" || strings.Contains(normalized, "@") || strings.Contains(normalized, ".") {

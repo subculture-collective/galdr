@@ -17,7 +17,7 @@ func TestAuthRegisterRejectsUnknownIndustry(t *testing.T) {
 		Industry:  "Professional Services",
 	})
 
-	assertIndustryValidationError(t, err)
+	assertIndustryValidationError(t, err, industryValidationMessage)
 }
 
 func TestAuthRegisterRequiresIndustry(t *testing.T) {
@@ -32,5 +32,5 @@ func TestAuthRegisterRequiresIndustry(t *testing.T) {
 		Industry:  " ",
 	})
 
-	assertIndustryValidationError(t, err)
+	assertIndustryValidationError(t, err, industryRequiredMessage)
 }
