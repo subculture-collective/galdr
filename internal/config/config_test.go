@@ -19,6 +19,7 @@ func clearEnv() {
 		"STRIPE_BILLING_PRICE_SCALE_MONTHLY", "STRIPE_BILLING_PRICE_SCALE_ANNUAL",
 		"OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_MAX_TOKENS",
 		"OPENAI_REQUESTS_PER_MINUTE", "OPENAI_MAX_TOKENS_PER_DAY",
+		"INTERNAL_ANALYTICS_TOKEN",
 		"BENCHMARK_CONTRIBUTION_INTERVAL_HR",
 	} {
 		os.Unsetenv(key)
@@ -78,6 +79,18 @@ func TestLoadBenchmarkContributionIntervalFromEnv(t *testing.T) {
 
 	if cfg.Benchmark.ContributionIntervalHr != 12 {
 		t.Errorf("expected benchmark contribution interval 12h, got %d", cfg.Benchmark.ContributionIntervalHr)
+	}
+}
+
+func TestLoadInternalAnalyticsTokenFromEnv(t *testing.T) {
+	clearEnv()
+	os.Setenv("INTERNAL_ANALYTICS_TOKEN", "internal-secret")
+	defer clearEnv()
+
+	cfg := Load()
+
+	if cfg.Internal.AnalyticsToken != "internal-secret" {
+		t.Errorf("expected internal analytics token to load from env")
 	}
 }
 
@@ -234,12 +247,27 @@ func TestValidateProductionWithBillingStripeConfig(t *testing.T) {
 	setProductionCoreEnv()
 	setProductionBillingStripeEnv()
 	os.Setenv("OPENAI_API_KEY", "sk_live_123")
+	os.Setenv("INTERNAL_ANALYTICS_TOKEN", "internal-secret")
 	defer clearEnv()
 
 	cfg := Load()
 
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("expected production validation to pass, got %v", err)
+	}
+}
+
+func TestValidateProductionRequiresInternalAnalyticsToken(t *testing.T) {
+	clearEnv()
+	setProductionCoreEnv()
+	setProductionBillingStripeEnv()
+	os.Setenv("OPENAI_API_KEY", "sk_live_123")
+	defer clearEnv()
+
+	cfg := Load()
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error when INTERNAL_ANALYTICS_TOKEN is missing in production")
 	}
 }
 

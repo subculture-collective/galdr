@@ -8,19 +8,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/onnwee/pulse-score/internal/service"
+	connectorsdk "github.com/onnwee/pulse-score/pkg/connector-sdk"
 )
 
 // IntegrationIntercomHandler provides Intercom integration HTTP endpoints.
 type IntegrationIntercomHandler struct {
-	oauthSvc     *service.IntercomOAuthService
-	orchestrator *service.IntercomSyncOrchestratorService
+	oauthSvc *service.IntercomOAuthService
+	syncer   service.ConnectorSyncer
 }
 
 // NewIntegrationIntercomHandler creates a new IntegrationIntercomHandler.
-func NewIntegrationIntercomHandler(oauthSvc *service.IntercomOAuthService, orchestrator *service.IntercomSyncOrchestratorService) *IntegrationIntercomHandler {
+func NewIntegrationIntercomHandler(oauthSvc *service.IntercomOAuthService, syncer service.ConnectorSyncer) *IntegrationIntercomHandler {
 	return &IntegrationIntercomHandler{
-		oauthSvc:     oauthSvc,
-		orchestrator: orchestrator,
+		oauthSvc: oauthSvc,
+		syncer:   syncer,
 	}
 }
 
@@ -38,7 +39,7 @@ func (h *IntegrationIntercomHandler) Callback(w http.ResponseWriter, r *http.Req
 		"Intercom",
 		"Intercom connected successfully. Initial sync started.",
 		h.oauthSvc.ExchangeCode,
-		func(ctx context.Context, orgID uuid.UUID) { h.orchestrator.RunFullSync(ctx, orgID) },
+		h.runFullSync,
 	)
 }
 
@@ -59,9 +60,19 @@ func (h *IntegrationIntercomHandler) TriggerSync(w http.ResponseWriter, r *http.
 	integrationTriggerSync(
 		w,
 		r,
-		func(ctx context.Context, orgID uuid.UUID) { h.orchestrator.RunFullSync(ctx, orgID) },
+		h.runFullSync,
 		"Intercom sync started",
 	)
+}
+
+func (h *IntegrationIntercomHandler) runFullSync(ctx context.Context, orgID uuid.UUID) {
+	if h.syncer == nil {
+		slog.Error("intercom syncer is not configured")
+		return
+	}
+	if _, err := h.syncer.Sync(ctx, "intercom", orgID, connectorsdk.SyncModeFull, nil); err != nil {
+		slog.Error("intercom sync failed", "error", err)
+	}
 }
 
 // WebhookIntercomHandler provides Intercom webhook HTTP endpoints.

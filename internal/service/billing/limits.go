@@ -39,6 +39,7 @@ type LimitsService struct {
 	integrationCounter integrationCounter
 	integrationLookup  integrationLookup
 	catalog            *planmodel.Catalog
+	featureFlags       *FeatureFlagService
 }
 
 func NewLimitsService(
@@ -46,6 +47,7 @@ func NewLimitsService(
 	customers customerCounter,
 	integrationCounter integrationCounter,
 	integrationLookup integrationLookup,
+	overrides featureOverrideReader,
 	catalog *planmodel.Catalog,
 ) *LimitsService {
 	return &LimitsService{
@@ -54,6 +56,7 @@ func NewLimitsService(
 		integrationCounter: integrationCounter,
 		integrationLookup:  integrationLookup,
 		catalog:            catalog,
+		featureFlags:       NewFeatureFlagService(subscriptions, overrides, catalog),
 	}
 }
 
@@ -63,9 +66,9 @@ func (s *LimitsService) CheckCustomerLimit(ctx context.Context, orgID uuid.UUID)
 		return nil, err
 	}
 
-	limits, ok := s.catalog.GetLimits(tier)
-	if !ok {
-		return nil, fmt.Errorf("no limits configured for tier %s", tier)
+	limit, err := s.featureFlags.GetLimit(ctx, orgID, LimitCustomer)
+	if err != nil {
+		return nil, err
 	}
 
 	used, err := s.customers.CountByOrg(ctx, orgID)
@@ -73,7 +76,7 @@ func (s *LimitsService) CheckCustomerLimit(ctx context.Context, orgID uuid.UUID)
 		return nil, fmt.Errorf("count customers: %w", err)
 	}
 
-	return s.buildLimitDecision(tier, "customer_limit", used, limits.CustomerLimit), nil
+	return s.buildLimitDecision(tier, LimitCustomer, used, limit), nil
 }
 
 func (s *LimitsService) CheckIntegrationLimit(ctx context.Context, orgID uuid.UUID, provider string) (*LimitDecision, error) {
@@ -96,9 +99,9 @@ func (s *LimitsService) CheckIntegrationLimit(ctx context.Context, orgID uuid.UU
 		return nil, err
 	}
 
-	limits, ok := s.catalog.GetLimits(tier)
-	if !ok {
-		return nil, fmt.Errorf("no limits configured for tier %s", tier)
+	limit, err := s.featureFlags.GetLimit(ctx, orgID, LimitIntegration)
+	if err != nil {
+		return nil, err
 	}
 
 	used, err := s.integrationCounter.CountActiveByOrg(ctx, orgID)
@@ -106,7 +109,7 @@ func (s *LimitsService) CheckIntegrationLimit(ctx context.Context, orgID uuid.UU
 		return nil, fmt.Errorf("count active integrations: %w", err)
 	}
 
-	return s.buildLimitDecision(tier, "integration_limit", used, limits.IntegrationLimit), nil
+	return s.buildLimitDecision(tier, LimitIntegration, used, limit), nil
 }
 
 func (s *LimitsService) CanAccess(ctx context.Context, orgID uuid.UUID, featureName string) (*FeatureDecision, error) {
@@ -119,7 +122,10 @@ func (s *LimitsService) CanAccess(ctx context.Context, orgID uuid.UUID, featureN
 		return nil, fmt.Errorf("no plan configured for tier %s", tier)
 	}
 
-	allowed, _ := s.catalog.HasFeature(tier, featureName)
+	allowed, err := s.featureFlags.CanAccess(ctx, orgID, featureName)
+	if err != nil {
+		return nil, err
+	}
 
 	decision := &FeatureDecision{
 		Allowed:     allowed,

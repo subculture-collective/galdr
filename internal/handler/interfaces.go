@@ -30,6 +30,14 @@ type integrationServicer interface {
 	Disconnect(ctx context.Context, orgID uuid.UUID, provider string) error
 }
 
+// marketplaceServicer defines the methods the MarketplaceHandler needs.
+type marketplaceServicer interface {
+	Register(ctx context.Context, developerID uuid.UUID, req service.RegisterConnectorRequest) (*repository.MarketplaceConnector, error)
+	ListPublished(ctx context.Context) ([]*repository.MarketplaceConnector, error)
+	GetPublished(ctx context.Context, id string) (*repository.MarketplaceConnector, error)
+	Install(ctx context.Context, orgID uuid.UUID, id string, req service.InstallConnectorRequest) (*repository.ConnectorInstallation, error)
+}
+
 // memberServicer defines the methods the MemberHandler needs.
 type memberServicer interface {
 	ListMembers(ctx context.Context, orgID uuid.UUID) ([]service.MemberResponse, error)

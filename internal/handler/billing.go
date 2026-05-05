@@ -27,6 +27,11 @@ type billingSubscriptionServicer interface {
 	GetSubscriptionSummary(ctx context.Context, orgID uuid.UUID) (*billing.SubscriptionSummary, error)
 }
 
+type billingUsageServicer interface {
+	GetUsage(ctx context.Context, orgID uuid.UUID) (*billing.UsageSummary, error)
+	GetAggregateAnalytics(ctx context.Context) (*billing.AggregateUsageAnalytics, error)
+}
+
 type billingPlanChangeServicer interface {
 	ChangePlan(ctx context.Context, orgID, userID uuid.UUID, req billing.ChangePlanRequest) (*billing.ChangePlanResponse, error)
 }
@@ -40,6 +45,7 @@ type BillingHandler struct {
 	checkoutSvc     billingCheckoutServicer
 	portalSvc       billingPortalServicer
 	subscriptionSvc billingSubscriptionServicer
+	usageSvc        billingUsageServicer
 	planChangeSvc   billingPlanChangeServicer
 }
 
@@ -47,12 +53,14 @@ func NewBillingHandler(
 	checkoutSvc billingCheckoutServicer,
 	portalSvc billingPortalServicer,
 	subscriptionSvc billingSubscriptionServicer,
+	usageSvc billingUsageServicer,
 	planChangeSvc billingPlanChangeServicer,
 ) *BillingHandler {
 	return &BillingHandler{
 		checkoutSvc:     checkoutSvc,
 		portalSvc:       portalSvc,
 		subscriptionSvc: subscriptionSvc,
+		usageSvc:        usageSvc,
 		planChangeSvc:   planChangeSvc,
 	}
 }
@@ -112,6 +120,34 @@ func (h *BillingHandler) GetSubscription(w http.ResponseWriter, r *http.Request)
 	}
 
 	resp, err := h.subscriptionSvc.GetSubscriptionSummary(r.Context(), orgID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// GetUsage handles GET /api/v1/billing/usage.
+func (h *BillingHandler) GetUsage(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := auth.GetOrgID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	resp, err := h.usageSvc.GetUsage(r.Context(), orgID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// GetUsageAnalytics handles GET /api/v1/billing/usage/analytics.
+func (h *BillingHandler) GetUsageAnalytics(w http.ResponseWriter, r *http.Request) {
+	resp, err := h.usageSvc.GetAggregateAnalytics(r.Context())
 	if err != nil {
 		handleServiceError(w, err)
 		return

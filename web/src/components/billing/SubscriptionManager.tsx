@@ -3,7 +3,11 @@ import { ExternalLink, Loader2 } from "lucide-react";
 
 import PlanChangeDialog from "@/components/billing/PlanChangeDialog";
 import { useToast } from "@/contexts/ToastContext";
-import { billingApi, type BillingSubscriptionResponse } from "@/lib/api";
+import {
+  billingApi,
+  type BillingSubscriptionResponse,
+  type BillingUsageResponse,
+} from "@/lib/api";
 import {
   billingPlans,
   type BillingCycle,
@@ -46,6 +50,7 @@ export default function SubscriptionManager({
 }: SubscriptionManagerProps) {
   const [subscription, setSubscription] =
     useState<BillingSubscriptionResponse | null>(null);
+  const [usage, setUsage] = useState<BillingUsageResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [openingPortal, setOpeningPortal] = useState(false);
@@ -65,8 +70,11 @@ export default function SubscriptionManager({
   const fetchSubscription = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await billingApi.getSubscription();
-      setSubscription(data);
+      const [{ data: subscriptionData }, { data: usageData }] = await Promise.all(
+        [billingApi.getSubscription(), billingApi.getUsage()],
+      );
+      setSubscription(subscriptionData);
+      setUsage(usageData);
     } catch {
       toast.error("Failed to load subscription details");
     } finally {
@@ -208,13 +216,37 @@ export default function SubscriptionManager({
           {[
             {
               label: "Customers",
-              used: subscription.usage.customers.used,
-              limit: subscription.usage.customers.limit,
+              used: usage?.customer_count.used ?? subscription.usage.customers.used,
+              limit:
+                usage?.customer_count.limit ?? subscription.usage.customers.limit,
             },
             {
               label: "Integrations",
-              used: subscription.usage.integrations.used,
-              limit: subscription.usage.integrations.limit,
+              used:
+                usage?.integration_count.used ??
+                subscription.usage.integrations.used,
+              limit:
+                usage?.integration_count.limit ??
+                subscription.usage.integrations.limit,
+            },
+            {
+              label: "Team members",
+              used:
+                usage?.team_member_count.used ??
+                subscription.usage.team_members.used,
+              limit:
+                usage?.team_member_count.limit ??
+                subscription.usage.team_members.limit,
+            },
+            {
+              label: "Playbooks",
+              used: usage?.playbook_count.used ?? 0,
+              limit: usage?.playbook_count.limit ?? -1,
+            },
+            {
+              label: "API requests today",
+              used: usage?.api_requests_count.used ?? 0,
+              limit: usage?.api_requests_count.limit ?? -1,
             },
           ].map((item) => (
             <div key={item.label}>

@@ -1,7 +1,8 @@
 import { spawn, spawnSync } from "node:child_process";
 import { closeSync, openSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
+import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 
@@ -31,6 +32,48 @@ const logFile = path.join(stateDir, "opencode.log");
 const portFile = path.join(stateDir, "opencode.port");
 const healthTimeoutMs = 30_000;
 let servicePort: number | undefined;
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await readFile(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function bootstrapOpenCodeConfig(): Promise<void> {
+  const sourceDir = path.join(process.cwd(), "opencode");
+  const sourceAuth = path.join(sourceDir, "auth.json");
+  const home = homedir();
+  const configDir = path.join(home, ".config", "opencode");
+  const dataDir = path.join(home, ".local", "share", "opencode");
+  const configFile = path.join(configDir, "opencode.json");
+  const configAuth = path.join(configDir, "auth.json");
+  const dataAuth = path.join(dataDir, "auth.json");
+
+  const hasSourceAuth = await pathExists(sourceAuth);
+  if (!hasSourceAuth) return;
+
+  const needsConfig = !(await pathExists(configFile));
+  const needsAuth = !(await pathExists(dataAuth));
+  if (!needsConfig && !needsAuth) return;
+
+  await mkdir(configDir, { recursive: true });
+  await mkdir(dataDir, { recursive: true });
+
+  if (needsConfig) {
+    await cp(sourceDir, configDir, { recursive: true, force: true });
+    await rm(configAuth, { force: true });
+  }
+
+  if (needsAuth) {
+    await cp(sourceAuth, dataAuth, { force: true });
+    await chmod(dataAuth, 0o600);
+  }
+
+  console.error("[sandcastle-opencode] bootstrapped OpenCode config for runtime user");
+}
 
 function baseUrl() {
   if (servicePort === undefined) {
@@ -478,6 +521,7 @@ async function main(): Promise<void> {
     throw new Error("Missing required --role.");
   }
 
+  await bootstrapOpenCodeConfig();
   validateRuntime(args.role);
   await ensureService();
 

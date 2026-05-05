@@ -83,7 +83,16 @@ export interface BillingSubscriptionResponse {
     integrations: BillingUsageMetric;
     team_members: BillingUsageMetric;
   };
-  features: Record<string, unknown>;
+  features: Record<string, boolean>;
+}
+
+export interface BillingUsageResponse {
+  recorded_at: string;
+  customer_count: BillingUsageMetric;
+  integration_count: BillingUsageMetric;
+  playbook_count: BillingUsageMetric;
+  team_member_count: BillingUsageMetric;
+  api_requests_count: BillingUsageMetric;
 }
 
 export interface CheckoutPayload {
@@ -130,6 +139,8 @@ export interface PlanChangeResponse {
 export const billingApi = {
   getSubscription: () =>
     api.get<BillingSubscriptionResponse>("/billing/subscription"),
+
+  getUsage: () => api.get<BillingUsageResponse>("/billing/usage"),
 
   createCheckout: (payload: CheckoutPayload) =>
     api.post<{ url: string }>("/billing/checkout", payload),
