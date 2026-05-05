@@ -19,7 +19,20 @@ import (
 const (
 	// GenericWebhookEventSource marks customers and events created by the generic webhook receiver.
 	GenericWebhookEventSource = "generic_webhook"
+
+	genericWebhookCustomerEmailKey    = "customer_email"
+	genericWebhookEventTypeKey        = "event_type"
+	genericWebhookExternalEventIDKey  = "external_event_id"
+	genericWebhookOccurredAtKey       = "occurred_at"
+	genericWebhookDefaultCurrency     = "usd"
 )
+
+var genericWebhookReservedDataKeys = map[string]struct{}{
+	genericWebhookCustomerEmailKey:   {},
+	genericWebhookEventTypeKey:       {},
+	genericWebhookExternalEventIDKey: {},
+	genericWebhookOccurredAtKey:      {},
+}
 
 // GenericWebhookConfigRequest creates or updates generic webhook config.
 type GenericWebhookConfigRequest struct {
@@ -87,11 +100,7 @@ func (s *GenericWebhookService) Create(ctx context.Context, orgID uuid.UUID, req
 	if err := validateGenericWebhookConfig(req); err != nil {
 		return nil, err
 	}
-	active := true
-	if req.IsActive != nil {
-		active = *req.IsActive
-	}
-	cfg := &repository.GenericWebhookConfig{OrgID: orgID, Name: strings.TrimSpace(req.Name), Secret: req.Secret, FieldMapping: req.FieldMapping, IsActive: active}
+	cfg := newGenericWebhookConfig(orgID, req)
 	if err := s.configs.Create(ctx, cfg); err != nil {
 		return nil, fmt.Errorf("create generic webhook config: %w", err)
 	}
@@ -178,61 +187,88 @@ func (s *GenericWebhookService) Process(ctx context.Context, orgSlug string, web
 		return nil, err
 	}
 
-	customerEmail := stringFromMapped(mapped, "customer_email")
-	if customerEmail == "" {
-		return nil, &ValidationError{Field: "field_mapping.customer_email", Message: "customer_email mapping is required"}
-	}
-	eventType := stringFromMapped(mapped, "event_type")
-	if eventType == "" {
-		return nil, &ValidationError{Field: "field_mapping.event_type", Message: "event_type mapping is required"}
-	}
-
-	customer, err := s.customers.GetByEmail(ctx, org.ID, customerEmail)
+	customerEmail, eventType, err := requiredGenericWebhookFields(mapped)
 	if err != nil {
-		return nil, fmt.Errorf("get customer by email: %w", err)
+		return nil, err
 	}
-	if customer == nil {
-		now := time.Now().UTC()
-		customer = &repository.Customer{
-			OrgID:       org.ID,
-			ExternalID:  customerEmail,
-			Source:      GenericWebhookEventSource,
-			Email:       customerEmail,
-			Name:        customerEmail,
-			Currency:    "usd",
-			FirstSeenAt: &now,
-			LastSeenAt:  &now,
-			Metadata:    map[string]any{"source": GenericWebhookEventSource},
-		}
-		if err := s.customers.UpsertByExternal(ctx, customer); err != nil {
-			return nil, fmt.Errorf("upsert generic webhook customer: %w", err)
-		}
+	customer, err := s.findOrCreateGenericWebhookCustomer(ctx, org.ID, customerEmail)
+	if err != nil {
+		return nil, err
 	}
 
-	event := &repository.CustomerEvent{
-		OrgID:           org.ID,
-		CustomerID:      customer.ID,
-		EventType:       eventType,
-		Source:          GenericWebhookEventSource,
-		ExternalEventID: stringFromMapped(mapped, "external_event_id"),
-		OccurredAt:      time.Now().UTC(),
-		Data:            genericWebhookEventData(body, mapped),
-	}
-	if event.ExternalEventID == "" {
-		event.ExternalEventID = genericWebhookPayloadID(payload)
-	}
-	if occurredAt := stringFromMapped(mapped, "occurred_at"); occurredAt != "" {
-		parsed, err := time.Parse(time.RFC3339, occurredAt)
-		if err != nil {
-			return nil, &ValidationError{Field: "field_mapping.occurred_at", Message: "occurred_at must be RFC3339"}
-		}
-		event.OccurredAt = parsed.UTC()
+	event, err := newGenericWebhookEvent(org.ID, customer.ID, eventType, payload, body, mapped)
+	if err != nil {
+		return nil, err
 	}
 	if err := s.events.Upsert(ctx, event); err != nil {
 		return nil, fmt.Errorf("upsert generic webhook event: %w", err)
 	}
 
 	return &GenericWebhookProcessResult{EventID: event.ID, CustomerID: customer.ID, EventType: event.EventType}, nil
+}
+
+func newGenericWebhookConfig(orgID uuid.UUID, req GenericWebhookConfigRequest) *repository.GenericWebhookConfig {
+	active := true
+	if req.IsActive != nil {
+		active = *req.IsActive
+	}
+	return &repository.GenericWebhookConfig{
+		OrgID:        orgID,
+		Name:         strings.TrimSpace(req.Name),
+		Secret:       req.Secret,
+		FieldMapping: req.FieldMapping,
+		IsActive:     active,
+	}
+}
+
+func (s *GenericWebhookService) findOrCreateGenericWebhookCustomer(ctx context.Context, orgID uuid.UUID, email string) (*repository.Customer, error) {
+	customer, err := s.customers.GetByEmail(ctx, orgID, email)
+	if err != nil {
+		return nil, fmt.Errorf("get customer by email: %w", err)
+	}
+	if customer != nil {
+		return customer, nil
+	}
+
+	now := time.Now().UTC()
+	customer = &repository.Customer{
+		OrgID:       orgID,
+		ExternalID:  email,
+		Source:      GenericWebhookEventSource,
+		Email:       email,
+		Name:        email,
+		Currency:    genericWebhookDefaultCurrency,
+		FirstSeenAt: &now,
+		LastSeenAt:  &now,
+		Metadata:    map[string]any{"source": GenericWebhookEventSource},
+	}
+	if err := s.customers.UpsertByExternal(ctx, customer); err != nil {
+		return nil, fmt.Errorf("upsert generic webhook customer: %w", err)
+	}
+	return customer, nil
+}
+
+func newGenericWebhookEvent(orgID, customerID uuid.UUID, eventType string, payload []byte, body map[string]any, mapped map[string]any) (*repository.CustomerEvent, error) {
+	event := &repository.CustomerEvent{
+		OrgID:           orgID,
+		CustomerID:      customerID,
+		EventType:       eventType,
+		Source:          GenericWebhookEventSource,
+		ExternalEventID: stringFromMapped(mapped, genericWebhookExternalEventIDKey),
+		OccurredAt:      time.Now().UTC(),
+		Data:            genericWebhookEventData(body, mapped),
+	}
+	if event.ExternalEventID == "" {
+		event.ExternalEventID = genericWebhookPayloadID(payload)
+	}
+	if occurredAt := stringFromMapped(mapped, genericWebhookOccurredAtKey); occurredAt != "" {
+		parsed, err := time.Parse(time.RFC3339, occurredAt)
+		if err != nil {
+			return nil, &ValidationError{Field: "field_mapping.occurred_at", Message: "occurred_at must be RFC3339"}
+		}
+		event.OccurredAt = parsed.UTC()
+	}
+	return event, nil
 }
 
 // Test maps a sample payload without creating customers or events.
@@ -259,13 +295,25 @@ func validateGenericWebhookConfig(req GenericWebhookConfigRequest) error {
 	if req.FieldMapping == nil {
 		return &ValidationError{Field: "field_mapping", Message: "field_mapping is required"}
 	}
-	if _, ok := req.FieldMapping["customer_email"]; !ok {
+	if _, ok := req.FieldMapping[genericWebhookCustomerEmailKey]; !ok {
 		return &ValidationError{Field: "field_mapping.customer_email", Message: "customer_email mapping is required"}
 	}
-	if _, ok := req.FieldMapping["event_type"]; !ok {
+	if _, ok := req.FieldMapping[genericWebhookEventTypeKey]; !ok {
 		return &ValidationError{Field: "field_mapping.event_type", Message: "event_type mapping is required"}
 	}
 	return nil
+}
+
+func requiredGenericWebhookFields(mapped map[string]any) (string, string, error) {
+	customerEmail := stringFromMapped(mapped, genericWebhookCustomerEmailKey)
+	if customerEmail == "" {
+		return "", "", &ValidationError{Field: "field_mapping.customer_email", Message: "customer_email mapping is required"}
+	}
+	eventType := stringFromMapped(mapped, genericWebhookEventTypeKey)
+	if eventType == "" {
+		return "", "", &ValidationError{Field: "field_mapping.event_type", Message: "event_type mapping is required"}
+	}
+	return customerEmail, eventType, nil
 }
 
 func verifyGenericWebhookSignature(secret string, payload []byte, signature string) error {
@@ -344,7 +392,7 @@ func stringFromMapped(mapped map[string]any, key string) string {
 func genericWebhookEventData(payload map[string]any, mapped map[string]any) map[string]any {
 	data := map[string]any{"payload": payload}
 	for key, value := range mapped {
-		if key == "customer_email" || key == "event_type" || key == "external_event_id" || key == "occurred_at" {
+		if _, reserved := genericWebhookReservedDataKeys[key]; reserved {
 			continue
 		}
 		data[key] = value

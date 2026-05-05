@@ -11,6 +11,8 @@ import (
 	"github.com/onnwee/pulse-score/internal/service"
 )
 
+const genericWebhookSignatureHeader = "X-PulseScore-Signature"
+
 // GenericWebhookHandler provides generic webhook config and receiver endpoints.
 type GenericWebhookHandler struct {
 	service genericWebhookServicer
@@ -99,7 +101,7 @@ func (h *GenericWebhookHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		handleServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusNoContent, nil)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Process handles POST /api/v1/webhooks/generic/{org_slug}/{webhook_id}.
@@ -110,7 +112,12 @@ func (h *GenericWebhookHandler) Process(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusBadRequest, errorResponse("invalid webhook route"))
 		return
 	}
-	result, err := h.service.Process(r.Context(), orgSlug, webhookID, readBody(r), r.Header.Get("X-PulseScore-Signature"))
+	payload, err := readBody(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse("invalid request body"))
+		return
+	}
+	result, err := h.service.Process(r.Context(), orgSlug, webhookID, payload, r.Header.Get(genericWebhookSignatureHeader))
 	if err != nil {
 		handleServiceError(w, err)
 		return
