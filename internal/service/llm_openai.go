@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/onnwee/pulse-score/internal/service/prompts"
 )
 
 const (
@@ -65,11 +67,7 @@ func (p *OpenAIProvider) Name() string {
 
 // CountTokens estimates token count without an extra dependency.
 func (p *OpenAIProvider) CountTokens(text string) int {
-	words := len(strings.Fields(text))
-	if words == 0 {
-		return 0
-	}
-	return (words*4 + 2) / 3
+	return prompts.EstimateTokens(text)
 }
 
 // Complete calls OpenAI chat completions.

@@ -241,6 +241,14 @@ func TestOpenAIProviderRateLimitErrorIncludesRetryMetadata(t *testing.T) {
 	}
 }
 
+func TestOpenAIProviderCountsCompactStructuredPrompts(t *testing.T) {
+	provider := NewOpenAIProvider(OpenAIProviderConfig{APIKey: "sk-test"})
+
+	if tokens := provider.CountTokens(`{"signals":[{"name":"failed_payments"}]}`); tokens <= 0 {
+		t.Fatalf("expected compact structured prompt to count tokens, got %d", tokens)
+	}
+}
+
 func TestNewOpenAILLMServiceUsesProviderConfigMaxTokens(t *testing.T) {
 	var seenRequest openAIChatRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

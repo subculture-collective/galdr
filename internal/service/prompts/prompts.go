@@ -208,23 +208,37 @@ func (s StructuredInsight) Validate() error {
 		return errors.New("at least one signal is required")
 	}
 	for i, signal := range s.Signals {
-		if strings.TrimSpace(signal.Name) == "" || strings.TrimSpace(signal.Evidence) == "" {
-			return fmt.Errorf("signal %d requires name and evidence", i)
-		}
-		if !oneOf(signal.Impact, "positive", "negative", "neutral") {
-			return fmt.Errorf("signal %d impact must be positive, negative, or neutral", i)
+		if err := validateSignal(i, signal); err != nil {
+			return err
 		}
 	}
 	if len(s.Recommendations) == 0 {
 		return errors.New("at least one recommendation is required")
 	}
 	for i, rec := range s.Recommendations {
-		if strings.TrimSpace(rec.Action) == "" || strings.TrimSpace(rec.Owner) == "" || strings.TrimSpace(rec.Rationale) == "" {
-			return fmt.Errorf("recommendation %d requires action, owner, and rationale", i)
+		if err := validateRecommendation(i, rec); err != nil {
+			return err
 		}
-		if !oneOf(rec.Priority, "high", "medium", "low") {
-			return fmt.Errorf("recommendation %d priority must be high, medium, or low", i)
-		}
+	}
+	return nil
+}
+
+func validateSignal(index int, signal InsightSignal) error {
+	if strings.TrimSpace(signal.Name) == "" || strings.TrimSpace(signal.Evidence) == "" {
+		return fmt.Errorf("signal %d requires name and evidence", index)
+	}
+	if !oneOf(signal.Impact, "positive", "negative", "neutral") {
+		return fmt.Errorf("signal %d impact must be positive, negative, or neutral", index)
+	}
+	return nil
+}
+
+func validateRecommendation(index int, rec Recommendation) error {
+	if strings.TrimSpace(rec.Action) == "" || strings.TrimSpace(rec.Owner) == "" || strings.TrimSpace(rec.Rationale) == "" {
+		return fmt.Errorf("recommendation %d requires action, owner, and rationale", index)
+	}
+	if !oneOf(rec.Priority, "high", "medium", "low") {
+		return fmt.Errorf("recommendation %d priority must be high, medium, or low", index)
 	}
 	return nil
 }
