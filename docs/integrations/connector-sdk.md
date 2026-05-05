@@ -34,7 +34,7 @@ Required fields:
 
 | Field | Description |
 | --- | --- |
-| `id` | Stable lowercase slug, for example `zendesk` or `mock-crm`. |
+| `id` | Stable lowercase slug using letters, numbers, and single hyphens, for example `zendesk` or `mock-crm`. |
 | `name` | Human-readable marketplace name. |
 | `version` | Connector version using semantic versioning, for example `1.2.3`. |
 | `description` | Short developer and marketplace description. |
