@@ -173,6 +173,32 @@ func TestExtractCustomerFeaturesUsesRecentEventsForLastActivity(t *testing.T) {
 	assertClose(t, features.Values[FeatureDaysSinceLastActivity], 0.05)
 }
 
+func TestFeatureVectorValuesInOrderReturnsStableModelInput(t *testing.T) {
+	vector := FeatureVector{Values: map[string]float64{
+		FeatureCurrentHealthScore:         0.8,
+		FeaturePaymentFailureFrequency90d: 0.25,
+	}}
+
+	values := vector.ValuesInOrder()
+	names := FeatureNames()
+
+	if len(values) != len(names) {
+		t.Fatalf("ordered values length %d, want %d", len(values), len(names))
+	}
+	assertClose(t, values[1], 0.25)
+	assertClose(t, values[len(values)-1], 0.8)
+	assertClose(t, values[0], 0)
+}
+
+func TestFeatureNamesCannotMutateStableModelOrder(t *testing.T) {
+	names := FeatureNames()
+	names[0] = "mutated"
+
+	if got := FeatureNames()[0]; got != FeatureScoreTrajectorySlope30d {
+		t.Fatalf("feature order mutated to %q", got)
+	}
+}
+
 func TestNormalizeMinMaxClampsToUnitRange(t *testing.T) {
 	assertClose(t, NormalizeMinMax(5, 0, 10), 0.5)
 	assertClose(t, NormalizeMinMax(-5, 0, 10), 0)
