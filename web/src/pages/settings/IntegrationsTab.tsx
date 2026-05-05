@@ -4,6 +4,7 @@ import { useToast } from "@/contexts/ToastContext";
 import StripeConnectionCard from "@/components/integrations/StripeConnectionCard";
 import HubSpotConnectionCard from "@/components/integrations/HubSpotConnectionCard";
 import IntercomConnectionCard from "@/components/integrations/IntercomConnectionCard";
+import SalesforceConnectionCard from "@/components/integrations/SalesforceConnectionCard";
 import IntegrationCard from "@/components/IntegrationCard";
 import { Loader2 } from "lucide-react";
 
@@ -45,12 +46,13 @@ export default function IntegrationsTab() {
     );
   }
 
-  // Filter out Stripe and HubSpot from generic list since they have dedicated cards
+  // Filter out providers with dedicated connection cards.
   const otherIntegrations = integrations.filter(
     (i) =>
       i.provider !== "stripe" &&
       i.provider !== "hubspot" &&
-      i.provider !== "intercom",
+      i.provider !== "intercom" &&
+      i.provider !== "salesforce",
   );
 
   return (
@@ -74,6 +76,13 @@ export default function IntegrationsTab() {
           Intercom
         </h3>
         <IntercomConnectionCard />
+      </div>
+
+      <div>
+        <h3 className="mb-4 text-sm font-medium text-[var(--galdr-fg)]">
+          Salesforce
+        </h3>
+        <SalesforceConnectionCard />
       </div>
 
       {otherIntegrations.length > 0 && (
