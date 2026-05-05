@@ -12,10 +12,12 @@ import (
 )
 
 type mockMarketplaceRepository struct {
-	createConnectorFn          func(ctx context.Context, connector *repository.MarketplaceConnector) error
-	getConnectorFn             func(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error)
-	listPublishedConnectorsFn  func(ctx context.Context) ([]*repository.MarketplaceConnector, error)
-	createInstallationFn       func(ctx context.Context, installation *repository.ConnectorInstallation) error
+	createConnectorFn         func(ctx context.Context, connector *repository.MarketplaceConnector) error
+	getConnectorFn            func(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error)
+	listPublishedConnectorsFn func(ctx context.Context) ([]*repository.MarketplaceConnector, error)
+	createInstallationFn      func(ctx context.Context, installation *repository.ConnectorInstallation) error
+	createReviewResultFn      func(ctx context.Context, result *repository.ConnectorReviewResult) error
+	updateConnectorStatusFn   func(ctx context.Context, id, version, status string) error
 }
 
 func (m *mockMarketplaceRepository) CreateConnector(ctx context.Context, connector *repository.MarketplaceConnector) error {
@@ -32,6 +34,14 @@ func (m *mockMarketplaceRepository) ListPublishedConnectors(ctx context.Context)
 
 func (m *mockMarketplaceRepository) CreateInstallation(ctx context.Context, installation *repository.ConnectorInstallation) error {
 	return m.createInstallationFn(ctx, installation)
+}
+
+func (m *mockMarketplaceRepository) CreateReviewResult(ctx context.Context, result *repository.ConnectorReviewResult) error {
+	return m.createReviewResultFn(ctx, result)
+}
+
+func (m *mockMarketplaceRepository) UpdateConnectorStatus(ctx context.Context, id, version, status string) error {
+	return m.updateConnectorStatusFn(ctx, id, version, status)
 }
 
 func TestMarketplaceRegisterValidatesManifestAndDefaultsDraft(t *testing.T) {

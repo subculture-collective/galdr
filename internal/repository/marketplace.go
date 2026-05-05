@@ -29,6 +29,12 @@ const (
 	ConnectorInstallationStatusDisabled    = "disabled"
 	ConnectorInstallationStatusError       = "error"
 	ConnectorInstallationStatusUninstalled = "uninstalled"
+
+	ConnectorReviewStatusApproved = "approved"
+	ConnectorReviewStatusBlocked  = "blocked"
+
+	ConnectorReviewCheckPassed = "passed"
+	ConnectorReviewCheckFailed = "failed"
 )
 
 // MarketplaceConnector represents a versioned marketplace connector manifest.
@@ -55,6 +61,27 @@ type ConnectorInstallation struct {
 	Status           string         `json:"status"`
 	InstalledAt      time.Time      `json:"installed_at"`
 	UpdatedAt        time.Time      `json:"updated_at"`
+}
+
+// ConnectorReviewCheck records one automated or sandbox review check.
+type ConnectorReviewCheck struct {
+	Name    string `json:"name"`
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
+}
+
+// ConnectorReviewResult records the review outcome for a submitted connector.
+type ConnectorReviewResult struct {
+	ID                uuid.UUID              `json:"id"`
+	ConnectorID       string                 `json:"connector_id"`
+	ConnectorVersion  string                 `json:"connector_version"`
+	ReviewerID        uuid.UUID              `json:"reviewer_id"`
+	Status            string                 `json:"status"`
+	AutomatedChecks   []ConnectorReviewCheck `json:"automated_checks"`
+	SecurityChecklist map[string]bool        `json:"security_checklist"`
+	SandboxChecks     []ConnectorReviewCheck `json:"sandbox_checks"`
+	CreatedAt         time.Time              `json:"created_at"`
+	UpdatedAt         time.Time              `json:"updated_at"`
 }
 
 // MarketplaceRepository handles connector marketplace persistence.
@@ -141,6 +168,42 @@ func (r *MarketplaceRepository) CreateInstallation(ctx context.Context, installa
 		RETURNING id, installed_at, updated_at
 	`, installation.ConnectorID, installation.ConnectorVersion, installation.OrgID, config, installation.Status,
 	).Scan(&installation.ID, &installation.InstalledAt, &installation.UpdatedAt)
+}
+
+// CreateReviewResult records the connector review outcome for one submission.
+func (r *MarketplaceRepository) CreateReviewResult(ctx context.Context, result *ConnectorReviewResult) error {
+	automatedChecks, err := json.Marshal(result.AutomatedChecks)
+	if err != nil {
+		return fmt.Errorf("marshal connector review automated checks: %w", err)
+	}
+	securityChecklist, err := json.Marshal(result.SecurityChecklist)
+	if err != nil {
+		return fmt.Errorf("marshal connector review security checklist: %w", err)
+	}
+	sandboxChecks, err := json.Marshal(result.SandboxChecks)
+	if err != nil {
+		return fmt.Errorf("marshal connector review sandbox checks: %w", err)
+	}
+
+	return r.pool.QueryRow(ctx, `
+		INSERT INTO connector_review_results (connector_id, connector_version, reviewer_id, status, automated_checks, security_checklist, sandbox_checks)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, created_at, updated_at
+	`, result.ConnectorID, result.ConnectorVersion, result.ReviewerID, result.Status, automatedChecks, securityChecklist, sandboxChecks,
+	).Scan(&result.ID, &result.CreatedAt, &result.UpdatedAt)
+}
+
+// UpdateConnectorStatus updates a versioned marketplace connector status.
+func (r *MarketplaceRepository) UpdateConnectorStatus(ctx context.Context, id, version, status string) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE marketplace_connectors
+		SET status = $3, updated_at = NOW()
+		WHERE id = $1 AND version = $2
+	`, id, version, status)
+	if err != nil {
+		return fmt.Errorf("update marketplace connector status: %w", err)
+	}
+	return nil
 }
 
 func scanMarketplaceConnector(scanner marketplaceConnectorScanner) (*MarketplaceConnector, error) {

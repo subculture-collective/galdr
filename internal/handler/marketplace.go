@@ -94,6 +94,37 @@ func (h *MarketplaceHandler) Install(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, installation)
 }
 
+func (h *MarketplaceHandler) Review(w http.ResponseWriter, r *http.Request) {
+	reviewerID, ok := auth.GetUserID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+	id := connectorIDParam(r)
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse("connector id is required"))
+		return
+	}
+	version := strings.TrimSpace(chi.URLParam(r, "version"))
+	if version == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse("connector version is required"))
+		return
+	}
+
+	var req service.ConnectorReviewRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse("invalid request body"))
+		return
+	}
+
+	result, err := h.service.Review(r.Context(), reviewerID, id, version, req)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, result)
+}
+
 func connectorIDParam(r *http.Request) string {
 	return strings.TrimSpace(chi.URLParam(r, "id"))
 }

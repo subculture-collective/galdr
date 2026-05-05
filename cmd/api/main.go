@@ -558,6 +558,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 					r.Group(func(r chi.Router) {
 						r.Use(middleware.RequireRole("admin"))
 						r.Post("/", marketplaceHandler.Register)
+						r.Post("/{id}/versions/{version}/review", marketplaceHandler.Review)
 						r.Post("/{id}/install", marketplaceHandler.Install)
 					})
 				})

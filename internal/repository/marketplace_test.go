@@ -79,6 +79,28 @@ func TestConnectorInstallationModel(t *testing.T) {
 	}
 }
 
+func TestConnectorReviewResultModel(t *testing.T) {
+	reviewerID := uuid.New()
+	result := &ConnectorReviewResult{
+		ConnectorID:      "mock-crm",
+		ConnectorVersion: "1.0.0",
+		ReviewerID:       reviewerID,
+		Status:           ConnectorReviewStatusBlocked,
+		AutomatedChecks: []ConnectorReviewCheck{
+			{Name: "https_urls", Status: ConnectorReviewCheckFailed, Message: "oauth2 authorize_url must be an https URL"},
+		},
+		SecurityChecklist: map[string]bool{"data_access_justified": true},
+		SandboxChecks:     []ConnectorReviewCheck{{Name: "sandbox_sync", Status: ConnectorReviewCheckPassed}},
+	}
+
+	if result.ReviewerID != reviewerID {
+		t.Fatalf("expected reviewer id %s, got %s", reviewerID, result.ReviewerID)
+	}
+	if result.AutomatedChecks[0].Status != ConnectorReviewCheckFailed || !result.SecurityChecklist["data_access_justified"] {
+		t.Fatal("expected review result checks to be retained")
+	}
+}
+
 func TestScanMarketplaceConnectorPreservesNoRowsError(t *testing.T) {
 	_, err := scanMarketplaceConnector(noRowsScanner{})
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -115,5 +137,32 @@ func TestMarketplaceMigrationDownFileDropsTables(t *testing.T) {
 		if !strings.Contains(sql, stmt) {
 			t.Fatalf("migration down file missing statement: %s", stmt)
 		}
+	}
+}
+
+func TestConnectorReviewMigrationContainsReviewResults(t *testing.T) {
+	data, err := os.ReadFile("../../migrations/000029_create_connector_review_results.up.sql")
+	if err != nil {
+		t.Fatalf("failed to read migration file: %v", err)
+	}
+	sql := string(data)
+	for _, fragment := range []string{
+		"CREATE TABLE connector_review_results",
+		"FOREIGN KEY (connector_id, connector_version)",
+		"automated_checks JSONB NOT NULL",
+		"security_checklist JSONB NOT NULL",
+		"sandbox_checks JSONB NOT NULL",
+	} {
+		if !strings.Contains(sql, fragment) {
+			t.Fatalf("review migration missing fragment: %s", fragment)
+		}
+	}
+
+	down, err := os.ReadFile("../../migrations/000029_create_connector_review_results.down.sql")
+	if err != nil {
+		t.Fatalf("failed to read migration file: %v", err)
+	}
+	if !strings.Contains(string(down), "DROP TABLE IF EXISTS connector_review_results") {
+		t.Fatal("review migration down file must drop connector_review_results")
 	}
 }
