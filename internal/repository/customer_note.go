@@ -30,6 +30,11 @@ type CustomerNoteRepository struct {
 	pool *pgxpool.Pool
 }
 
+const customerNoteSelectColumns = `
+	n.id, n.customer_id, n.user_id, n.content, n.created_at, n.updated_at,
+	COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), u.email::text,
+	COALESCE(u.avatar_url, '')`
+
 // NewCustomerNoteRepository creates a new CustomerNoteRepository.
 func NewCustomerNoteRepository(pool *pgxpool.Pool) *CustomerNoteRepository {
 	return &CustomerNoteRepository{pool: pool}
@@ -38,9 +43,7 @@ func NewCustomerNoteRepository(pool *pgxpool.Pool) *CustomerNoteRepository {
 // ListByCustomer returns notes newest first with author details.
 func (r *CustomerNoteRepository) ListByCustomer(ctx context.Context, customerID uuid.UUID) ([]*CustomerNote, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT n.id, n.customer_id, n.user_id, n.content, n.created_at, n.updated_at,
-		       COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), u.email::text,
-		       COALESCE(u.avatar_url, '')
+		SELECT ` + customerNoteSelectColumns + `
 		FROM customer_notes n
 		JOIN users u ON u.id = n.user_id
 		WHERE n.customer_id = $1
@@ -68,9 +71,7 @@ func (r *CustomerNoteRepository) ListByCustomer(ctx context.Context, customerID 
 // GetByIDForCustomer returns a single note scoped to a customer.
 func (r *CustomerNoteRepository) GetByIDForCustomer(ctx context.Context, noteID, customerID uuid.UUID) (*CustomerNote, error) {
 	note, err := scanCustomerNote(r.pool.QueryRow(ctx, `
-		SELECT n.id, n.customer_id, n.user_id, n.content, n.created_at, n.updated_at,
-		       COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), u.email::text,
-		       COALESCE(u.avatar_url, '')
+		SELECT ` + customerNoteSelectColumns + `
 		FROM customer_notes n
 		JOIN users u ON u.id = n.user_id
 		WHERE n.id = $1 AND n.customer_id = $2`, noteID, customerID))

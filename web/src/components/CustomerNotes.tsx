@@ -111,6 +111,118 @@ export default function CustomerNotes({ customerId }: CustomerNotesProps) {
     }
   }
 
+  function startEditing(note: CustomerNote) {
+    setEditingId(note.id);
+    setEditingContent(note.content);
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+  }
+
+  function renderNotesContent() {
+    if (loading) {
+      return (
+        <div className="galdr-card p-6 text-sm text-[var(--galdr-fg-muted)]">
+          Loading notes...
+        </div>
+      );
+    }
+
+    if (notes.length === 0) {
+      return (
+        <div className="galdr-card p-6 text-center text-sm text-[var(--galdr-fg-muted)]">
+          No notes yet. Add the first account note above.
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {notes.map((note) => (
+          <article key={note.id} className="galdr-card p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--galdr-surface-soft)] text-sm font-semibold text-[var(--galdr-fg)]">
+                  {note.author.avatar_url ? (
+                    <img
+                      src={note.author.avatar_url}
+                      alt=""
+                      className="h-9 w-9 rounded-full object-cover"
+                    />
+                  ) : (
+                    initials(note.author.name || note.author.email)
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-[var(--galdr-fg)]">
+                    {note.author.name || note.author.email}
+                  </p>
+                  <p className="text-xs text-[var(--galdr-fg-muted)]">
+                    {relativeTime(note.created_at)}
+                    {note.updated_at !== note.created_at ? " · edited" : ""}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                {note.can_edit && editingId !== note.id && (
+                  <button
+                    onClick={() => startEditing(note)}
+                    className="galdr-button-secondary px-3 py-2"
+                    aria-label="Edit note"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
+                )}
+                {note.can_delete && editingId !== note.id && (
+                  <button
+                    onClick={() => deleteNote(note.id)}
+                    disabled={saving}
+                    className="galdr-button-secondary px-3 py-2 text-[var(--galdr-danger)]"
+                    aria-label="Delete note"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {editingId === note.id ? (
+              <div className="mt-4 space-y-3">
+                <textarea
+                  value={editingContent}
+                  onChange={(event) => setEditingContent(event.target.value)}
+                  rows={4}
+                  className="w-full rounded-xl border border-[var(--galdr-border)] bg-[var(--galdr-surface)] px-4 py-3 text-sm text-[var(--galdr-fg)] outline-none transition focus:border-[var(--galdr-accent)]"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={cancelEditing}
+                    className="galdr-button-secondary"
+                  >
+                    <X className="h-4 w-4" /> Cancel
+                  </button>
+                  <button
+                    onClick={() => saveEdit(note.id)}
+                    disabled={saving || !editingContent.trim()}
+                    className="galdr-button-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Save className="h-4 w-4" /> Save
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 text-sm leading-6 text-[var(--galdr-fg)]">
+                {renderMarkdown(note.content)}
+              </div>
+            )}
+          </article>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="galdr-card p-5">
@@ -135,101 +247,7 @@ export default function CustomerNotes({ customerId }: CustomerNotesProps) {
         </div>
       </div>
 
-      {loading ? (
-        <div className="galdr-card p-6 text-sm text-[var(--galdr-fg-muted)]">
-          Loading notes...
-        </div>
-      ) : notes.length === 0 ? (
-        <div className="galdr-card p-6 text-center text-sm text-[var(--galdr-fg-muted)]">
-          No notes yet. Add the first account note above.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {notes.map((note) => (
-            <article key={note.id} className="galdr-card p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--galdr-surface-soft)] text-sm font-semibold text-[var(--galdr-fg)]">
-                    {note.author.avatar_url ? (
-                      <img
-                        src={note.author.avatar_url}
-                        alt=""
-                        className="h-9 w-9 rounded-full object-cover"
-                      />
-                    ) : (
-                      initials(note.author.name || note.author.email)
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-[var(--galdr-fg)]">
-                      {note.author.name || note.author.email}
-                    </p>
-                    <p className="text-xs text-[var(--galdr-fg-muted)]">
-                      {relativeTime(note.created_at)}
-                      {note.updated_at !== note.created_at ? " · edited" : ""}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  {note.can_edit && editingId !== note.id && (
-                    <button
-                      onClick={() => {
-                        setEditingId(note.id);
-                        setEditingContent(note.content);
-                      }}
-                      className="galdr-button-secondary px-3 py-2"
-                      aria-label="Edit note"
-                    >
-                      <Edit3 className="h-4 w-4" />
-                    </button>
-                  )}
-                  {note.can_delete && editingId !== note.id && (
-                    <button
-                      onClick={() => deleteNote(note.id)}
-                      disabled={saving}
-                      className="galdr-button-secondary px-3 py-2 text-[var(--galdr-danger)]"
-                      aria-label="Delete note"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {editingId === note.id ? (
-                <div className="mt-4 space-y-3">
-                  <textarea
-                    value={editingContent}
-                    onChange={(event) => setEditingContent(event.target.value)}
-                    rows={4}
-                    className="w-full rounded-xl border border-[var(--galdr-border)] bg-[var(--galdr-surface)] px-4 py-3 text-sm text-[var(--galdr-fg)] outline-none transition focus:border-[var(--galdr-accent)]"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="galdr-button-secondary"
-                    >
-                      <X className="h-4 w-4" /> Cancel
-                    </button>
-                    <button
-                      onClick={() => saveEdit(note.id)}
-                      disabled={saving || !editingContent.trim()}
-                      className="galdr-button-primary disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Save className="h-4 w-4" /> Save
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-4 text-sm leading-6 text-[var(--galdr-fg)]">
-                  {renderMarkdown(note.content)}
-                </div>
-              )}
-            </article>
-          ))}
-        </div>
-      )}
+      {renderNotesContent()}
     </div>
   );
 }
