@@ -8,19 +8,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/onnwee/pulse-score/internal/service"
+	connectorsdk "github.com/onnwee/pulse-score/pkg/connector-sdk"
 )
 
 // IntegrationHubSpotHandler provides HubSpot integration HTTP endpoints.
 type IntegrationHubSpotHandler struct {
-	oauthSvc     *service.HubSpotOAuthService
-	orchestrator *service.HubSpotSyncOrchestratorService
+	oauthSvc *service.HubSpotOAuthService
+	syncer   service.ConnectorSyncer
 }
 
 // NewIntegrationHubSpotHandler creates a new IntegrationHubSpotHandler.
-func NewIntegrationHubSpotHandler(oauthSvc *service.HubSpotOAuthService, orchestrator *service.HubSpotSyncOrchestratorService) *IntegrationHubSpotHandler {
+func NewIntegrationHubSpotHandler(oauthSvc *service.HubSpotOAuthService, syncer service.ConnectorSyncer) *IntegrationHubSpotHandler {
 	return &IntegrationHubSpotHandler{
-		oauthSvc:     oauthSvc,
-		orchestrator: orchestrator,
+		oauthSvc: oauthSvc,
+		syncer:   syncer,
 	}
 }
 
@@ -38,7 +39,7 @@ func (h *IntegrationHubSpotHandler) Callback(w http.ResponseWriter, r *http.Requ
 		"HubSpot",
 		"HubSpot connected successfully. Initial sync started.",
 		h.oauthSvc.ExchangeCode,
-		func(ctx context.Context, orgID uuid.UUID) { h.orchestrator.RunFullSync(ctx, orgID) },
+		h.runFullSync,
 	)
 }
 
@@ -59,9 +60,19 @@ func (h *IntegrationHubSpotHandler) TriggerSync(w http.ResponseWriter, r *http.R
 	integrationTriggerSync(
 		w,
 		r,
-		func(ctx context.Context, orgID uuid.UUID) { h.orchestrator.RunFullSync(ctx, orgID) },
+		h.runFullSync,
 		"HubSpot sync started",
 	)
+}
+
+func (h *IntegrationHubSpotHandler) runFullSync(ctx context.Context, orgID uuid.UUID) {
+	if h.syncer == nil {
+		slog.Error("hubspot syncer is not configured")
+		return
+	}
+	if _, err := h.syncer.Sync(ctx, "hubspot", orgID, connectorsdk.SyncModeFull, nil); err != nil {
+		slog.Error("hubspot sync failed", "error", err)
+	}
 }
 
 // WebhookHubSpotHandler provides HubSpot webhook HTTP endpoints.
