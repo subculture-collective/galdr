@@ -11,6 +11,8 @@ import (
 	"github.com/onnwee/pulse-score/internal/repository"
 )
 
+const connectorProjectIDMetadataKey = "project_id"
+
 // IntegrationService handles integration management business logic.
 type IntegrationService struct {
 	connStore integrationConnectionStore
@@ -74,12 +76,12 @@ func (s *IntegrationService) Connect(ctx context.Context, orgID uuid.UUID, provi
 	if registered.Manifest.Auth.Type != connectorsdk.AuthTypeAPIKey {
 		return nil, &ValidationError{Field: provider, Message: "direct API-key connection is not supported for this provider"}
 	}
-	metadata := req.Metadata
-	if metadata == nil {
-		metadata = map[string]string{}
+	metadata := make(map[string]string, len(req.Metadata)+1)
+	for key, value := range req.Metadata {
+		metadata[key] = value
 	}
 	if req.ProjectID != "" {
-		metadata["project_id"] = req.ProjectID
+		metadata[connectorProjectIDMetadataKey] = req.ProjectID
 	}
 	return registered.Connector.Authenticate(ctx, connectorsdk.AuthRequest{
 		OrgID:    orgID.String(),

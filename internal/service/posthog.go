@@ -16,7 +16,14 @@ import (
 	connectorsdk "github.com/onnwee/pulse-score/pkg/connector-sdk"
 )
 
-const providerPostHog = "posthog"
+const (
+	providerPostHog        = "posthog"
+	postHogDefaultBaseURL  = "https://app.posthog.com"
+	postHogProjectIDKey    = "project_id"
+	postHogReadScope       = "read"
+	postHogResourcePersons = "persons"
+	postHogResourceEvents  = "events"
+)
 
 var _ connectorsdk.Connector = (*PostHogConnector)(nil)
 
@@ -54,7 +61,13 @@ func NewPostHogService(cfg PostHogConfig, connStore postHogConnectionStore, clie
 	if client == nil {
 		client = NewPostHogClient("", nil)
 	}
-	return &PostHogService{cfg: cfg, connStore: connStore, client: client, customers: customers, events: events}
+	return &PostHogService{
+		cfg:       cfg,
+		connStore: connStore,
+		client:    client,
+		customers: customers,
+		events:    events,
+	}
 }
 
 // Connect validates and stores an org's PostHog API-key connection.
@@ -84,13 +97,17 @@ func (s *PostHogService) Connect(ctx context.Context, orgID uuid.UUID, projectID
 		Status:               "active",
 		AccessTokenEncrypted: encrypted,
 		ExternalAccountID:    projectID,
-		Scopes:               []string{"read"},
-		Metadata:             map[string]any{"project_id": projectID},
+		Scopes:               []string{postHogReadScope},
+		Metadata:             map[string]any{postHogProjectIDKey: projectID},
 	}
 	if err := s.connStore.Upsert(ctx, conn); err != nil {
 		return nil, fmt.Errorf("store posthog connection: %w", err)
 	}
-	return &connectorsdk.AuthResult{ExternalAccountID: projectID, Scopes: []string{"read"}, Metadata: map[string]string{"project_id": projectID}}, nil
+	return &connectorsdk.AuthResult{
+		ExternalAccountID: projectID,
+		Scopes:            []string{postHogReadScope},
+		Metadata:          map[string]string{postHogProjectIDKey: projectID},
+	}, nil
 }
 
 // Sync imports PostHog persons and events.
@@ -110,7 +127,7 @@ func (s *PostHogService) Sync(ctx context.Context, orgID uuid.UUID, mode connect
 	if err != nil {
 		return nil, fmt.Errorf("list posthog persons: %w", err)
 	}
-	personProgress := connectorsdk.ResourceResult{Name: "persons"}
+	personProgress := connectorsdk.ResourceResult{Name: postHogResourcePersons}
 	personMatches := make(map[string]*repository.Customer)
 	for _, person := range persons.Results {
 		customer, err := s.upsertPerson(ctx, orgID, person)
@@ -128,7 +145,7 @@ func (s *PostHogService) Sync(ctx context.Context, orgID uuid.UUID, mode connect
 	if err != nil {
 		return nil, fmt.Errorf("list posthog events: %w", err)
 	}
-	eventProgress := connectorsdk.ResourceResult{Name: "events"}
+	eventProgress := connectorsdk.ResourceResult{Name: postHogResourceEvents}
 	for _, event := range events.Results {
 		if err := s.upsertEvent(ctx, orgID, event, personMatches); err != nil {
 			eventProgress.Skipped++
@@ -155,7 +172,7 @@ func (s *PostHogService) credentials(ctx context.Context, orgID uuid.UUID) (stri
 		return "", "", &ValidationError{Field: providerPostHog, Message: "PostHog connection is not active"}
 	}
 	projectID := conn.ExternalAccountID
-	if raw, ok := conn.Metadata["project_id"].(string); ok && raw != "" {
+	if raw, ok := conn.Metadata[postHogProjectIDKey].(string); ok && raw != "" {
 		projectID = raw
 	}
 	apiKey, err := decryptToken(conn.AccessTokenEncrypted, s.cfg.EncryptionKey)
@@ -209,23 +226,9 @@ func (s *PostHogService) upsertEvent(ctx context.Context, orgID uuid.UUID, event
 	if event.DistinctID == "" {
 		return &ValidationError{Field: "distinct_id", Message: "PostHog event distinct id is required"}
 	}
-	customer := personMatches[event.DistinctID]
-	if customer == nil {
-		matched, err := s.customers.GetByExternalID(ctx, orgID, providerPostHog, event.DistinctID)
-		if err != nil {
-			return err
-		}
-		customer = matched
-	}
-	if customer == nil {
-		email := postHogString(event.Properties, "email", "$email")
-		if email != "" {
-			matched, err := s.customers.GetByEmail(ctx, orgID, email)
-			if err != nil {
-				return err
-			}
-			customer = matched
-		}
+	customer, err := s.matchEventCustomer(ctx, orgID, event, personMatches)
+	if err != nil {
+		return err
 	}
 	if customer == nil {
 		return &NotFoundError{Resource: "posthog_customer", Message: "no customer matched PostHog event"}
@@ -249,6 +252,23 @@ func (s *PostHogService) upsertEvent(ctx context.Context, orgID uuid.UUID, event
 	})
 }
 
+func (s *PostHogService) matchEventCustomer(ctx context.Context, orgID uuid.UUID, event PostHogEvent, personMatches map[string]*repository.Customer) (*repository.Customer, error) {
+	if customer := personMatches[event.DistinctID]; customer != nil {
+		return customer, nil
+	}
+
+	customer, err := s.customers.GetByExternalID(ctx, orgID, providerPostHog, event.DistinctID)
+	if err != nil || customer != nil {
+		return customer, err
+	}
+
+	email := postHogString(event.Properties, "email", "$email")
+	if email == "" {
+		return nil, nil
+	}
+	return s.customers.GetByEmail(ctx, orgID, email)
+}
+
 // PostHogConnector adapts PostHog API-key sync to connector SDK.
 type PostHogConnector struct {
 	service *PostHogService
@@ -267,13 +287,19 @@ func (c *PostHogConnector) Manifest() connectorsdk.ConnectorManifest {
 		Version:     "1.0.0",
 		Description: "Syncs PostHog product usage persons and events.",
 		Categories:  []string{"analytics", "product-usage"},
-		Auth: connectorsdk.AuthConfig{Type: connectorsdk.AuthTypeAPIKey, APIKey: &connectorsdk.APIKeyConfig{HeaderName: "Authorization", Prefix: "Bearer"}},
+		Auth: connectorsdk.AuthConfig{
+			Type: connectorsdk.AuthTypeAPIKey,
+			APIKey: &connectorsdk.APIKeyConfig{
+				HeaderName: "Authorization",
+				Prefix:     "Bearer",
+			},
+		},
 		Sync: connectorsdk.SyncConfig{
 			SupportedModes: []connectorsdk.SyncMode{connectorsdk.SyncModeFull, connectorsdk.SyncModeIncremental},
 			DefaultMode:    connectorsdk.SyncModeFull,
 			Resources: []connectorsdk.ResourceConfig{
-				{Name: "persons", Description: "PostHog persons and user identities", Required: true},
-				{Name: "events", Description: "PostHog product usage events", Required: true},
+				{Name: postHogResourcePersons, Description: "PostHog persons and user identities", Required: true},
+				{Name: postHogResourceEvents, Description: "PostHog product usage events", Required: true},
 			},
 		},
 	}
@@ -288,7 +314,7 @@ func (c *PostHogConnector) Authenticate(ctx context.Context, req connectorsdk.Au
 	if err != nil {
 		return nil, err
 	}
-	return c.service.Connect(ctx, orgID, req.Metadata["project_id"], req.APIKey)
+	return c.service.Connect(ctx, orgID, req.Metadata[postHogProjectIDKey], req.APIKey)
 }
 
 // Sync runs a PostHog sync.
@@ -317,7 +343,7 @@ type PostHogClient struct {
 // NewPostHogClient creates a PostHog API client.
 func NewPostHogClient(baseURL string, httpClient *http.Client) *PostHogClient {
 	if baseURL == "" {
-		baseURL = "https://app.posthog.com"
+		baseURL = postHogDefaultBaseURL
 	}
 	if httpClient == nil {
 		httpClient = http.DefaultClient
