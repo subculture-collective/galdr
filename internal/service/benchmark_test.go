@@ -97,11 +97,11 @@ func TestBenchmarkIndustrySegmentsUsePredefinedOrganizationIndustries(t *testing
 	}
 }
 
-func TestBenchmarkIndustrySegmentsRejectNonPredefinedIndustries(t *testing.T) {
-	for _, industry := range []string{"AI", "Software", "Consumer"} {
+func TestBenchmarkIndustrySegmentsRejectFreeFormAliases(t *testing.T) {
+	for _, industry := range []string{"AI", "Artificial Intelligence", "Software", "Consumer"} {
 		t.Run(industry, func(t *testing.T) {
 			if got := NormalizeBenchmarkIndustry(industry); got != unknownBenchmarkIndustry {
-				t.Fatalf("expected unknown segment, got %q", got)
+				t.Fatalf("expected free-form industry to be anonymized as unknown, got %q", got)
 			}
 		})
 	}
@@ -139,15 +139,10 @@ func TestBenchmarkAnonymizerRejectsNonpositiveCustomerCounts(t *testing.T) {
 		{"negative", -1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			contribution, err := anonymizer.Anonymize(BenchmarkOrgMetrics{
-				OrgID:          uuid.New(),
-				Industry:       "SaaS",
-				CompanySize:    25,
-				CustomerCount:  tc.customerCount,
-				TotalMRR:       0,
-				AvgHealthScore: 0,
-				AvgChurnRate:   0,
-			})
+			metrics := validBenchmarkOrgMetrics()
+			metrics.CustomerCount = tc.customerCount
+
+			contribution, err := anonymizer.Anonymize(metrics)
 
 			if err == nil {
 				t.Fatal("expected anonymizer to reject nonpositive customer count")
@@ -156,6 +151,34 @@ func TestBenchmarkAnonymizerRejectsNonpositiveCustomerCounts(t *testing.T) {
 				t.Fatal("expected no contribution for nonpositive customer count")
 			}
 		})
+	}
+}
+
+func TestBenchmarkAnonymizerRejectsNegativeMRR(t *testing.T) {
+	anonymizer := NewBenchmarkAnonymizer()
+
+	metrics := validBenchmarkOrgMetrics()
+	metrics.TotalMRR = -1
+
+	contribution, err := anonymizer.Anonymize(metrics)
+
+	if err == nil {
+		t.Fatal("expected anonymizer to reject negative MRR")
+	}
+	if contribution != nil {
+		t.Fatal("expected no contribution for negative MRR")
+	}
+}
+
+func validBenchmarkOrgMetrics() BenchmarkOrgMetrics {
+	return BenchmarkOrgMetrics{
+		OrgID:          uuid.New(),
+		Industry:       "SaaS",
+		CompanySize:    25,
+		CustomerCount:  10,
+		TotalMRR:       100000,
+		AvgHealthScore: 70,
+		AvgChurnRate:   0.1,
 	}
 }
 

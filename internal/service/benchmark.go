@@ -32,7 +32,7 @@ type BenchmarkOrgMetrics struct {
 
 const unknownBenchmarkIndustry = "unknown"
 
-var benchmarkIndustryAliases = map[string]string{
+var benchmarkIndustrySegments = map[string]string{
 	"agency":      "agency",
 	"e-commerce":  "e-commerce",
 	"ecommerce":   "e-commerce",
@@ -64,6 +64,9 @@ func (a *BenchmarkAnonymizer) Anonymize(metrics BenchmarkOrgMetrics) (*repositor
 	if metrics.AvgChurnRate < 0 || metrics.AvgChurnRate > 1 {
 		return nil, fmt.Errorf("average churn rate out of range")
 	}
+	if metrics.TotalMRR < 0 {
+		return nil, fmt.Errorf("total mrr must be nonnegative")
+	}
 
 	industry := NormalizeBenchmarkIndustry(metrics.Industry)
 
@@ -93,7 +96,7 @@ func NormalizeBenchmarkIndustry(industry string) string {
 		return unknownBenchmarkIndustry
 	}
 
-	if canonical, ok := benchmarkIndustryAliases[normalized]; ok {
+	if canonical, ok := benchmarkIndustrySegments[normalized]; ok {
 		return canonical
 	}
 	return unknownBenchmarkIndustry
