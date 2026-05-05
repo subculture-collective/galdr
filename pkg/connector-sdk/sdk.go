@@ -18,13 +18,13 @@ const (
 	// contracts change.
 	SDKVersion = "0.1.0"
 
-	semanticVersionPattern = `^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`
-	connectorIDSlugPattern = `^[a-z0-9]+(?:-[a-z0-9]+)*$`
+	connectorIDPatternExpr      = `^[a-z0-9]+(?:-[a-z0-9]+)*$`
+	semanticVersionPatternExpr = `^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`
 )
 
 var (
-	semverPattern      = regexp.MustCompile(semanticVersionPattern)
-	connectorIDSlugRE  = regexp.MustCompile(connectorIDSlugPattern)
+	connectorIDRegex = regexp.MustCompile(connectorIDPatternExpr)
+	semverRegex      = regexp.MustCompile(semanticVersionPatternExpr)
 )
 
 // Connector is the public lifecycle contract for marketplace integrations.
@@ -285,13 +285,13 @@ func validateConnectorMetadata(manifest ConnectorManifest) error {
 	if strings.TrimSpace(manifest.ID) == "" {
 		return errors.New("manifest id is required")
 	}
-	if !connectorIDSlugRE.MatchString(manifest.ID) {
-		return fmt.Errorf("connector id %q must be a lowercase slug", manifest.ID)
+	if !connectorIDRegex.MatchString(manifest.ID) {
+		return errors.New("manifest id must use lowercase letters, numbers, and single hyphens")
 	}
 	if strings.TrimSpace(manifest.Name) == "" {
 		return errors.New("manifest name is required")
 	}
-	if !semverPattern.MatchString(manifest.Version) {
+	if !semverRegex.MatchString(manifest.Version) {
 		return fmt.Errorf("manifest version %q must be semantic version", manifest.Version)
 	}
 	if strings.TrimSpace(manifest.Description) == "" {

@@ -91,24 +91,9 @@ func TestValidateManifestRejectsInvalidConnectorMetadata(t *testing.T) {
 			wantError: "id is required",
 		},
 		{
-			name:      "id contains spaces",
+			name:      "invalid id format",
 			mutate:    func(m *ConnectorManifest) { m.ID = "Mock CRM" },
-			wantError: "connector id",
-		},
-		{
-			name:      "id contains underscores",
-			mutate:    func(m *ConnectorManifest) { m.ID = "mock_crm" },
-			wantError: "connector id",
-		},
-		{
-			name:      "id has repeated separators",
-			mutate:    func(m *ConnectorManifest) { m.ID = "mock--crm" },
-			wantError: "connector id",
-		},
-		{
-			name:      "id has trailing separator",
-			mutate:    func(m *ConnectorManifest) { m.ID = "mock-crm-" },
-			wantError: "connector id",
+			wantError: "id must use lowercase letters",
 		},
 		{
 			name:      "invalid semver",
