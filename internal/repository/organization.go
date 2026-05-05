@@ -165,8 +165,8 @@ func (r *OrganizationRepository) UpdateBenchmarkSettings(ctx context.Context, or
 // ListBenchmarkingEnabled returns orgs that opted into benchmark contribution.
 func (r *OrganizationRepository) ListBenchmarkingEnabled(ctx context.Context) ([]Organization, error) {
 	query := `
-		SELECT id, name, slug, plan, COALESCE(stripe_customer_id, ''),
-			benchmarking_enabled, COALESCE(industry, ''), company_size, created_at, updated_at
+		SELECT id, name, slug, COALESCE(industry, ''), plan, COALESCE(stripe_customer_id, ''),
+			benchmarking_enabled, company_size, created_at, updated_at
 		FROM organizations
 		WHERE benchmarking_enabled = true AND deleted_at IS NULL
 		ORDER BY id`
@@ -181,8 +181,8 @@ func (r *OrganizationRepository) ListBenchmarkingEnabled(ctx context.Context) ([
 	for rows.Next() {
 		var o Organization
 		if err := rows.Scan(
-			&o.ID, &o.Name, &o.Slug, &o.Plan, &o.StripeCustomerID,
-			&o.BenchmarkingEnabled, &o.Industry, &o.CompanySize,
+			&o.ID, &o.Name, &o.Slug, &o.Industry, &o.Plan, &o.StripeCustomerID,
+			&o.BenchmarkingEnabled, &o.CompanySize,
 			&o.CreatedAt, &o.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan benchmark-enabled org: %w", err)
