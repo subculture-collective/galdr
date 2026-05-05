@@ -144,6 +144,7 @@ export const billingApi = {
 };
 
 export type TeamRole = "owner" | "admin" | "member";
+export type InviteRole = Exclude<TeamRole, "owner">;
 
 export interface TeamMember {
   user_id: string;
@@ -158,7 +159,7 @@ export interface TeamMember {
 export interface TeamInvitation {
   id: string;
   email: string;
-  role: Exclude<TeamRole, "owner"> | string;
+  role: InviteRole | string;
   status: string;
   expires_at: string;
   created_at: string;
@@ -166,7 +167,7 @@ export interface TeamInvitation {
 
 export interface CreateTeamInvitationPayload {
   email: string;
-  role: Exclude<TeamRole, "owner">;
+  role: InviteRole;
 }
 
 export const teamApi = {

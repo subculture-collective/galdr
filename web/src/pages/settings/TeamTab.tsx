@@ -3,13 +3,12 @@ import { Loader2 } from "lucide-react";
 import { useToast } from "@/contexts/ToastContext";
 import {
   teamApi,
+  type InviteRole,
   type TeamInvitation,
   type TeamMember,
   type TeamRole,
 } from "@/lib/api";
 import { TeamSettingsView } from "./TeamSettingsView";
-
-type InviteRole = Exclude<TeamRole, "owner">;
 
 function getMemberID(member: TeamMember) {
   return member.user_id;

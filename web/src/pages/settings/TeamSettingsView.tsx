@@ -1,38 +1,18 @@
 import React, { type FormEvent } from "react";
 import { MailPlus, RefreshCw, Trash2, UserMinus, Users } from "lucide-react";
+import type { InviteRole, TeamInvitation, TeamMember, TeamRole } from "@/lib/api";
 
 void React;
-
-export type TeamRole = "owner" | "admin" | "member";
-
-export interface TeamMember {
-  user_id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  avatar_url?: string;
-  role: TeamRole | string;
-  joined_at: string;
-}
-
-export interface TeamInvitation {
-  id: string;
-  email: string;
-  role: Exclude<TeamRole, "owner"> | string;
-  status: string;
-  expires_at: string;
-  created_at: string;
-}
 
 interface TeamSettingsViewProps {
   members: TeamMember[];
   pendingInvitations: TeamInvitation[];
   inviteEmail: string;
-  inviteRole: Exclude<TeamRole, "owner">;
+  inviteRole: InviteRole;
   busyID: string | null;
   savingInvite: boolean;
   onInviteEmailChange: (value: string) => void;
-  onInviteRoleChange: (value: Exclude<TeamRole, "owner">) => void;
+  onInviteRoleChange: (value: InviteRole) => void;
   onInviteSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onRoleChange: (member: TeamMember, role: TeamRole) => void;
   onRemoveMember: (member: TeamMember) => void;
@@ -40,16 +20,12 @@ interface TeamSettingsViewProps {
   onRevokeInvitation: (invitation: TeamInvitation) => void;
 }
 
-const ROLE_OPTIONS: TeamRole[] = ["owner", "admin", "member"];
-const INVITE_ROLE_OPTIONS: Exclude<TeamRole, "owner">[] = ["member", "admin"];
+const MEMBER_ROLE_OPTIONS: InviteRole[] = ["admin", "member"];
+const INVITE_ROLE_OPTIONS: InviteRole[] = ["member", "admin"];
 
 function displayName(member: TeamMember) {
   const name = `${member.first_name} ${member.last_name}`.trim();
   return name || member.email;
-}
-
-function memberID(member: TeamMember) {
-  return member.user_id;
 }
 
 function formatDate(value: string) {
@@ -62,12 +38,18 @@ function formatDate(value: string) {
 }
 
 function rolePill(role: string) {
-  const cls =
-    role === "owner"
-      ? "border-amber-400/40 bg-amber-400/10 text-amber-200"
-      : role === "admin"
-        ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-200"
-        : "border-[var(--galdr-border)] bg-[color:rgb(255_255_255_/_0.04)] text-[var(--galdr-fg-muted)]";
+  let cls: string;
+  switch (role) {
+    case "owner":
+      cls = "border-amber-400/40 bg-amber-400/10 text-amber-200";
+      break;
+    case "admin":
+      cls = "border-cyan-400/40 bg-cyan-400/10 text-cyan-200";
+      break;
+    default:
+      cls =
+        "border-[var(--galdr-border)] bg-[color:rgb(255_255_255_/_0.04)] text-[var(--galdr-fg-muted)]";
+  }
 
   return (
     <span
@@ -133,7 +115,7 @@ export function TeamSettingsView({
             className="galdr-input px-3 py-2 text-sm capitalize"
             value={inviteRole}
             onChange={(event) =>
-              onInviteRoleChange(event.target.value as Exclude<TeamRole, "owner">)
+              onInviteRoleChange(event.target.value as InviteRole)
             }
           >
             {INVITE_ROLE_OPTIONS.map((role) => (
@@ -183,7 +165,7 @@ export function TeamSettingsView({
                 const name = displayName(member);
                 return (
                   <tr
-                    key={memberID(member)}
+                    key={member.user_id}
                     className="border-t border-[var(--galdr-border)]/70"
                   >
                     <td className="px-5 py-4 font-medium text-[var(--galdr-fg)]">
@@ -193,29 +175,27 @@ export function TeamSettingsView({
                       {member.email}
                     </td>
                     <td className="px-5 py-4">
-                      <label className="sr-only" htmlFor={`role-${memberID(member)}`}>
+                      <label className="sr-only" htmlFor={`role-${member.user_id}`}>
                         Change role for {name}
                       </label>
                       {member.role === "owner" ? (
                         rolePill(member.role)
                       ) : (
                         <select
-                          id={`role-${memberID(member)}`}
+                          id={`role-${member.user_id}`}
                           aria-label={`Change role for ${name}`}
                           className="galdr-input px-2 py-1 text-xs capitalize"
                           value={member.role}
-                          disabled={busyID === memberID(member)}
+                          disabled={busyID === member.user_id}
                           onChange={(event) =>
                             onRoleChange(member, event.target.value as TeamRole)
                           }
                         >
-                          {ROLE_OPTIONS.filter((role) => role !== "owner").map(
-                            (role) => (
-                              <option key={role} value={role}>
-                                {role}
-                              </option>
-                            ),
-                          )}
+                          {MEMBER_ROLE_OPTIONS.map((role) => (
+                            <option key={role} value={role}>
+                              {role}
+                            </option>
+                          ))}
                         </select>
                       )}
                     </td>
@@ -231,7 +211,7 @@ export function TeamSettingsView({
                       <button
                         type="button"
                         aria-label={`Remove ${name}`}
-                        disabled={member.role === "owner" || busyID === memberID(member)}
+                        disabled={member.role === "owner" || busyID === member.user_id}
                         onClick={() => onRemoveMember(member)}
                         className="galdr-button-secondary inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40"
                       >
