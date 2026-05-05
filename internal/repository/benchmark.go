@@ -47,6 +47,8 @@ type BenchmarkAggregate struct {
 	P75               float64   `json:"p75"`
 	P90               float64   `json:"p90"`
 	SampleCount       int       `json:"sample_count"`
+	QualityScore      float64   `json:"quality_score"`
+	QualityLevel      string    `json:"quality_level"`
 	CalculatedAt      time.Time `json:"calculated_at"`
 }
 
@@ -145,9 +147,9 @@ func (r *BenchmarkRepository) CreateAggregate(ctx context.Context, aggregate *Be
 	query := `
 		INSERT INTO benchmark_aggregates (
 			id, industry, company_size_bucket, metric_name, p25, p50,
-			p75, p90, sample_count, calculated_at
+			p75, p90, sample_count, quality_score, quality_level, calculated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING calculated_at`
 
 	if err := r.pool.QueryRow(ctx, query,
@@ -160,6 +162,8 @@ func (r *BenchmarkRepository) CreateAggregate(ctx context.Context, aggregate *Be
 		aggregate.P75,
 		aggregate.P90,
 		aggregate.SampleCount,
+		aggregate.QualityScore,
+		aggregate.QualityLevel,
 		aggregate.CalculatedAt,
 	).Scan(&aggregate.CalculatedAt); err != nil {
 		return fmt.Errorf("create benchmark aggregate: %w", err)

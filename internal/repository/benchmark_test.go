@@ -9,6 +9,7 @@ import (
 )
 
 const benchmarkMigrationPath = "../../migrations/000026_create_benchmarking"
+const benchmarkQualityMigrationPath = "../../migrations/000027_add_benchmark_quality_fields"
 
 func TestBenchmarkBucketConstants(t *testing.T) {
 	cases := []struct {
@@ -120,5 +121,21 @@ func TestBenchmarkMigrationDoesNotOwnIndustryClassification(t *testing.T) {
 	}
 	if strings.Contains(downSQL, "DROP COLUMN IF EXISTS industry") {
 		t.Error("benchmark migration must not drop organizations.industry; industry classification owns that column")
+	}
+}
+
+func TestBenchmarkQualityMigrationAddsAggregateQualityIndicator(t *testing.T) {
+	upSQL := readMigrationSQL(t, benchmarkQualityMigrationPath+".up.sql")
+	downSQL := readMigrationSQL(t, benchmarkQualityMigrationPath+".down.sql")
+
+	for _, item := range []string{"quality_score", "quality_level", "low", "medium", "high"} {
+		if !strings.Contains(upSQL, item) {
+			t.Errorf("benchmark quality migration up file missing %s", item)
+		}
+	}
+	for _, item := range []string{"DROP COLUMN IF EXISTS quality_level", "DROP COLUMN IF EXISTS quality_score"} {
+		if !strings.Contains(downSQL, item) {
+			t.Errorf("benchmark quality migration down file missing %s", item)
+		}
 	}
 }
