@@ -200,6 +200,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 
 			hubspotClient := service.NewHubSpotClient()
 			intercomClient := service.NewIntercomClient()
+			posthogClient := service.NewPostHogClient("", nil)
 
 			stripeSyncSvc := service.NewStripeSyncService(
 				customerRepo, subRepo, paymentRepo, eventRepo,
@@ -227,6 +228,14 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				eventRepo,
 			)
 
+			posthogSvc := service.NewPostHogService(
+				service.PostHogConfig{EncryptionKey: cfg.PostHog.EncryptionKey},
+				connRepo,
+				posthogClient,
+				customerRepo,
+				eventRepo,
+			)
+
 			mrrSvc := service.NewMRRService(customerRepo, subRepo, eventRepo)
 			paymentHealthSvc := service.NewPaymentHealthService(paymentRepo, eventRepo, customerRepo)
 			paymentRecencySvc := service.NewPaymentRecencyService(paymentRepo, subRepo)
@@ -241,6 +250,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				hubspotSyncOrchestrator,
 				intercomOAuthSvc,
 				intercomSyncOrchestrator,
+				posthogSvc,
 			)
 			if err != nil {
 				slog.Error("failed to create connector registry", "error", err)
@@ -543,6 +553,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 					r.Get("/", integrationHandler.List)
 					r.Route("/{provider}", func(r chi.Router) {
 						r.Use(middleware.RequireRole("admin"))
+						r.Post("/connect", integrationHandler.Connect)
 						r.Get("/status", integrationHandler.GetStatus)
 						r.Post("/sync", integrationHandler.TriggerSync)
 						r.Delete("/", integrationHandler.Disconnect)

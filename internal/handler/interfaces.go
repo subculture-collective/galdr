@@ -7,6 +7,7 @@ import (
 
 	"github.com/onnwee/pulse-score/internal/repository"
 	"github.com/onnwee/pulse-score/internal/service"
+	connectorsdk "github.com/onnwee/pulse-score/pkg/connector-sdk"
 )
 
 // customerServicer defines the methods the CustomerHandler needs.
@@ -25,6 +26,7 @@ type dashboardServicer interface {
 // integrationServicer defines the methods the IntegrationHandler needs.
 type integrationServicer interface {
 	List(ctx context.Context, orgID uuid.UUID) ([]service.IntegrationSummary, error)
+	Connect(ctx context.Context, orgID uuid.UUID, provider string, req service.ConnectIntegrationRequest) (*connectorsdk.AuthResult, error)
 	GetStatus(ctx context.Context, orgID uuid.UUID, provider string) (*service.IntegrationStatus, error)
 	TriggerSync(ctx context.Context, orgID uuid.UUID, provider string) error
 	Disconnect(ctx context.Context, orgID uuid.UUID, provider string) error

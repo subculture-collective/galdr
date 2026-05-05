@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -11,10 +12,12 @@ import (
 
 	"github.com/onnwee/pulse-score/internal/auth"
 	"github.com/onnwee/pulse-score/internal/service"
+	connectorsdk "github.com/onnwee/pulse-score/pkg/connector-sdk"
 )
 
 type mockIntegrationService struct {
 	listFn       func(ctx context.Context, orgID uuid.UUID) ([]service.IntegrationSummary, error)
+	connectFn    func(ctx context.Context, orgID uuid.UUID, provider string, req service.ConnectIntegrationRequest) (*connectorsdk.AuthResult, error)
 	getStatusFn  func(ctx context.Context, orgID uuid.UUID, provider string) (*service.IntegrationStatus, error)
 	triggerSyncFn func(ctx context.Context, orgID uuid.UUID, provider string) error
 	disconnectFn func(ctx context.Context, orgID uuid.UUID, provider string) error
@@ -22,6 +25,10 @@ type mockIntegrationService struct {
 
 func (m *mockIntegrationService) List(ctx context.Context, orgID uuid.UUID) ([]service.IntegrationSummary, error) {
 	return m.listFn(ctx, orgID)
+}
+
+func (m *mockIntegrationService) Connect(ctx context.Context, orgID uuid.UUID, provider string, req service.ConnectIntegrationRequest) (*connectorsdk.AuthResult, error) {
+	return m.connectFn(ctx, orgID, provider, req)
 }
 
 func (m *mockIntegrationService) GetStatus(ctx context.Context, orgID uuid.UUID, provider string) (*service.IntegrationStatus, error) {
@@ -87,6 +94,33 @@ func TestIntegrationList_ServiceError(t *testing.T) {
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestIntegrationConnect_Success(t *testing.T) {
+	orgID := uuid.New()
+	mock := &mockIntegrationService{
+		connectFn: func(ctx context.Context, oID uuid.UUID, provider string, req service.ConnectIntegrationRequest) (*connectorsdk.AuthResult, error) {
+			if provider != "posthog" {
+				t.Errorf("expected posthog provider, got %s", provider)
+			}
+			if req.APIKey != "phx_test" || req.ProjectID != "123" {
+				t.Errorf("unexpected connect request: %#v", req)
+			}
+			return &connectorsdk.AuthResult{ExternalAccountID: "123", Metadata: map[string]string{"project_id": "123"}}, nil
+		},
+	}
+
+	h := NewIntegrationHandler(mock)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/integrations/posthog/connect", bytes.NewBufferString(`{"api_key":"phx_test","project_id":"123"}`))
+	req = req.WithContext(auth.WithOrgID(req.Context(), orgID))
+	req = withChiParam(req, "provider", "posthog")
+	rr := httptest.NewRecorder()
+
+	h.Connect(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 }
 

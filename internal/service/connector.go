@@ -63,12 +63,14 @@ func NewIntegrationConnectorRegistry(
 	hubspotOrchestrator *HubSpotSyncOrchestratorService,
 	intercomOAuth *IntercomOAuthService,
 	intercomOrchestrator *IntercomSyncOrchestratorService,
+	posthog *PostHogService,
 ) (*connectorsdk.Registry, error) {
 	registry := connectorsdk.NewRegistry()
 	connectors := []connectorsdk.Connector{
 		NewStripeConnector(stripeOAuth, stripeOrchestrator),
 		NewHubSpotConnector(hubspotOAuth, hubspotOrchestrator),
 		NewIntercomConnector(intercomOAuth, intercomOrchestrator),
+		NewPostHogConnector(posthog),
 	}
 
 	for _, connector := range connectors {

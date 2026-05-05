@@ -20,6 +20,7 @@ type Config struct {
 	BillingStripe BillingStripeConfig
 	HubSpot       HubSpotConfig
 	Intercom      IntercomConfig
+	PostHog       PostHogConfig
 	OpenAI        OpenAIConfig
 	Scoring       ScoringConfig
 	Alert         AlertConfig
@@ -85,6 +86,11 @@ type IntercomConfig struct {
 	EncryptionKey    string // 32-byte hex-encoded AES key for token encryption
 	WebhookSecret    string
 	SyncIntervalMin  int
+}
+
+// PostHogConfig holds PostHog API-key connector settings.
+type PostHogConfig struct {
+	EncryptionKey string // 32-byte hex-encoded AES key for token encryption
 }
 
 // OpenAIConfig holds LLM provider and safety limit settings.
@@ -214,6 +220,9 @@ func Load() *Config {
 			EncryptionKey:    getEnv("INTERCOM_ENCRYPTION_KEY", ""),
 			WebhookSecret:    getEnv("INTERCOM_WEBHOOK_SECRET", ""),
 			SyncIntervalMin:  getInt("INTERCOM_SYNC_INTERVAL_MIN", 15),
+		},
+		PostHog: PostHogConfig{
+			EncryptionKey: getEnv("POSTHOG_ENCRYPTION_KEY", ""),
 		},
 		OpenAI: OpenAIConfig{
 			APIKey:            getEnv("OPENAI_API_KEY", ""),
