@@ -1363,7 +1363,11 @@ components:
               type: string
             slug:
               type: string
+            industry:
+              type: string
             role:
+              type: string
+            plan:
               type: string
         tokens:
           type: object
