@@ -5,20 +5,24 @@ import {
   type ZendeskStatus,
 } from "./ZendeskConnectionCard";
 
+const noop = () => undefined;
+
 function render(status: ZendeskStatus | null, subdomain = "") {
+  const props = {
+    status,
+    subdomain,
+    loading: false,
+    actionLoading: false,
+    error: "",
+    message: "",
+    onSubdomainChange: noop,
+    onConnect: noop,
+    onDisconnect: noop,
+    onSync: noop,
+  };
+
   return renderToStaticMarkup(
-    React.createElement(ZendeskConnectionCardView, {
-      status,
-      subdomain,
-      loading: false,
-      actionLoading: false,
-      error: "",
-      message: "",
-      onSubdomainChange: () => undefined,
-      onConnect: () => undefined,
-      onDisconnect: () => undefined,
-      onSync: () => undefined,
-    }),
+    React.createElement(ZendeskConnectionCardView, props),
   );
 }
 

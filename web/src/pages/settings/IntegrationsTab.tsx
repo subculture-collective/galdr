@@ -16,6 +16,13 @@ interface IntegrationConnection {
   customer_count?: number;
 }
 
+const DEDICATED_INTEGRATION_PROVIDERS = new Set([
+  "stripe",
+  "hubspot",
+  "intercom",
+  "zendesk",
+]);
+
 export default function IntegrationsTab() {
   const [integrations, setIntegrations] = useState<IntegrationConnection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,13 +53,8 @@ export default function IntegrationsTab() {
     );
   }
 
-  // Filter out Stripe and HubSpot from generic list since they have dedicated cards
   const otherIntegrations = integrations.filter(
-    (i) =>
-      i.provider !== "stripe" &&
-      i.provider !== "hubspot" &&
-      i.provider !== "intercom" &&
-      i.provider !== "zendesk",
+    (integration) => !DEDICATED_INTEGRATION_PROVIDERS.has(integration.provider),
   );
 
   return (

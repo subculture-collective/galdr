@@ -107,6 +107,10 @@ export default function ZendeskConnectionCard() {
   );
 }
 
+function isConnectedStatus(status?: string) {
+  return status === "active" || status === "syncing";
+}
+
 export function ZendeskConnectionCardView({
   status,
   subdomain,
@@ -129,8 +133,7 @@ export function ZendeskConnectionCardView({
     );
   }
 
-  const isConnected =
-    status?.status === "active" || status?.status === "syncing";
+  const isConnected = isConnectedStatus(status?.status);
   const normalizedSubdomain = normalizeSubdomain(subdomain);
   const connectedSubdomain = normalizeSubdomain(
     status?.subdomain ?? status?.external_account_id ?? normalizedSubdomain,
@@ -202,8 +205,10 @@ export function ZendeskConnectionCardView({
         <div className="galdr-panel mt-4 space-y-2 p-3 text-sm text-[var(--galdr-fg-muted)]">
           {connectedSubdomain && (
             <p>
-              Subdomain: {" "}
-              <span className="font-mono">{connectedSubdomain}.zendesk.com</span>
+              Subdomain:{" "}
+              <span className="font-mono">
+                {connectedSubdomain}.zendesk.com
+              </span>
             </p>
           )}
           {status.last_sync_at && (
@@ -265,37 +270,37 @@ function normalizeSubdomain(value: string) {
 }
 
 function StatusBadge({ status }: { status?: string }) {
-  if (!status || status === "disconnected") {
-    return (
-      <span className="galdr-pill inline-flex items-center px-2.5 py-0.5 text-xs font-medium">
-        Not connected
-      </span>
-    );
+  switch (status) {
+    case undefined:
+    case "disconnected":
+      return (
+        <span className="galdr-pill inline-flex items-center px-2.5 py-0.5 text-xs font-medium">
+          Not connected
+        </span>
+      );
+    case "active":
+      return (
+        <span className="inline-flex items-center rounded-full border border-[color:rgb(52_211_153_/_0.35)] bg-[color:rgb(52_211_153_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-success)]">
+          Connected
+        </span>
+      );
+    case "syncing":
+      return (
+        <span className="inline-flex items-center rounded-full border border-[color:rgb(34_211_238_/_0.35)] bg-[color:rgb(34_211_238_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-accent-2)]">
+          Syncing
+        </span>
+      );
+    case "error":
+      return (
+        <span className="inline-flex items-center rounded-full border border-[color:rgb(244_63_94_/_0.35)] bg-[color:rgb(244_63_94_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-danger)]">
+          Error
+        </span>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center rounded-full border border-[color:rgb(245_158_11_/_0.35)] bg-[color:rgb(245_158_11_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-at-risk)]">
+          {status}
+        </span>
+      );
   }
-  if (status === "active") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-[color:rgb(52_211_153_/_0.35)] bg-[color:rgb(52_211_153_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-success)]">
-        Connected
-      </span>
-    );
-  }
-  if (status === "syncing") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-[color:rgb(34_211_238_/_0.35)] bg-[color:rgb(34_211_238_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-accent-2)]">
-        Syncing
-      </span>
-    );
-  }
-  if (status === "error") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-[color:rgb(244_63_94_/_0.35)] bg-[color:rgb(244_63_94_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-danger)]">
-        Error
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center rounded-full border border-[color:rgb(245_158_11_/_0.35)] bg-[color:rgb(245_158_11_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-at-risk)]">
-      {status}
-    </span>
-  );
 }
