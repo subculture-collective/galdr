@@ -83,6 +83,20 @@ type FeatureVector struct {
 	CalculatedAt time.Time
 }
 
+// FeatureNames returns the stable model-input feature order.
+func FeatureNames() []string {
+	return append([]string(nil), featureNames[:]...)
+}
+
+// ValuesInOrder returns feature values in the stable model-input order.
+func (v FeatureVector) ValuesInOrder() []float64 {
+	values := make([]float64, len(featureNames))
+	for i, name := range featureNames {
+		values[i] = v.Values[name]
+	}
+	return values
+}
+
 // ExtractCustomerFeatures converts customer data into normalized churn-model inputs.
 func ExtractCustomerFeatures(input FeatureInput) FeatureVector {
 	now := input.Now
