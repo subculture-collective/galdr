@@ -17,6 +17,8 @@ import (
 const (
 	defaultOpenAIBaseURL = "https://api.openai.com/v1"
 	defaultOpenAIModel   = "gpt-4o-mini"
+	retryAfterHeader     = "Retry-After"
+	retryAfterMsHeader   = "Retry-After-Ms"
 )
 
 // OpenAIProviderConfig holds OpenAI provider settings.
@@ -113,7 +115,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req LLMProviderRequest) (
 		return nil, &LLMProviderError{
 			StatusCode: resp.StatusCode,
 			Message:    parseOpenAIErrorMessage(respBody),
-			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
+			RetryAfter: parseRetryDelay(resp.Header),
 		}
 	}
 
@@ -185,4 +187,19 @@ func parseRetryAfter(value string) time.Duration {
 		return 0
 	}
 	return delay
+}
+
+func parseRetryDelay(header http.Header) time.Duration {
+	if delay := parseRetryAfter(header.Get(retryAfterHeader)); delay > 0 {
+		return delay
+	}
+	return parseRetryAfterMilliseconds(header.Get(retryAfterMsHeader))
+}
+
+func parseRetryAfterMilliseconds(value string) time.Duration {
+	milliseconds, err := strconv.Atoi(value)
+	if err != nil || milliseconds <= 0 {
+		return 0
+	}
+	return time.Duration(milliseconds) * time.Millisecond
 }
