@@ -43,12 +43,9 @@ func (s *MarketplaceService) Register(ctx context.Context, developerID uuid.UUID
 		return nil, &ValidationError{Field: "manifest", Message: err.Error()}
 	}
 
-	status := strings.TrimSpace(req.Status)
-	if status == "" {
-		status = repository.MarketplaceConnectorStatusDraft
-	}
-	if !isValidMarketplaceStatus(status) {
-		return nil, &ValidationError{Field: "status", Message: "invalid connector status"}
+	status, err := marketplaceStatusOrDefault(req.Status)
+	if err != nil {
+		return nil, err
 	}
 
 	existing, err := s.repo.GetConnector(ctx, req.Manifest.ID, req.Manifest.Version)
@@ -59,24 +56,40 @@ func (s *MarketplaceService) Register(ctx context.Context, developerID uuid.UUID
 		return nil, &ConflictError{Resource: "marketplace_connector", Message: "connector version already exists"}
 	}
 
+	connector := newMarketplaceConnector(developerID, req.Manifest, status)
+
+	if err := s.repo.CreateConnector(ctx, connector); err != nil {
+		return nil, err
+	}
+	return connector, nil
+}
+
+func marketplaceStatusOrDefault(status string) (string, error) {
+	status = strings.TrimSpace(status)
+	if status == "" {
+		return repository.MarketplaceConnectorStatusDraft, nil
+	}
+	if !isValidMarketplaceStatus(status) {
+		return "", &ValidationError{Field: "status", Message: "invalid connector status"}
+	}
+	return status, nil
+}
+
+func newMarketplaceConnector(developerID uuid.UUID, manifest connectorsdk.ConnectorManifest, status string) *repository.MarketplaceConnector {
 	connector := &repository.MarketplaceConnector{
-		ID:          req.Manifest.ID,
-		Version:     req.Manifest.Version,
+		ID:          manifest.ID,
+		Version:     manifest.Version,
 		DeveloperID: developerID,
-		Name:        req.Manifest.Name,
-		Description: req.Manifest.Description,
-		Manifest:    req.Manifest,
+		Name:        manifest.Name,
+		Description: manifest.Description,
+		Manifest:    manifest,
 		Status:      status,
 	}
 	if status == repository.MarketplaceConnectorStatusPublished {
 		now := time.Now().UTC()
 		connector.PublishedAt = &now
 	}
-
-	if err := s.repo.CreateConnector(ctx, connector); err != nil {
-		return nil, err
-	}
-	return connector, nil
+	return connector
 }
 
 func (s *MarketplaceService) ListPublished(ctx context.Context) ([]*repository.MarketplaceConnector, error) {

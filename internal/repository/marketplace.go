@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +13,10 @@ import (
 
 	connectorsdk "github.com/onnwee/pulse-score/pkg/connector-sdk"
 )
+
+type rowScanner interface {
+	Scan(dest ...any) error
+}
 
 const (
 	MarketplaceConnectorStatusDraft      = "draft"
@@ -79,24 +84,16 @@ func (r *MarketplaceRepository) CreateConnector(ctx context.Context, connector *
 
 // GetConnector returns a connector by versioned identity.
 func (r *MarketplaceRepository) GetConnector(ctx context.Context, id, version string) (*MarketplaceConnector, error) {
-	connector := &MarketplaceConnector{}
-	var manifest []byte
-	err := r.pool.QueryRow(ctx, `
+	connector, err := scanMarketplaceConnector(r.pool.QueryRow(ctx, `
 		SELECT id, version, developer_id, name, description, manifest, status, published_at, created_at, updated_at
 		FROM marketplace_connectors
 		WHERE id = $1 AND version = $2
-	`, id, version).Scan(
-		&connector.ID, &connector.Version, &connector.DeveloperID, &connector.Name, &connector.Description,
-		&manifest, &connector.Status, &connector.PublishedAt, &connector.CreatedAt, &connector.UpdatedAt,
-	)
-	if err == pgx.ErrNoRows {
+	`, id, version))
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query marketplace connector: %w", err)
-	}
-	if err := json.Unmarshal(manifest, &connector.Manifest); err != nil {
-		return nil, fmt.Errorf("unmarshal connector manifest: %w", err)
 	}
 	return connector, nil
 }
@@ -146,10 +143,10 @@ func (r *MarketplaceRepository) CreateInstallation(ctx context.Context, installa
 	).Scan(&installation.ID, &installation.InstalledAt, &installation.UpdatedAt)
 }
 
-func scanMarketplaceConnector(rows pgx.Rows) (*MarketplaceConnector, error) {
+func scanMarketplaceConnector(scanner rowScanner) (*MarketplaceConnector, error) {
 	connector := &MarketplaceConnector{}
 	var manifest []byte
-	if err := rows.Scan(
+	if err := scanner.Scan(
 		&connector.ID, &connector.Version, &connector.DeveloperID, &connector.Name, &connector.Description,
 		&manifest, &connector.Status, &connector.PublishedAt, &connector.CreatedAt, &connector.UpdatedAt,
 	); err != nil {

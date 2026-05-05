@@ -1,14 +1,23 @@
 package repository
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
 	connectorsdk "github.com/onnwee/pulse-score/pkg/connector-sdk"
 )
+
+type noRowsScanner struct{}
+
+func (noRowsScanner) Scan(dest ...any) error {
+	return pgx.ErrNoRows
+}
 
 func TestMarketplaceConnectorStatusConstants(t *testing.T) {
 	cases := map[string]string{
@@ -67,6 +76,13 @@ func TestConnectorInstallationModel(t *testing.T) {
 	}
 	if installation.Config["region"] != "us" {
 		t.Fatalf("expected config to be retained")
+	}
+}
+
+func TestScanMarketplaceConnectorPreservesNoRowsError(t *testing.T) {
+	_, err := scanMarketplaceConnector(noRowsScanner{})
+	if !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("expected pgx.ErrNoRows, got %v", err)
 	}
 }
 

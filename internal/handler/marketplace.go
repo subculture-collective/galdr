@@ -80,11 +80,9 @@ func (h *MarketplaceHandler) Install(w http.ResponseWriter, r *http.Request) {
 
 	var req service.InstallConnectorRequest
 	if r.Body != nil {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			if err != io.EOF {
-				writeJSON(w, http.StatusBadRequest, errorResponse("invalid request body"))
-				return
-			}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+			writeJSON(w, http.StatusBadRequest, errorResponse("invalid request body"))
+			return
 		}
 	}
 
