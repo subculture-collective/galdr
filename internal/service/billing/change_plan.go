@@ -121,9 +121,7 @@ func (s *ChangePlanService) ChangePlan(ctx context.Context, orgID, userID uuid.U
 		if err != nil {
 			return nil, err
 		}
-		if effectiveAt != nil {
-			resp.EffectiveAt = effectiveAt
-		}
+		resp.EffectiveAt = effectiveAt
 	}
 
 	return resp, nil

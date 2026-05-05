@@ -90,14 +90,7 @@ func TestChangePlanUpgradePaidSubscriptionProratesAndUpdatesImmediately(t *testi
 		case req.Method == http.MethodGet && req.URL.Path == "/v1/subscriptions/sub_123":
 			return stripeJSON(`{"id":"sub_123","current_period_start":1710000000,"current_period_end":1712592000,"items":{"data":[{"id":"si_123","quantity":1,"price":{"id":"price_growth_monthly"}}]}}`), nil
 		case req.Method == http.MethodPost && req.URL.Path == "/v1/subscriptions/sub_123":
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				return nil, err
-			}
-			updateForm, err = url.ParseQuery(string(body))
-			if err != nil {
-				return nil, err
-			}
+			updateForm = readStripeForm(t, req)
 			return stripeJSON(`{"id":"sub_123","status":"active","current_period_start":1710000000,"current_period_end":1712592000}`), nil
 		default:
 			t.Fatalf("unexpected Stripe request: %s %s", req.Method, req.URL.Path)
@@ -150,14 +143,7 @@ func TestChangePlanDowngradeReturnsStripePeriodEnd(t *testing.T) {
 		case req.Method == http.MethodPost && req.URL.Path == "/v1/subscription_schedules":
 			return stripeJSON(`{"id":"sched_123"}`), nil
 		case req.Method == http.MethodPost && req.URL.Path == "/v1/subscription_schedules/sched_123":
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				return nil, err
-			}
-			scheduleForm, err = url.ParseQuery(string(body))
-			if err != nil {
-				return nil, err
-			}
+			scheduleForm = readStripeForm(t, req)
 			return stripeJSON(`{"id":"sched_123"}`), nil
 		default:
 			t.Fatalf("unexpected Stripe request: %s %s", req.Method, req.URL.Path)
@@ -191,4 +177,19 @@ func stripeJSON(body string) *http.Response {
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Header:     make(http.Header),
 	}
+}
+
+func readStripeForm(t *testing.T, req *http.Request) url.Values {
+	t.Helper()
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		t.Fatalf("read Stripe form body: %v", err)
+	}
+
+	values, err := url.ParseQuery(string(body))
+	if err != nil {
+		t.Fatalf("parse Stripe form body: %v", err)
+	}
+	return values
 }
