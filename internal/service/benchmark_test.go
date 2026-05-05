@@ -191,6 +191,7 @@ func TestBenchmarkPipelineSkipsOptedOutOrganizations(t *testing.T) {
 		totalMRR:       map[uuid.UUID]int64{optedInOrg.ID: 240000},
 		avgScores:      map[uuid.UUID]float64{optedInOrg.ID: 72.4},
 		churnRates:     map[uuid.UUID]float64{optedInOrg.ID: 0.11},
+		integrations:   map[uuid.UUID]int{optedInOrg.ID: 2},
 	}
 	contributions := &fakeBenchmarkContributionRepo{}
 	pipeline := NewBenchmarkPipeline(orgs, metrics, contributions, NewBenchmarkAnonymizer())
@@ -207,6 +208,9 @@ func TestBenchmarkPipelineSkipsOptedOutOrganizations(t *testing.T) {
 	}
 	if contributions.created[0].CompanySizeBucket != repository.BenchmarkBucket11To50 {
 		t.Errorf("expected anonymized company size bucket, got %q", contributions.created[0].CompanySizeBucket)
+	}
+	if contributions.created[0].ActiveIntegrationCount != 2 {
+		t.Errorf("expected active integration count 2, got %d", contributions.created[0].ActiveIntegrationCount)
 	}
 }
 
@@ -253,6 +257,97 @@ func TestBenchmarkPipelineSkipsEnabledOrganizationsWithoutIndustry(t *testing.T)
 	}
 }
 
+func TestBenchmarkAggregationServiceCalculatesSegmentPercentiles(t *testing.T) {
+	segmentIndustry := "saas"
+	segmentBucket := repository.BenchmarkBucket11To50
+	contributions := &fakeBenchmarkAggregateRepo{
+		contributions: []repository.BenchmarkContribution{
+			benchmarkContribution(segmentIndustry, segmentBucket, 10, 1000, 0.10, 1),
+			benchmarkContribution(segmentIndustry, segmentBucket, 20, 2000, 0.20, 2),
+			benchmarkContribution(segmentIndustry, segmentBucket, 30, 3000, 0.30, 3),
+			benchmarkContribution(segmentIndustry, segmentBucket, 40, 4000, 0.40, 4),
+			benchmarkContribution(segmentIndustry, segmentBucket, 50, 5000, 0.50, 5),
+			benchmarkContribution("fintech", repository.BenchmarkBucket51To200, 90, 9000, 0.90, 9),
+		},
+	}
+	service := NewBenchmarkAggregationService(contributions, contributions)
+
+	if err := service.RunOnce(context.Background()); err != nil {
+		t.Fatalf("aggregate once failed: %v", err)
+	}
+
+	health := contributions.aggregateByMetric(repository.BenchmarkMetricHealthScore)
+	if health == nil {
+		t.Fatal("expected health score aggregate")
+	}
+	if health.Industry != segmentIndustry || health.CompanySizeBucket != segmentBucket {
+		t.Fatalf("expected saas 11-50 segment, got %s %s", health.Industry, health.CompanySizeBucket)
+	}
+	if health.SampleCount != 5 {
+		t.Fatalf("expected sample count 5, got %d", health.SampleCount)
+	}
+	assertFloatEqual(t, health.P25, 20)
+	assertFloatEqual(t, health.P50, 30)
+	assertFloatEqual(t, health.P75, 40)
+	assertFloatEqual(t, health.P90, 46)
+
+	mrr := contributions.aggregateByMetric(repository.BenchmarkMetricMRRPerCustomer)
+	if mrr == nil {
+		t.Fatal("expected mrr per customer aggregate")
+	}
+	assertFloatEqual(t, mrr.P90, 4600)
+
+	churn := contributions.aggregateByMetric(repository.BenchmarkMetricChurnRate)
+	if churn == nil {
+		t.Fatal("expected churn rate aggregate")
+	}
+	assertFloatEqual(t, churn.P50, 0.30)
+
+	usage := contributions.aggregateByMetric(repository.BenchmarkMetricIntegrationUsage)
+	if usage == nil {
+		t.Fatal("expected integration usage aggregate")
+	}
+	assertFloatEqual(t, usage.P75, 4)
+}
+
+func TestBenchmarkAggregationServiceSkipsSegmentsBelowMinimumSampleSize(t *testing.T) {
+	repo := &fakeBenchmarkAggregateRepo{
+		contributions: []repository.BenchmarkContribution{
+			benchmarkContribution("saas", repository.BenchmarkBucket11To50, 10, 1000, 0.10, 1),
+			benchmarkContribution("saas", repository.BenchmarkBucket11To50, 20, 2000, 0.20, 2),
+			benchmarkContribution("saas", repository.BenchmarkBucket11To50, 30, 3000, 0.30, 3),
+			benchmarkContribution("saas", repository.BenchmarkBucket11To50, 40, 4000, 0.40, 4),
+		},
+	}
+	service := NewBenchmarkAggregationService(repo, repo)
+
+	if err := service.RunOnce(context.Background()); err != nil {
+		t.Fatalf("aggregate once failed: %v", err)
+	}
+	if len(repo.aggregates) != 0 {
+		t.Fatalf("expected no aggregates below minimum sample size, got %d", len(repo.aggregates))
+	}
+}
+
+func benchmarkContribution(industry, bucket string, score float64, mrr int64, churnRate float64, integrationCount int) repository.BenchmarkContribution {
+	return repository.BenchmarkContribution{
+		OrgID:                  uuid.New(),
+		Industry:               industry,
+		CompanySizeBucket:      bucket,
+		AvgHealthScore:         score,
+		AvgMRR:                 mrr,
+		AvgChurnRate:           churnRate,
+		ActiveIntegrationCount: integrationCount,
+	}
+}
+
+func assertFloatEqual(t *testing.T, got, expected float64) {
+	t.Helper()
+	if got != expected {
+		t.Fatalf("expected %.4f, got %.4f", expected, got)
+	}
+}
+
 type fakeBenchmarkOrgRepo struct {
 	orgs []repository.Organization
 }
@@ -272,6 +367,7 @@ type fakeBenchmarkMetricsRepo struct {
 	totalMRR       map[uuid.UUID]int64
 	avgScores      map[uuid.UUID]float64
 	churnRates     map[uuid.UUID]float64
+	integrations   map[uuid.UUID]int
 }
 
 func (f *fakeBenchmarkMetricsRepo) CountCustomers(ctx context.Context, orgID uuid.UUID) (int, error) {
@@ -290,11 +386,38 @@ func (f *fakeBenchmarkMetricsRepo) ChurnRate(ctx context.Context, orgID uuid.UUI
 	return f.churnRates[orgID], nil
 }
 
+func (f *fakeBenchmarkMetricsRepo) ActiveIntegrationCount(ctx context.Context, orgID uuid.UUID) (int, error) {
+	return f.integrations[orgID], nil
+}
+
 type fakeBenchmarkContributionRepo struct {
 	created []*repository.BenchmarkContribution
 }
 
 func (f *fakeBenchmarkContributionRepo) CreateContribution(ctx context.Context, contribution *repository.BenchmarkContribution) error {
 	f.created = append(f.created, contribution)
+	return nil
+}
+
+type fakeBenchmarkAggregateRepo struct {
+	contributions []repository.BenchmarkContribution
+	aggregates    []*repository.BenchmarkAggregate
+}
+
+func (f *fakeBenchmarkAggregateRepo) ListLatestContributions(ctx context.Context) ([]repository.BenchmarkContribution, error) {
+	return f.contributions, nil
+}
+
+func (f *fakeBenchmarkAggregateRepo) CreateAggregate(ctx context.Context, aggregate *repository.BenchmarkAggregate) error {
+	f.aggregates = append(f.aggregates, aggregate)
+	return nil
+}
+
+func (f *fakeBenchmarkAggregateRepo) aggregateByMetric(metric string) *repository.BenchmarkAggregate {
+	for _, aggregate := range f.aggregates {
+		if aggregate.MetricName == metric {
+			return aggregate
+		}
+	}
 	return nil
 }

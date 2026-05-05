@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -19,15 +21,16 @@ type BenchmarkPIISample struct {
 }
 
 type BenchmarkOrgMetrics struct {
-	OrgID          uuid.UUID
-	OrgName        string
-	Industry       string
-	CompanySize    int
-	CustomerCount  int
-	TotalMRR       int64
-	AvgHealthScore float64
-	AvgChurnRate   float64
-	PIISamples     []BenchmarkPIISample
+	OrgID                  uuid.UUID
+	OrgName                string
+	Industry               string
+	CompanySize            int
+	CustomerCount          int
+	TotalMRR               int64
+	AvgHealthScore         float64
+	AvgChurnRate           float64
+	ActiveIntegrationCount int
+	PIISamples             []BenchmarkPIISample
 }
 
 const unknownBenchmarkIndustry = "unknown"
@@ -67,18 +70,22 @@ func (a *BenchmarkAnonymizer) Anonymize(metrics BenchmarkOrgMetrics) (*repositor
 	if metrics.TotalMRR < 0 {
 		return nil, fmt.Errorf("total mrr must be nonnegative")
 	}
+	if metrics.ActiveIntegrationCount < 0 {
+		return nil, fmt.Errorf("active integration count must be nonnegative")
+	}
 
 	industry := NormalizeBenchmarkIndustry(metrics.Industry)
 
 	return &repository.BenchmarkContribution{
-		OrgID:               metrics.OrgID,
-		Industry:            industry,
-		CompanySizeBucket:   BucketCompanySize(metrics.CompanySize),
-		AvgHealthScore:      metrics.AvgHealthScore,
-		AvgMRR:              averageMRR(metrics.TotalMRR, metrics.CustomerCount),
-		AvgChurnRate:        metrics.AvgChurnRate,
-		CustomerCountBucket: BucketCustomerCount(metrics.CustomerCount),
-		ContributedAt:       time.Now().UTC(),
+		OrgID:                  metrics.OrgID,
+		Industry:               industry,
+		CompanySizeBucket:      BucketCompanySize(metrics.CompanySize),
+		AvgHealthScore:         metrics.AvgHealthScore,
+		AvgMRR:                 averageMRR(metrics.TotalMRR, metrics.CustomerCount),
+		AvgChurnRate:           metrics.AvgChurnRate,
+		ActiveIntegrationCount: metrics.ActiveIntegrationCount,
+		CustomerCountBucket:    BucketCustomerCount(metrics.CustomerCount),
+		ContributedAt:          time.Now().UTC(),
 	}, nil
 }
 
@@ -134,10 +141,161 @@ type BenchmarkMetricsReader interface {
 	TotalMRR(ctx context.Context, orgID uuid.UUID) (int64, error)
 	AverageHealthScore(ctx context.Context, orgID uuid.UUID) (float64, error)
 	ChurnRate(ctx context.Context, orgID uuid.UUID) (float64, error)
+	ActiveIntegrationCount(ctx context.Context, orgID uuid.UUID) (int, error)
 }
 
 type BenchmarkContributionWriter interface {
 	CreateContribution(ctx context.Context, contribution *repository.BenchmarkContribution) error
+}
+
+type BenchmarkContributionReader interface {
+	ListLatestContributions(ctx context.Context) ([]repository.BenchmarkContribution, error)
+}
+
+type BenchmarkAggregateWriter interface {
+	CreateAggregate(ctx context.Context, aggregate *repository.BenchmarkAggregate) error
+}
+
+const benchmarkMinimumSampleSize = 5
+
+type BenchmarkAggregationService struct {
+	contributions BenchmarkContributionReader
+	aggregates    BenchmarkAggregateWriter
+}
+
+func NewBenchmarkAggregationService(
+	contributions BenchmarkContributionReader,
+	aggregates BenchmarkAggregateWriter,
+) *BenchmarkAggregationService {
+	return &BenchmarkAggregationService{contributions: contributions, aggregates: aggregates}
+}
+
+func (s *BenchmarkAggregationService) RunOnce(ctx context.Context) error {
+	contributions, err := s.contributions.ListLatestContributions(ctx)
+	if err != nil {
+		return fmt.Errorf("list benchmark contributions: %w", err)
+	}
+
+	segments := groupBenchmarkContributions(contributions)
+	calculatedAt := time.Now().UTC()
+	for _, segment := range segments {
+		if len(segment.contributions) < benchmarkMinimumSampleSize {
+			continue
+		}
+		for _, metric := range benchmarkMetricValues(segment.contributions) {
+			aggregate := benchmarkAggregate(segment, metric, calculatedAt)
+			if err := s.aggregates.CreateAggregate(ctx, aggregate); err != nil {
+				return fmt.Errorf("create benchmark aggregate: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+type benchmarkSegment struct {
+	industry            string
+	companySizeBucket   string
+	contributions       []repository.BenchmarkContribution
+}
+
+type benchmarkSegmentKey struct {
+	industry          string
+	companySizeBucket string
+}
+
+type benchmarkMetricValueSet struct {
+	name   string
+	values []float64
+}
+
+func groupBenchmarkContributions(contributions []repository.BenchmarkContribution) []benchmarkSegment {
+	segmentByKey := make(map[benchmarkSegmentKey]*benchmarkSegment)
+	for _, contribution := range contributions {
+		key := benchmarkSegmentKey{
+			industry:          contribution.Industry,
+			companySizeBucket: contribution.CompanySizeBucket,
+		}
+		segment, ok := segmentByKey[key]
+		if !ok {
+			segment = &benchmarkSegment{
+				industry:          contribution.Industry,
+				companySizeBucket: contribution.CompanySizeBucket,
+			}
+			segmentByKey[key] = segment
+		}
+		segment.contributions = append(segment.contributions, contribution)
+	}
+
+	segments := make([]benchmarkSegment, 0, len(segmentByKey))
+	for _, segment := range segmentByKey {
+		segments = append(segments, *segment)
+	}
+	sort.Slice(segments, func(i, j int) bool {
+		if segments[i].industry == segments[j].industry {
+			return segments[i].companySizeBucket < segments[j].companySizeBucket
+		}
+		return segments[i].industry < segments[j].industry
+	})
+	return segments
+}
+
+func benchmarkMetricValues(contributions []repository.BenchmarkContribution) []benchmarkMetricValueSet {
+	healthScores := make([]float64, 0, len(contributions))
+	mrrPerCustomer := make([]float64, 0, len(contributions))
+	churnRates := make([]float64, 0, len(contributions))
+	integrationUsage := make([]float64, 0, len(contributions))
+
+	for _, contribution := range contributions {
+		healthScores = append(healthScores, contribution.AvgHealthScore)
+		mrrPerCustomer = append(mrrPerCustomer, float64(contribution.AvgMRR))
+		churnRates = append(churnRates, contribution.AvgChurnRate)
+		integrationUsage = append(integrationUsage, float64(contribution.ActiveIntegrationCount))
+	}
+
+	return []benchmarkMetricValueSet{
+		{name: repository.BenchmarkMetricHealthScore, values: healthScores},
+		{name: repository.BenchmarkMetricMRRPerCustomer, values: mrrPerCustomer},
+		{name: repository.BenchmarkMetricChurnRate, values: churnRates},
+		{name: repository.BenchmarkMetricIntegrationUsage, values: integrationUsage},
+	}
+}
+
+func benchmarkAggregate(segment benchmarkSegment, metric benchmarkMetricValueSet, calculatedAt time.Time) *repository.BenchmarkAggregate {
+	values := append([]float64(nil), metric.values...)
+	sort.Float64s(values)
+
+	return &repository.BenchmarkAggregate{
+		Industry:          segment.industry,
+		CompanySizeBucket: segment.companySizeBucket,
+		MetricName:        metric.name,
+		P25:               percentile(values, 0.25),
+		P50:               percentile(values, 0.50),
+		P75:               percentile(values, 0.75),
+		P90:               percentile(values, 0.90),
+		SampleCount:       len(values),
+		CalculatedAt:      calculatedAt,
+	}
+}
+
+func percentile(sortedValues []float64, quantile float64) float64 {
+	if len(sortedValues) == 0 {
+		return 0
+	}
+	if len(sortedValues) == 1 {
+		return sortedValues[0]
+	}
+
+	position := quantile * float64(len(sortedValues)-1)
+	lowerIndex := int(position)
+	upperIndex := lowerIndex + 1
+	if upperIndex >= len(sortedValues) {
+		return sortedValues[lowerIndex]
+	}
+
+	fraction := position - float64(lowerIndex)
+	value := sortedValues[lowerIndex] + (sortedValues[upperIndex]-sortedValues[lowerIndex])*fraction
+	return math.Round(value*10000) / 10000
 }
 
 type BenchmarkPipeline struct {
@@ -202,15 +360,20 @@ func (p *BenchmarkPipeline) contributeOrg(ctx context.Context, org repository.Or
 	if err != nil {
 		return fmt.Errorf("benchmark churn rate: %w", err)
 	}
+	integrationCount, err := p.metrics.ActiveIntegrationCount(ctx, org.ID)
+	if err != nil {
+		return fmt.Errorf("count benchmark active integrations: %w", err)
+	}
 
 	contribution, err := p.anonymizer.Anonymize(BenchmarkOrgMetrics{
-		OrgID:          org.ID,
-		Industry:       org.Industry,
-		CompanySize:    org.CompanySize,
-		CustomerCount:  customerCount,
-		TotalMRR:       totalMRR,
-		AvgHealthScore: avgScore,
-		AvgChurnRate:   churnRate,
+		OrgID:                  org.ID,
+		Industry:               org.Industry,
+		CompanySize:            org.CompanySize,
+		CustomerCount:          customerCount,
+		TotalMRR:               totalMRR,
+		AvgHealthScore:         avgScore,
+		AvgChurnRate:           churnRate,
+		ActiveIntegrationCount: integrationCount,
 	})
 	if err != nil {
 		return fmt.Errorf("anonymize benchmark contribution: %w", err)

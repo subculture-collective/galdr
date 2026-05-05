@@ -18,21 +18,23 @@ const (
 )
 
 const (
-	BenchmarkMetricAvgHealthScore = "avg_health_score"
-	BenchmarkMetricAvgMRR         = "avg_mrr"
-	BenchmarkMetricAvgChurnRate   = "avg_churn_rate"
+	BenchmarkMetricHealthScore      = "health_score"
+	BenchmarkMetricMRRPerCustomer   = "mrr_per_customer"
+	BenchmarkMetricChurnRate        = "churn_rate"
+	BenchmarkMetricIntegrationUsage = "integration_usage"
 )
 
 type BenchmarkContribution struct {
-	ID                  uuid.UUID `json:"id"`
-	OrgID               uuid.UUID `json:"org_id"`
-	Industry            string    `json:"industry"`
-	CompanySizeBucket   string    `json:"company_size_bucket"`
-	AvgHealthScore      float64   `json:"avg_health_score"`
-	AvgMRR              int64     `json:"avg_mrr"`
-	AvgChurnRate        float64   `json:"avg_churn_rate"`
-	CustomerCountBucket string    `json:"customer_count_bucket"`
-	ContributedAt       time.Time `json:"contributed_at"`
+	ID                     uuid.UUID `json:"id"`
+	OrgID                  uuid.UUID `json:"org_id"`
+	Industry               string    `json:"industry"`
+	CompanySizeBucket      string    `json:"company_size_bucket"`
+	AvgHealthScore         float64   `json:"avg_health_score"`
+	AvgMRR                 int64     `json:"avg_mrr"`
+	AvgChurnRate           float64   `json:"avg_churn_rate"`
+	ActiveIntegrationCount int       `json:"active_integration_count"`
+	CustomerCountBucket    string    `json:"customer_count_bucket"`
+	ContributedAt          time.Time `json:"contributed_at"`
 }
 
 type BenchmarkAggregate struct {
@@ -67,9 +69,10 @@ func (r *BenchmarkRepository) CreateContribution(ctx context.Context, contributi
 	query := `
 		INSERT INTO benchmark_contributions (
 			id, org_id, industry, company_size_bucket, avg_health_score,
-			avg_mrr, avg_churn_rate, customer_count_bucket, contributed_at
+			avg_mrr, avg_churn_rate, active_integration_count,
+			customer_count_bucket, contributed_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING contributed_at`
 
 	if err := r.pool.QueryRow(ctx, query,
@@ -80,6 +83,7 @@ func (r *BenchmarkRepository) CreateContribution(ctx context.Context, contributi
 		contribution.AvgHealthScore,
 		contribution.AvgMRR,
 		contribution.AvgChurnRate,
+		contribution.ActiveIntegrationCount,
 		contribution.CustomerCountBucket,
 		contribution.ContributedAt,
 	).Scan(&contribution.ContributedAt); err != nil {
@@ -87,6 +91,47 @@ func (r *BenchmarkRepository) CreateContribution(ctx context.Context, contributi
 	}
 
 	return nil
+}
+
+func (r *BenchmarkRepository) ListLatestContributions(ctx context.Context) ([]BenchmarkContribution, error) {
+	query := `
+		SELECT DISTINCT ON (org_id)
+			id, org_id, industry, company_size_bucket, avg_health_score,
+			avg_mrr, avg_churn_rate, active_integration_count,
+			customer_count_bucket, contributed_at
+		FROM benchmark_contributions
+		ORDER BY org_id, contributed_at DESC`
+
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list latest benchmark contributions: %w", err)
+	}
+	defer rows.Close()
+
+	var contributions []BenchmarkContribution
+	for rows.Next() {
+		var contribution BenchmarkContribution
+		if err := rows.Scan(
+			&contribution.ID,
+			&contribution.OrgID,
+			&contribution.Industry,
+			&contribution.CompanySizeBucket,
+			&contribution.AvgHealthScore,
+			&contribution.AvgMRR,
+			&contribution.AvgChurnRate,
+			&contribution.ActiveIntegrationCount,
+			&contribution.CustomerCountBucket,
+			&contribution.ContributedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan latest benchmark contribution: %w", err)
+		}
+		contributions = append(contributions, contribution)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate latest benchmark contributions: %w", err)
+	}
+
+	return contributions, nil
 }
 
 func (r *BenchmarkRepository) CreateAggregate(ctx context.Context, aggregate *BenchmarkAggregate) error {
@@ -126,10 +171,11 @@ func (r *BenchmarkRepository) CreateAggregate(ctx context.Context, aggregate *Be
 type BenchmarkMetricsRepository struct {
 	customers    *CustomerRepository
 	healthScores *HealthScoreRepository
+	integrations *IntegrationConnectionRepository
 }
 
-func NewBenchmarkMetricsRepository(customers *CustomerRepository, healthScores *HealthScoreRepository) *BenchmarkMetricsRepository {
-	return &BenchmarkMetricsRepository{customers: customers, healthScores: healthScores}
+func NewBenchmarkMetricsRepository(customers *CustomerRepository, healthScores *HealthScoreRepository, integrations *IntegrationConnectionRepository) *BenchmarkMetricsRepository {
+	return &BenchmarkMetricsRepository{customers: customers, healthScores: healthScores, integrations: integrations}
 }
 
 func (r *BenchmarkMetricsRepository) CountCustomers(ctx context.Context, orgID uuid.UUID) (int, error) {
@@ -157,4 +203,8 @@ func (r *BenchmarkMetricsRepository) ChurnRate(ctx context.Context, orgID uuid.U
 		return 0, fmt.Errorf("get benchmark churn rate: %w", err)
 	}
 	return rate, nil
+}
+
+func (r *BenchmarkMetricsRepository) ActiveIntegrationCount(ctx context.Context, orgID uuid.UUID) (int, error) {
+	return r.integrations.CountActiveByOrg(ctx, orgID)
 }
