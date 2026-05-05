@@ -65,10 +65,10 @@ func TestBenchmarkMigrationUpFileContainsTablesAndOptInFields(t *testing.T) {
 
 	required := []string{
 		"benchmarking_enabled",
-		"industry",
 		"company_size",
 		"CREATE TABLE benchmark_contributions",
 		"CREATE TABLE benchmark_aggregates",
+		"industry",
 		"customer_count_bucket",
 		"avg_health_score",
 		"avg_mrr",
@@ -114,6 +114,9 @@ func TestBenchmarkMigrationDoesNotOwnIndustryClassification(t *testing.T) {
 
 	if strings.Contains(upSQL, "ADD COLUMN industry") {
 		t.Error("benchmark migration must not add organizations.industry; industry classification owns that column")
+	}
+	if strings.Contains(upSQL, "ADD COLUMN IF NOT EXISTS industry") {
+		t.Error("benchmark migration must not create organizations.industry; industry classification owns that column")
 	}
 	if strings.Contains(downSQL, "DROP COLUMN IF EXISTS industry") {
 		t.Error("benchmark migration must not drop organizations.industry; industry classification owns that column")

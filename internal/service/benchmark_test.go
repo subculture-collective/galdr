@@ -164,6 +164,31 @@ func TestBenchmarkPipelineSkipsOrganizationsWithoutCustomers(t *testing.T) {
 	}
 }
 
+func TestBenchmarkPipelineSkipsEnabledOrganizationsWithoutIndustry(t *testing.T) {
+	classifiedOrg := repository.Organization{ID: uuid.New(), Industry: "SaaS", CompanySize: 25, BenchmarkingEnabled: true}
+	unclassifiedOrg := repository.Organization{ID: uuid.New(), Industry: " ", CompanySize: 80, BenchmarkingEnabled: true}
+	orgs := &fakeBenchmarkOrgRepo{orgs: []repository.Organization{classifiedOrg, unclassifiedOrg}}
+	metrics := &fakeBenchmarkMetricsRepo{
+		customerCounts: map[uuid.UUID]int{classifiedOrg.ID: 24},
+		totalMRR:       map[uuid.UUID]int64{classifiedOrg.ID: 240000},
+		avgScores:      map[uuid.UUID]float64{classifiedOrg.ID: 72.4},
+		churnRates:     map[uuid.UUID]float64{classifiedOrg.ID: 0.11},
+	}
+	contributions := &fakeBenchmarkContributionRepo{}
+	pipeline := NewBenchmarkPipeline(orgs, metrics, contributions, NewBenchmarkAnonymizer())
+
+	if err := pipeline.RunOnce(context.Background()); err != nil {
+		t.Fatalf("run once failed: %v", err)
+	}
+
+	if len(contributions.created) != 1 {
+		t.Fatalf("expected 1 classified contribution, got %d", len(contributions.created))
+	}
+	if contributions.created[0].OrgID != classifiedOrg.ID {
+		t.Fatalf("expected only classified org contribution")
+	}
+}
+
 type fakeBenchmarkOrgRepo struct {
 	orgs []repository.Organization
 }

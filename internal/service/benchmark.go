@@ -169,6 +169,10 @@ func (p *BenchmarkPipeline) RunOnce(ctx context.Context) error {
 	}
 
 	for _, org := range orgs {
+		if strings.TrimSpace(org.Industry) == "" {
+			slog.Warn("skipping benchmark contribution without industry", "org_id", org.ID)
+			continue
+		}
 		if err := p.contributeOrg(ctx, org); err != nil {
 			return err
 		}
