@@ -144,6 +144,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 
 			// Stripe integration repositories
 			connRepo := repository.NewIntegrationConnectionRepository(pool.P)
+			marketplaceRepo := repository.NewMarketplaceRepository(pool.P)
 			customerRepo := repository.NewCustomerRepository(pool.P)
 			subRepo := repository.NewStripeSubscriptionRepository(pool.P)
 			paymentRepo := repository.NewStripePaymentRepository(pool.P)
@@ -530,6 +531,19 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 						r.Get("/status", integrationHandler.GetStatus)
 						r.Post("/sync", integrationHandler.TriggerSync)
 						r.Delete("/", integrationHandler.Disconnect)
+					})
+				})
+
+				// Connector marketplace routes
+				marketplaceSvc := service.NewMarketplaceService(marketplaceRepo)
+				marketplaceHandler := handler.NewMarketplaceHandler(marketplaceSvc)
+				r.Route("/marketplace/connectors", func(r chi.Router) {
+					r.Get("/", marketplaceHandler.ListPublished)
+					r.Get("/{id}", marketplaceHandler.GetPublished)
+					r.Group(func(r chi.Router) {
+						r.Use(middleware.RequireRole("admin"))
+						r.Post("/", marketplaceHandler.Register)
+						r.Post("/{id}/install", marketplaceHandler.Install)
 					})
 				})
 

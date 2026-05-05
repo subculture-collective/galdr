@@ -1,0 +1,185 @@
+package service
+
+import (
+	"context"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/onnwee/pulse-score/internal/repository"
+	connectorsdk "github.com/onnwee/pulse-score/pkg/connector-sdk"
+)
+
+type marketplaceRepository interface {
+	CreateConnector(ctx context.Context, connector *repository.MarketplaceConnector) error
+	GetConnector(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error)
+	ListPublishedConnectors(ctx context.Context) ([]*repository.MarketplaceConnector, error)
+	CreateInstallation(ctx context.Context, installation *repository.ConnectorInstallation) error
+}
+
+type RegisterConnectorRequest struct {
+	Manifest connectorsdk.ConnectorManifest `json:"manifest"`
+	Status   string                         `json:"status,omitempty"`
+}
+
+type InstallConnectorRequest struct {
+	Config map[string]any `json:"config,omitempty"`
+}
+
+// MarketplaceService handles connector registration and discovery.
+type MarketplaceService struct {
+	repo marketplaceRepository
+}
+
+func NewMarketplaceService(repo marketplaceRepository) *MarketplaceService {
+	return &MarketplaceService{repo: repo}
+}
+
+func (s *MarketplaceService) Register(ctx context.Context, developerID uuid.UUID, req RegisterConnectorRequest) (*repository.MarketplaceConnector, error) {
+	if err := connectorsdk.ValidateManifest(req.Manifest); err != nil {
+		return nil, &ValidationError{Field: "manifest", Message: err.Error()}
+	}
+
+	status := strings.TrimSpace(req.Status)
+	if status == "" {
+		status = repository.MarketplaceConnectorStatusDraft
+	}
+	if !isValidMarketplaceStatus(status) {
+		return nil, &ValidationError{Field: "status", Message: "invalid connector status"}
+	}
+
+	existing, err := s.repo.GetConnector(ctx, req.Manifest.ID, req.Manifest.Version)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return nil, &ConflictError{Resource: "marketplace_connector", Message: "connector version already exists"}
+	}
+
+	connector := &repository.MarketplaceConnector{
+		ID:          req.Manifest.ID,
+		Version:     req.Manifest.Version,
+		DeveloperID: developerID,
+		Name:        req.Manifest.Name,
+		Description: req.Manifest.Description,
+		Manifest:    req.Manifest,
+		Status:      status,
+	}
+	if status == repository.MarketplaceConnectorStatusPublished {
+		now := time.Now().UTC()
+		connector.PublishedAt = &now
+	}
+
+	if err := s.repo.CreateConnector(ctx, connector); err != nil {
+		return nil, err
+	}
+	return connector, nil
+}
+
+func (s *MarketplaceService) ListPublished(ctx context.Context) ([]*repository.MarketplaceConnector, error) {
+	connectors, err := s.repo.ListPublishedConnectors(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return latestConnectorVersions(connectors), nil
+}
+
+func (s *MarketplaceService) GetPublished(ctx context.Context, id string) (*repository.MarketplaceConnector, error) {
+	connectors, err := s.ListPublished(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, connector := range connectors {
+		if connector.ID == id {
+			return connector, nil
+		}
+	}
+	return nil, &NotFoundError{Resource: "marketplace_connector", Message: "connector not found"}
+}
+
+func (s *MarketplaceService) Install(ctx context.Context, orgID uuid.UUID, id string, req InstallConnectorRequest) (*repository.ConnectorInstallation, error) {
+	connector, err := s.GetPublished(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	installation := &repository.ConnectorInstallation{
+		ConnectorID:      connector.ID,
+		ConnectorVersion: connector.Version,
+		OrgID:            orgID,
+		Config:           req.Config,
+		Status:           repository.ConnectorInstallationStatusActive,
+	}
+	if err := s.repo.CreateInstallation(ctx, installation); err != nil {
+		return nil, err
+	}
+	return installation, nil
+}
+
+func latestConnectorVersions(connectors []*repository.MarketplaceConnector) []*repository.MarketplaceConnector {
+	latestByID := make(map[string]*repository.MarketplaceConnector, len(connectors))
+	for _, connector := range connectors {
+		if connector == nil {
+			continue
+		}
+		current, ok := latestByID[connector.ID]
+		if !ok || compareSemver(connector.Version, current.Version) > 0 {
+			latestByID[connector.ID] = connector
+		}
+	}
+
+	ids := make([]string, 0, len(latestByID))
+	for id := range latestByID {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+
+	result := make([]*repository.MarketplaceConnector, 0, len(ids))
+	for _, id := range ids {
+		result = append(result, latestByID[id])
+	}
+	return result
+}
+
+func compareSemver(a, b string) int {
+	aParts := semverCoreParts(a)
+	bParts := semverCoreParts(b)
+	for i := 0; i < 3; i++ {
+		if aParts[i] > bParts[i] {
+			return 1
+		}
+		if aParts[i] < bParts[i] {
+			return -1
+		}
+	}
+	return strings.Compare(a, b)
+}
+
+func semverCoreParts(version string) [3]int {
+	core := strings.SplitN(strings.SplitN(version, "+", 2)[0], "-", 2)[0]
+	parts := strings.Split(core, ".")
+	var nums [3]int
+	for i := 0; i < len(parts) && i < 3; i++ {
+		n, err := strconv.Atoi(parts[i])
+		if err != nil {
+			return [3]int{}
+		}
+		nums[i] = n
+	}
+	return nums
+}
+
+func isValidMarketplaceStatus(status string) bool {
+	switch status {
+	case repository.MarketplaceConnectorStatusDraft,
+		repository.MarketplaceConnectorStatusSubmitted,
+		repository.MarketplaceConnectorStatusApproved,
+		repository.MarketplaceConnectorStatusPublished,
+		repository.MarketplaceConnectorStatusDeprecated:
+		return true
+	default:
+		return false
+	}
+}
