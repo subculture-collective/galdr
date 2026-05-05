@@ -119,10 +119,7 @@ func (s *LimitsService) CanAccess(ctx context.Context, orgID uuid.UUID, featureN
 		return nil, fmt.Errorf("no plan configured for tier %s", tier)
 	}
 
-	allowed, known := s.catalog.HasFeature(tier, featureName)
-	if !known {
-		allowed = false
-	}
+	allowed, _ := s.catalog.HasFeature(tier, featureName)
 
 	decision := &FeatureDecision{
 		Allowed:     allowed,

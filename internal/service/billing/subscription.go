@@ -62,7 +62,7 @@ type SubscriptionSummary struct {
 	RenewalDate       *time.Time     `json:"renewal_date"`
 	CancelAtPeriodEnd bool           `json:"cancel_at_period_end"`
 	Usage             UsageSnapshot  `json:"usage"`
-	Features          map[string]any `json:"features"`
+	Features          map[string]bool `json:"features"`
 }
 
 func NewSubscriptionService(
@@ -165,7 +165,7 @@ func (s *SubscriptionService) GetSubscriptionSummary(ctx context.Context, orgID 
 		Tier:         tier,
 		Status:       "free",
 		BillingCycle: string(planmodel.BillingCycleMonthly),
-		Features:     map[string]any{},
+		Features:     map[string]bool{},
 	}
 
 	summary.Usage.Customers.Used = customerCount
@@ -176,12 +176,7 @@ func (s *SubscriptionService) GetSubscriptionSummary(ctx context.Context, orgID 
 	summary.Usage.TeamMembers.Limit = limits.TeamMemberLimit
 
 	if plan, ok := s.catalog.GetPlanByTier(tier); ok {
-		summary.Features[planmodel.FeatureBasicDashboard] = plan.Features.BasicDashboard
-		summary.Features[planmodel.FeatureFullDashboard] = plan.Features.FullDashboard
-		summary.Features[planmodel.FeatureEmailAlerts] = plan.Features.EmailAlerts
-		summary.Features[planmodel.FeaturePlaybooks] = plan.Features.Playbooks
-		summary.Features[planmodel.FeatureAIInsights] = plan.Features.AIInsights
-		summary.Features[planmodel.FeatureBenchmarks] = plan.Features.Benchmarks
+		summary.Features = subscriptionFeatureMap(plan.Features)
 	}
 
 	sub, err := s.subscriptions.GetByOrg(ctx, orgID)
@@ -198,4 +193,15 @@ func (s *SubscriptionService) GetSubscriptionSummary(ctx context.Context, orgID 
 	}
 
 	return summary, nil
+}
+
+func subscriptionFeatureMap(features planmodel.FeatureFlags) map[string]bool {
+	return map[string]bool{
+		planmodel.FeatureBasicDashboard: features.BasicDashboard,
+		planmodel.FeatureFullDashboard:  features.FullDashboard,
+		planmodel.FeatureEmailAlerts:    features.EmailAlerts,
+		planmodel.FeaturePlaybooks:      features.Playbooks,
+		planmodel.FeatureAIInsights:     features.AIInsights,
+		planmodel.FeatureBenchmarks:     features.Benchmarks,
+	}
 }
