@@ -287,6 +287,9 @@ function OnboardingContent() {
     return providers;
   }, [stripeStatus?.status, hubSpotStatus?.status, intercomStatus?.status]);
 
+  const welcomeOrgName = welcomeValue.name.trim();
+  const welcomeIndustry = welcomeValue.industry.trim();
+
   const syncStatus = useMemo(
     () => ({
       stripe: statusText(stripeStatus?.status),
@@ -382,27 +385,25 @@ function OnboardingContent() {
   }
 
   async function handleWelcomeComplete() {
-    const orgName = welcomeValue.name.trim();
-    const industry = welcomeValue.industry.trim();
-    if (!orgName) {
+    if (!welcomeOrgName) {
       throw new Error("Organization name is required.");
     }
-    if (!industry) {
+    if (!welcomeIndustry) {
       throw new Error("Industry is required.");
     }
 
     try {
       await api.patch("/organizations/current", {
-        name: orgName,
-        industry,
+        name: welcomeOrgName,
+        industry: welcomeIndustry,
       });
     } catch {
       throw new Error("Failed to save organization setup.");
     }
 
     const payload = {
-      name: orgName,
-      industry,
+      name: welcomeOrgName,
+      industry: welcomeIndustry,
       company_size: welcomeValue.company_size,
     };
 
@@ -460,9 +461,7 @@ function OnboardingContent() {
     {
       id: "welcome",
       label: "Welcome",
-      canProceed:
-        welcomeValue.name.trim().length > 0 &&
-        welcomeValue.industry.trim().length > 0,
+      canProceed: welcomeOrgName.length > 0 && welcomeIndustry.length > 0,
       content: (
         <WelcomeStep
           value={welcomeValue}
