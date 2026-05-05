@@ -1,7 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
 import { useToast } from "@/contexts/ToastContext";
+import {
+  FEATURE_FULL_DASHBOARD,
+  useFeatureFlag,
+} from "@/contexts/FeatureFlagContext";
 import StatCard from "@/components/StatCard";
+import UpgradePrompt from "@/components/UpgradePrompt";
 import CardSkeleton from "@/components/skeletons/CardSkeleton";
 import { Users, AlertTriangle, DollarSign, Activity } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
@@ -49,6 +54,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const toast = useToast();
+  const fullDashboard = useFeatureFlag(FEATURE_FULL_DASHBOARD);
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -69,73 +75,92 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [fetchSummary]);
 
+  let summaryContent = null;
+  if (loading) {
+    summaryContent = (
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <CardSkeleton key={i} />
+        ))}
+      </div>
+    );
+  } else if (error) {
+    summaryContent = (
+      <div role="alert" className="galdr-alert-danger p-6 text-center">
+        <p className="text-sm">Failed to load dashboard data.</p>
+        <button
+          onClick={fetchSummary}
+          className="galdr-link mt-2 text-sm font-medium"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  } else if (summary) {
+    summaryContent = (
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          title="Total Customers"
+          value={summary.total_customers}
+          icon={<Users className="h-5 w-5" />}
+        />
+        <StatCard
+          title="At-Risk Customers"
+          value={summary.at_risk_customers}
+          icon={<AlertTriangle className="h-5 w-5" />}
+        />
+        <StatCard
+          title="Total MRR"
+          value={formatCurrency(summary.total_mrr)}
+          icon={<DollarSign className="h-5 w-5" />}
+        />
+        <StatCard
+          title="Avg Health Score"
+          value={Math.round(summary.average_health_score)}
+          icon={<Activity className="h-5 w-5" />}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-[var(--galdr-fg)]">Dashboard</h1>
 
-      {/* Stat cards */}
-      {loading ? (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <CardSkeleton key={i} />
-          ))}
-        </div>
-      ) : error ? (
-        <div role="alert" className="galdr-alert-danger p-6 text-center">
-          <p className="text-sm">Failed to load dashboard data.</p>
-          <button
-            onClick={fetchSummary}
-            className="galdr-link mt-2 text-sm font-medium"
-          >
-            Retry
-          </button>
-        </div>
-      ) : summary ? (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            title="Total Customers"
-            value={summary.total_customers}
-            icon={<Users className="h-5 w-5" />}
-          />
-          <StatCard
-            title="At-Risk Customers"
-            value={summary.at_risk_customers}
-            icon={<AlertTriangle className="h-5 w-5" />}
-          />
-          <StatCard
-            title="Total MRR"
-            value={formatCurrency(summary.total_mrr)}
-            icon={<DollarSign className="h-5 w-5" />}
-          />
-          <StatCard
-            title="Avg Health Score"
-            value={Math.round(summary.average_health_score)}
-            icon={<Activity className="h-5 w-5" />}
-          />
-        </div>
-      ) : null}
+      {summaryContent}
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Suspense fallback={<ChartPanelFallback />}>
-          <ScoreDistributionChart />
-        </Suspense>
-        <Suspense fallback={<ChartPanelFallback />}>
-          <MRRTrendChart />
-        </Suspense>
-      </div>
+      {fullDashboard.allowed ? (
+        <>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <Suspense fallback={<ChartPanelFallback />}>
+              <ScoreDistributionChart />
+            </Suspense>
+            <Suspense fallback={<ChartPanelFallback />}>
+              <MRRTrendChart />
+            </Suspense>
+          </div>
 
-      {/* Risk overview */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <Suspense fallback={<ChartPanelFallback />}>
-          <RiskDistributionChart />
-        </Suspense>
-        <div className="lg:col-span-2">
-          <Suspense fallback={<TablePanelFallback />}>
-            <AtRiskCustomersTable />
-          </Suspense>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <Suspense fallback={<ChartPanelFallback />}>
+              <RiskDistributionChart />
+            </Suspense>
+            <div className="lg:col-span-2">
+              <Suspense fallback={<TablePanelFallback />}>
+                <AtRiskCustomersTable />
+              </Suspense>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <UpgradePrompt
+            featureName="Full dashboard"
+            recommendedTier={fullDashboard.recommendedTier}
+            description="Unlock score distribution, MRR trend, risk breakdown, and at-risk customer views."
+            className="lg:col-span-2"
+          />
         </div>
-      </div>
+      )}
     </div>
   );
 }

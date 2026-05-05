@@ -18,6 +18,8 @@ type marketplaceRepository interface {
 	GetConnector(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error)
 	ListPublishedConnectors(ctx context.Context) ([]*repository.MarketplaceConnector, error)
 	CreateInstallation(ctx context.Context, installation *repository.ConnectorInstallation) error
+	CreateReviewResult(ctx context.Context, result *repository.ConnectorReviewResult) error
+	UpdateConnectorStatus(ctx context.Context, id, version, status string) error
 }
 
 type RegisterConnectorRequest struct {
@@ -129,6 +131,10 @@ func (s *MarketplaceService) Install(ctx context.Context, orgID uuid.UUID, id st
 		return nil, err
 	}
 	return installation, nil
+}
+
+func (s *MarketplaceService) Review(ctx context.Context, reviewerID uuid.UUID, id, version string, req ConnectorReviewRequest) (*repository.ConnectorReviewResult, error) {
+	return NewConnectorReviewService(s.repo).Review(ctx, reviewerID, id, version, req)
 }
 
 func latestConnectorVersions(connectors []*repository.MarketplaceConnector) []*repository.MarketplaceConnector {

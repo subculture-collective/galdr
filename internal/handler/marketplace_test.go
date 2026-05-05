@@ -22,6 +22,7 @@ type mockMarketplaceService struct {
 	listPublishedFn func(ctx context.Context) ([]*repository.MarketplaceConnector, error)
 	getPublishedFn  func(ctx context.Context, id string) (*repository.MarketplaceConnector, error)
 	installFn       func(ctx context.Context, orgID uuid.UUID, id string, req service.InstallConnectorRequest) (*repository.ConnectorInstallation, error)
+	reviewFn        func(ctx context.Context, reviewerID uuid.UUID, id, version string, req service.ConnectorReviewRequest) (*repository.ConnectorReviewResult, error)
 }
 
 func (m *mockMarketplaceService) Register(ctx context.Context, developerID uuid.UUID, req service.RegisterConnectorRequest) (*repository.MarketplaceConnector, error) {
@@ -38,6 +39,10 @@ func (m *mockMarketplaceService) GetPublished(ctx context.Context, id string) (*
 
 func (m *mockMarketplaceService) Install(ctx context.Context, orgID uuid.UUID, id string, req service.InstallConnectorRequest) (*repository.ConnectorInstallation, error) {
 	return m.installFn(ctx, orgID, id, req)
+}
+
+func (m *mockMarketplaceService) Review(ctx context.Context, reviewerID uuid.UUID, id, version string, req service.ConnectorReviewRequest) (*repository.ConnectorReviewResult, error) {
+	return m.reviewFn(ctx, reviewerID, id, version, req)
 }
 
 func TestMarketplaceRegister_Unauthorized(t *testing.T) {
@@ -181,6 +186,55 @@ func TestMarketplaceInstall_Unauthorized(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	h.Install(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestMarketplaceReview_Success(t *testing.T) {
+	reviewerID := uuid.New()
+	body := []byte(`{"checklist":{"data_access_justified":true,"error_handling_ready":true,"documentation_ready":true}}`)
+	mock := &mockMarketplaceService{
+		reviewFn: func(ctx context.Context, rID uuid.UUID, id, version string, req service.ConnectorReviewRequest) (*repository.ConnectorReviewResult, error) {
+			if rID != reviewerID || id != "mock-crm" || version != "1.0.0" {
+				t.Fatalf("unexpected review target %s %s %s", rID, id, version)
+			}
+			if !req.Checklist.DataAccessJustified || !req.Checklist.ErrorHandlingReady || !req.Checklist.DocumentationReady {
+				t.Fatal("review checklist not decoded")
+			}
+			return &repository.ConnectorReviewResult{
+				ID:               uuid.New(),
+				ConnectorID:      id,
+				ConnectorVersion: version,
+				ReviewerID:       rID,
+				Status:           repository.ConnectorReviewStatusApproved,
+			}, nil
+		},
+	}
+
+	h := NewMarketplaceHandler(mock)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/marketplace/connectors/mock-crm/versions/1.0.0/review", bytes.NewReader(body))
+	req = req.WithContext(auth.WithUserID(req.Context(), reviewerID))
+	req = withChiParam(req, "id", "mock-crm")
+	req = withChiParam(req, "version", "1.0.0")
+	rr := httptest.NewRecorder()
+
+	h.Review(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rr.Code)
+	}
+}
+
+func TestMarketplaceReview_Unauthorized(t *testing.T) {
+	h := NewMarketplaceHandler(&mockMarketplaceService{})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/marketplace/connectors/mock-crm/versions/1.0.0/review", nil)
+	req = withChiParam(req, "id", "mock-crm")
+	req = withChiParam(req, "version", "1.0.0")
+	rr := httptest.NewRecorder()
+
+	h.Review(rr, req)
 
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rr.Code)
