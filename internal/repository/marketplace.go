@@ -14,7 +14,7 @@ import (
 	connectorsdk "github.com/onnwee/pulse-score/pkg/connector-sdk"
 )
 
-type rowScanner interface {
+type marketplaceConnectorScanner interface {
 	Scan(dest ...any) error
 }
 
@@ -143,7 +143,7 @@ func (r *MarketplaceRepository) CreateInstallation(ctx context.Context, installa
 	).Scan(&installation.ID, &installation.InstalledAt, &installation.UpdatedAt)
 }
 
-func scanMarketplaceConnector(scanner rowScanner) (*MarketplaceConnector, error) {
+func scanMarketplaceConnector(scanner marketplaceConnectorScanner) (*MarketplaceConnector, error) {
 	connector := &MarketplaceConnector{}
 	var manifest []byte
 	if err := scanner.Scan(

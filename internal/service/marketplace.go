@@ -160,11 +160,8 @@ func compareSemver(a, b string) int {
 	aParts := semverCoreParts(a)
 	bParts := semverCoreParts(b)
 	for i := 0; i < 3; i++ {
-		if aParts[i] > bParts[i] {
-			return 1
-		}
-		if aParts[i] < bParts[i] {
-			return -1
+		if cmp := compareInts(aParts[i], bParts[i]); cmp != 0 {
+			return cmp
 		}
 	}
 	return comparePrerelease(semverPrerelease(a), semverPrerelease(b))
@@ -210,13 +207,7 @@ func comparePrerelease(a, b string) int {
 			return cmp
 		}
 	}
-	if len(aParts) > len(bParts) {
-		return 1
-	}
-	if len(aParts) < len(bParts) {
-		return -1
-	}
-	return 0
+	return compareInts(len(aParts), len(bParts))
 }
 
 func comparePrereleaseIdentifier(a, b string) int {
@@ -226,13 +217,7 @@ func comparePrereleaseIdentifier(a, b string) int {
 	bIsNum := bErr == nil
 
 	if aIsNum && bIsNum {
-		if aNum > bNum {
-			return 1
-		}
-		if aNum < bNum {
-			return -1
-		}
-		return 0
+		return compareInts(aNum, bNum)
 	}
 	if aIsNum {
 		return -1
@@ -241,6 +226,16 @@ func comparePrereleaseIdentifier(a, b string) int {
 		return 1
 	}
 	return strings.Compare(a, b)
+}
+
+func compareInts(a, b int) int {
+	if a > b {
+		return 1
+	}
+	if a < b {
+		return -1
+	}
+	return 0
 }
 
 func isValidMarketplaceStatus(status string) bool {

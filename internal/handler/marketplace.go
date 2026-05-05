@@ -52,7 +52,7 @@ func (h *MarketplaceHandler) ListPublished(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *MarketplaceHandler) GetPublished(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	id := connectorIDParam(r)
 	if id == "" {
 		writeJSON(w, http.StatusBadRequest, errorResponse("connector id is required"))
 		return
@@ -72,7 +72,7 @@ func (h *MarketplaceHandler) Install(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
 		return
 	}
-	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	id := connectorIDParam(r)
 	if id == "" {
 		writeJSON(w, http.StatusBadRequest, errorResponse("connector id is required"))
 		return
@@ -92,4 +92,8 @@ func (h *MarketplaceHandler) Install(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, installation)
+}
+
+func connectorIDParam(r *http.Request) string {
+	return strings.TrimSpace(chi.URLParam(r, "id"))
 }
