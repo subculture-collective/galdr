@@ -30,6 +30,7 @@ var allowedIndustries = map[string]struct{}{
 }
 
 const industryValidationMessage = "industry must be one of the predefined options"
+const benchmarkIndustryRequiredMessage = "industry is required for benchmark participation"
 
 func validateIndustry(industry string) (string, error) {
 	industry = strings.TrimSpace(industry)
@@ -37,6 +38,13 @@ func validateIndustry(industry string) (string, error) {
 		return "", &ValidationError{Field: "industry", Message: industryValidationMessage}
 	}
 	return industry, nil
+}
+
+func validateBenchmarkIndustry(benchmarkingEnabled bool, industry string) error {
+	if benchmarkingEnabled && strings.TrimSpace(industry) == "" {
+		return &ValidationError{Field: "industry", Message: benchmarkIndustryRequiredMessage}
+	}
+	return nil
 }
 
 // OrgResponse is the response for organization operations.
@@ -115,6 +123,11 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 			return nil, err
 		}
 	}
+	if req.BenchmarkingEnabled != nil && *req.BenchmarkingEnabled && req.Industry != nil {
+		if err := validateBenchmarkIndustry(true, requestedIndustry); err != nil {
+			return nil, err
+		}
+	}
 
 	org, err := s.orgs.GetByID(ctx, orgID)
 	if err != nil {
@@ -136,20 +149,9 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 		industry = requestedIndustry
 	}
 
-	slug := generateSlug(name)
-	baseSlug := slug
-	for i := 1; ; i++ {
-		exists, err := s.orgs.SlugExists(ctx, slug)
-		if err != nil {
-			return nil, fmt.Errorf("check slug: %w", err)
-		}
-		if !exists {
-			break
-		}
-		if org.Slug == slug {
-			break
-		}
-		slug = fmt.Sprintf("%s-%d", baseSlug, i)
+	slug, err := s.uniqueSlug(ctx, name, org.Slug)
+	if err != nil {
+		return nil, err
 	}
 
 	benchmarkingEnabled := org.BenchmarkingEnabled
@@ -162,6 +164,9 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 			return nil, &ValidationError{Field: "company_size", Message: "company size must be greater than or equal to 0"}
 		}
 		companySize = *req.CompanySize
+	}
+	if err := validateBenchmarkIndustry(benchmarkingEnabled, industry); err != nil {
+		return nil, err
 	}
 
 	if err := s.orgs.Update(ctx, orgID, name, slug, industry); err != nil {
@@ -185,17 +190,9 @@ func (s *OrganizationService) Create(ctx context.Context, userID uuid.UUID, req 
 		return nil, err
 	}
 
-	slug := generateSlug(name)
-	baseSlug := slug
-	for i := 1; ; i++ {
-		exists, err := s.orgs.SlugExists(ctx, slug)
-		if err != nil {
-			return nil, fmt.Errorf("check slug: %w", err)
-		}
-		if !exists {
-			break
-		}
-		slug = fmt.Sprintf("%s-%d", baseSlug, i)
+	slug, err := s.uniqueSlug(ctx, name, "")
+	if err != nil {
+		return nil, err
 	}
 
 	org := &repository.Organization{
@@ -231,4 +228,19 @@ func (s *OrganizationService) Create(ctx context.Context, userID uuid.UUID, req 
 		BenchmarkingEnabled: false,
 		CompanySize:         0,
 	}, nil
+}
+
+func (s *OrganizationService) uniqueSlug(ctx context.Context, name, currentSlug string) (string, error) {
+	slug := generateSlug(name)
+	baseSlug := slug
+	for i := 1; ; i++ {
+		exists, err := s.orgs.SlugExists(ctx, slug)
+		if err != nil {
+			return "", fmt.Errorf("check slug: %w", err)
+		}
+		if !exists || currentSlug == slug {
+			return slug, nil
+		}
+		slug = fmt.Sprintf("%s-%d", baseSlug, i)
+	}
 }
