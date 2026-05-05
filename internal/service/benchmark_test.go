@@ -151,9 +151,6 @@ func TestBenchmarkPipelineSkipsOrganizationsWithoutCustomers(t *testing.T) {
 	orgs := &fakeBenchmarkOrgRepo{orgs: []repository.Organization{org}}
 	metrics := &fakeBenchmarkMetricsRepo{
 		customerCounts: map[uuid.UUID]int{org.ID: 0},
-		totalMRR:       map[uuid.UUID]int64{org.ID: 0},
-		avgScores:      map[uuid.UUID]float64{org.ID: 0},
-		churnRates:     map[uuid.UUID]float64{org.ID: 0},
 	}
 	contributions := &fakeBenchmarkContributionRepo{}
 	pipeline := NewBenchmarkPipeline(orgs, metrics, contributions, NewBenchmarkAnonymizer())
