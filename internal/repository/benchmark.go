@@ -175,10 +175,11 @@ func (r *BenchmarkRepository) CreateAggregate(ctx context.Context, aggregate *Be
 type BenchmarkMetricsRepository struct {
 	customers    *CustomerRepository
 	healthScores *HealthScoreRepository
+	integrations *IntegrationConnectionRepository
 }
 
-func NewBenchmarkMetricsRepository(customers *CustomerRepository, healthScores *HealthScoreRepository) *BenchmarkMetricsRepository {
-	return &BenchmarkMetricsRepository{customers: customers, healthScores: healthScores}
+func NewBenchmarkMetricsRepository(customers *CustomerRepository, healthScores *HealthScoreRepository, integrations *IntegrationConnectionRepository) *BenchmarkMetricsRepository {
+	return &BenchmarkMetricsRepository{customers: customers, healthScores: healthScores, integrations: integrations}
 }
 
 func (r *BenchmarkMetricsRepository) CountCustomers(ctx context.Context, orgID uuid.UUID) (int, error) {
@@ -206,4 +207,8 @@ func (r *BenchmarkMetricsRepository) ChurnRate(ctx context.Context, orgID uuid.U
 		return 0, fmt.Errorf("get benchmark churn rate: %w", err)
 	}
 	return rate, nil
+}
+
+func (r *BenchmarkMetricsRepository) ActiveIntegrationCount(ctx context.Context, orgID uuid.UUID) (int, error) {
+	return r.integrations.CountActiveByOrg(ctx, orgID)
 }

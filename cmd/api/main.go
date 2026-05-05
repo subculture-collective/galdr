@@ -313,7 +313,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			scoringConfigRepo := repository.NewScoringConfigRepository(pool.P)
 			healthScoreRepo := repository.NewHealthScoreRepository(pool.P)
 			benchmarkRepo := repository.NewBenchmarkRepository(pool.P)
-			benchmarkMetricsRepo := repository.NewBenchmarkMetricsRepository(customerRepo, healthScoreRepo)
+			benchmarkMetricsRepo := repository.NewBenchmarkMetricsRepository(customerRepo, healthScoreRepo, connRepo)
 			customerFeatureRepo := repository.NewCustomerFeatureRepository(pool.P)
 
 			paymentRecencyFactor := scoring.NewPaymentRecencyFactor(paymentRecencySvc)

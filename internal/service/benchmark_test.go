@@ -191,6 +191,7 @@ func TestBenchmarkPipelineSkipsOptedOutOrganizations(t *testing.T) {
 		totalMRR:       map[uuid.UUID]int64{optedInOrg.ID: 240000},
 		avgScores:      map[uuid.UUID]float64{optedInOrg.ID: 72.4},
 		churnRates:     map[uuid.UUID]float64{optedInOrg.ID: 0.11},
+		integrations:   map[uuid.UUID]int{optedInOrg.ID: 2},
 	}
 	contributions := &fakeBenchmarkContributionRepo{}
 	pipeline := NewBenchmarkPipeline(orgs, metrics, contributions, NewBenchmarkAnonymizer())
@@ -207,6 +208,9 @@ func TestBenchmarkPipelineSkipsOptedOutOrganizations(t *testing.T) {
 	}
 	if contributions.created[0].CompanySizeBucket != repository.BenchmarkBucket11To50 {
 		t.Errorf("expected anonymized company size bucket, got %q", contributions.created[0].CompanySizeBucket)
+	}
+	if contributions.created[0].ActiveIntegrationCount != 2 {
+		t.Errorf("expected active integration count 2, got %d", contributions.created[0].ActiveIntegrationCount)
 	}
 }
 
@@ -363,6 +367,7 @@ type fakeBenchmarkMetricsRepo struct {
 	totalMRR       map[uuid.UUID]int64
 	avgScores      map[uuid.UUID]float64
 	churnRates     map[uuid.UUID]float64
+	integrations   map[uuid.UUID]int
 }
 
 func (f *fakeBenchmarkMetricsRepo) CountCustomers(ctx context.Context, orgID uuid.UUID) (int, error) {
@@ -379,6 +384,10 @@ func (f *fakeBenchmarkMetricsRepo) AverageHealthScore(ctx context.Context, orgID
 
 func (f *fakeBenchmarkMetricsRepo) ChurnRate(ctx context.Context, orgID uuid.UUID) (float64, error) {
 	return f.churnRates[orgID], nil
+}
+
+func (f *fakeBenchmarkMetricsRepo) ActiveIntegrationCount(ctx context.Context, orgID uuid.UUID) (int, error) {
+	return f.integrations[orgID], nil
 }
 
 type fakeBenchmarkContributionRepo struct {
