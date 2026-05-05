@@ -92,6 +92,10 @@ function parseSamplePayload(value: string) {
   return parsed as Record<string, unknown>;
 }
 
+function formatMapping(mapping: WebhookFieldMapping) {
+  return `${mapping.source_path} -> ${mapping.target_field}`;
+}
+
 export default function WebhookConfig() {
   const [webhooks, setWebhooks] = useState<WebhookConfiguration[]>([]);
   const [name, setName] = useState("");
@@ -434,18 +438,7 @@ export default function WebhookConfig() {
                     {webhook.mappings.length} mappings
                   </span>
                 </div>
-                {webhook.mappings.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {webhook.mappings.map((mapping) => (
-                      <span
-                        key={`${mapping.source_path}:${mapping.target_field}`}
-                        className="rounded-full border border-[var(--galdr-border)] bg-[color:rgb(0_0_0_/_0.18)] px-2.5 py-1 font-mono text-xs text-[var(--galdr-fg-muted)]"
-                      >
-                        {mapping.source_path} -&gt; {mapping.target_field}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <WebhookMappingList mappings={webhook.mappings} />
               </article>
             ))}
           </div>
@@ -500,6 +493,27 @@ function StatusBadge({ status }: { status: WebhookConfiguration["status"] }) {
     >
       {label}
     </span>
+  );
+}
+
+function WebhookMappingList({ mappings }: { mappings: WebhookFieldMapping[] }) {
+  if (mappings.length === 0) return null;
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {mappings.map((mapping, index) => {
+        const label = formatMapping(mapping);
+
+        return (
+          <span
+            key={`${label}:${index}`}
+            className="rounded-full border border-[var(--galdr-border)] bg-[color:rgb(0_0_0_/_0.18)] px-2.5 py-1 font-mono text-xs text-[var(--galdr-fg-muted)]"
+          >
+            {label}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
