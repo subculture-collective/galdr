@@ -29,6 +29,7 @@ type RegisterRequest struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	OrgName   string `json:"org_name"`
+	Industry  string `json:"industry"`
 }
 
 // LoginRequest holds the input for user login.
@@ -140,6 +141,10 @@ func (s *AuthService) Register(ctx context.Context, req RegisterRequest) (*AuthR
 	if strings.TrimSpace(req.OrgName) == "" {
 		return nil, &ValidationError{Field: "org_name", Message: "organization name is required"}
 	}
+	industry, err := validateIndustry(req.Industry)
+	if err != nil {
+		return nil, err
+	}
 
 	// Check email uniqueness
 	exists, err := s.users.EmailExists(ctx, req.Email)
@@ -178,8 +183,9 @@ func (s *AuthService) Register(ctx context.Context, req RegisterRequest) (*AuthR
 	}
 
 	org := &repository.Organization{
-		Name: strings.TrimSpace(req.OrgName),
-		Slug: slug,
+		Name:     strings.TrimSpace(req.OrgName),
+		Slug:     slug,
+		Industry: industry,
 	}
 
 	// Create user + org + membership in a transaction

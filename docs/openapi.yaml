@@ -1315,6 +1315,18 @@ components:
           type: string
         org_name:
           type: string
+        industry:
+          type: string
+          enum:
+            - SaaS
+            - E-commerce
+            - Fintech
+            - Healthcare
+            - Education
+            - Media
+            - Marketplace
+            - Agency
+            - Other
 
     LoginRequest:
       type: object

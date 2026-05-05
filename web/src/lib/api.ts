@@ -40,6 +40,7 @@ export interface RegisterPayload {
   first_name: string;
   last_name: string;
   org_name: string;
+  industry?: string;
 }
 
 export interface LoginPayload {
