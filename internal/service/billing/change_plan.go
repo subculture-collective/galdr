@@ -349,6 +349,7 @@ func (s *ChangePlanService) updateScheduleForDowngrade(ctx context.Context, sche
 	values.Set("phases[0][end_date]", fmt.Sprintf("%d", sub.CurrentPeriodEnd))
 	values.Set("phases[0][items][0][price]", sub.ItemPriceID)
 	values.Set("phases[0][items][0][quantity]", fmt.Sprintf("%d", sub.ItemQuantity))
+	values.Set("phases[1][start_date]", fmt.Sprintf("%d", sub.CurrentPeriodEnd))
 	values.Set("phases[1][items][0][price]", targetPriceID)
 	values.Set("phases[1][items][0][quantity]", fmt.Sprintf("%d", sub.ItemQuantity))
 	values.Set("phases[1][metadata][tier]", string(targetTier))

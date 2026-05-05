@@ -56,6 +56,30 @@ function planPriceCents(plan: BillingPlanDefinition, cycle: BillingCycle): numbe
   return planPrice(plan, cycle) * 100;
 }
 
+const featureLabels: Record<string, string> = {
+  playbooks: "Automated playbooks",
+  ai_insights: "AI-powered insights",
+};
+
+function featureFlagsForTier(tier: string): Record<string, boolean> {
+  return {
+    playbooks: tier === "growth" || tier === "scale",
+    ai_insights: tier === "scale",
+  };
+}
+
+function featureChanges(
+  current: Record<string, boolean>,
+  target: Record<string, boolean>,
+): string[] {
+  const changes: string[] = [];
+  for (const key of Object.keys(featureLabels)) {
+    if (current[key] === target[key]) continue;
+    changes.push(`${target[key] ? "Gain" : "Lose"} ${featureLabels[key]}`);
+  }
+  return changes.length > 0 ? changes : ["No feature access changes"];
+}
+
 function isDowngradeChange(
   currentPlan: BillingPlanDefinition | undefined,
   currentTier: string,
@@ -114,6 +138,10 @@ export default function PlanChangeDialog({
   const billingImpact = isDowngrade
     ? "No immediate credit. New lower limits apply at renewal."
     : `Estimated proration: ${response ? money(response.proration_cents) : money(prorationEstimate)}`;
+  const featureImpact = featureChanges(
+    response?.features.current ?? featureFlagsForTier(currentTier),
+    response?.features.target ?? featureFlagsForTier(plan.tier),
+  );
 
   async function confirmChange() {
     setSubmitting(true);
@@ -206,6 +234,15 @@ export default function PlanChangeDialog({
                 </>
               )}
             </div>
+          </div>
+
+          <div className="rounded-xl border border-[var(--galdr-border)] p-4">
+            <p className="font-medium text-[var(--galdr-fg)]">Feature impact</p>
+            <ul className="mt-2 space-y-1">
+              {featureImpact.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
           </div>
 
           <p className="text-xs">
