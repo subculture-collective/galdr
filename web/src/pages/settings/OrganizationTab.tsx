@@ -10,6 +10,7 @@ interface Organization {
   name: string;
   slug: string;
   industry: string;
+  benchmarking_enabled?: boolean;
   plan?: string;
 }
 
@@ -55,7 +56,7 @@ export default function OrganizationTab() {
       toast.error("Organization name is required.");
       return;
     }
-    if (!industry) {
+    if (org?.benchmarking_enabled && !industry) {
       toast.error("Industry is required for benchmarking.");
       return;
     }
@@ -125,7 +126,7 @@ export default function OrganizationTab() {
       <div>
         <button
           onClick={saveOrganization}
-          disabled={saving || !name.trim() || !industry}
+          disabled={saving || !name.trim() || (!!org?.benchmarking_enabled && !industry)}
           className="galdr-button-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {saving ? "Saving..." : "Save organization"}

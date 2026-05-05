@@ -68,10 +68,10 @@ func TestBenchmarkMigrationUpFileContainsTablesAndOptInFields(t *testing.T) {
 
 	required := []string{
 		"benchmarking_enabled",
-		"industry",
 		"company_size",
 		"CREATE TABLE benchmark_contributions",
 		"CREATE TABLE benchmark_aggregates",
+		"industry",
 		"customer_count_bucket",
 		"avg_health_score",
 		"avg_mrr",
@@ -110,12 +110,29 @@ func TestBenchmarkMigrationDownFileDropsTablesAndOptInFields(t *testing.T) {
 		"DROP TABLE IF EXISTS benchmark_aggregates",
 		"DROP TABLE IF EXISTS benchmark_contributions",
 		"DROP COLUMN IF EXISTS benchmarking_enabled",
-		"DROP COLUMN IF EXISTS industry",
 		"DROP COLUMN IF EXISTS company_size",
 	}
 	for _, item := range required {
 		if !strings.Contains(sql, item) {
 			t.Errorf("migration down file missing %s", item)
 		}
+	}
+}
+
+func TestBenchmarkMigrationDoesNotOwnOrganizationIndustry(t *testing.T) {
+	upData, err := os.ReadFile("../../migrations/000025_create_benchmarking.up.sql")
+	if err != nil {
+		t.Fatalf("failed to read migration up file: %v", err)
+	}
+	downData, err := os.ReadFile("../../migrations/000025_create_benchmarking.down.sql")
+	if err != nil {
+		t.Fatalf("failed to read migration down file: %v", err)
+	}
+
+	if strings.Contains(string(upData), "ADD COLUMN IF NOT EXISTS industry") {
+		t.Error("benchmark migration must not create organizations.industry; issue 215 migration owns it")
+	}
+	if strings.Contains(string(downData), "DROP COLUMN IF EXISTS industry") {
+		t.Error("benchmark migration must not drop organizations.industry; issue 215 migration owns it")
 	}
 }

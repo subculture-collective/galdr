@@ -1,23 +1,6 @@
 ALTER TABLE organizations
     ADD COLUMN benchmarking_enabled BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN IF NOT EXISTS industry VARCHAR(50),
     ADD COLUMN company_size INTEGER NOT NULL DEFAULT 0 CHECK (company_size >= 0);
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint
-        WHERE conname = 'organizations_industry_check'
-    ) THEN
-        ALTER TABLE organizations
-            ADD CONSTRAINT organizations_industry_check
-            CHECK (
-                industry IS NULL
-                OR industry IN ('SaaS', 'E-commerce', 'Fintech', 'Healthcare', 'Education', 'Media', 'Marketplace', 'Agency', 'Other')
-            );
-    END IF;
-END $$;
 
 CREATE TABLE benchmark_contributions (
     id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
