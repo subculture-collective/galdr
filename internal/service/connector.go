@@ -11,15 +11,19 @@ import (
 )
 
 const (
-	providerStripe   = "stripe"
-	providerHubSpot  = "hubspot"
-	providerIntercom = "intercom"
+	providerStripe     = "stripe"
+	providerHubSpot    = "hubspot"
+	providerIntercom   = "intercom"
+	providerZendesk    = "zendesk"
+	providerSalesforce = "salesforce"
 )
 
 var (
 	_ connectorsdk.Connector = (*StripeConnector)(nil)
 	_ connectorsdk.Connector = (*HubSpotConnector)(nil)
 	_ connectorsdk.Connector = (*IntercomConnector)(nil)
+	_ connectorsdk.Connector = (*ZendeskConnector)(nil)
+	_ connectorsdk.Connector = (*SalesforceConnector)(nil)
 )
 
 // ConnectorSyncer runs a provider sync through the connector registry.
@@ -63,12 +67,20 @@ func NewIntegrationConnectorRegistry(
 	hubspotOrchestrator *HubSpotSyncOrchestratorService,
 	intercomOAuth *IntercomOAuthService,
 	intercomOrchestrator *IntercomSyncOrchestratorService,
+	zendeskOAuth *ZendeskOAuthService,
+	zendeskOrchestrator *ZendeskSyncOrchestratorService,
+	salesforceOAuth *SalesforceOAuthService,
+	salesforceOrchestrator *SalesforceSyncOrchestratorService,
+	posthog *PostHogService,
 ) (*connectorsdk.Registry, error) {
 	registry := connectorsdk.NewRegistry()
 	connectors := []connectorsdk.Connector{
 		NewStripeConnector(stripeOAuth, stripeOrchestrator),
 		NewHubSpotConnector(hubspotOAuth, hubspotOrchestrator),
 		NewIntercomConnector(intercomOAuth, intercomOrchestrator),
+		NewZendeskConnector(zendeskOAuth, zendeskOrchestrator),
+		NewSalesforceConnector(salesforceOAuth, salesforceOrchestrator),
+		NewPostHogConnector(posthog),
 	}
 
 	for _, connector := range connectors {
@@ -413,6 +425,207 @@ func (c *IntercomConnector) Sync(ctx context.Context, req connectorsdk.SyncReque
 
 // HandleEvent leaves existing Intercom webhook handling unchanged.
 func (c *IntercomConnector) HandleEvent(context.Context, connectorsdk.EventRequest) (*connectorsdk.EventResult, error) {
+	return &connectorsdk.EventResult{Accepted: false}, nil
+}
+
+// ZendeskConnector adapts existing Zendesk services to the connector SDK.
+type ZendeskConnector struct {
+	oauth        *ZendeskOAuthService
+	orchestrator *ZendeskSyncOrchestratorService
+}
+
+// NewZendeskConnector creates a Zendesk connector adapter.
+func NewZendeskConnector(oauth *ZendeskOAuthService, orchestrator *ZendeskSyncOrchestratorService) *ZendeskConnector {
+	return &ZendeskConnector{oauth: oauth, orchestrator: orchestrator}
+}
+
+// Manifest returns Zendesk connector metadata.
+func (c *ZendeskConnector) Manifest() connectorsdk.ConnectorManifest {
+	return connectorsdk.ConnectorManifest{
+		ID:          providerZendesk,
+		Name:        "Zendesk",
+		Version:     "1.0.0",
+		Description: "Syncs Zendesk end-users and tickets into customer support signals.",
+		Categories:  []string{"support"},
+		Auth: connectorsdk.AuthConfig{
+			Type: connectorsdk.AuthTypeOAuth2,
+			OAuth2: &connectorsdk.OAuth2Config{
+				AuthorizeURL: "https://{subdomain}.zendesk.com/oauth/authorizations/new",
+				TokenURL:     "https://{subdomain}.zendesk.com/oauth/tokens",
+				Scopes:       []string{"read"},
+			},
+		},
+		Sync: connectorsdk.SyncConfig{
+			SupportedModes: []connectorsdk.SyncMode{connectorsdk.SyncModeFull, connectorsdk.SyncModeIncremental},
+			DefaultMode:    connectorsdk.SyncModeFull,
+			Resources: []connectorsdk.ResourceConfig{
+				{Name: "users", Description: "Zendesk end-user records", Required: true},
+				{Name: "tickets", Description: "Zendesk support tickets", Required: true},
+			},
+		},
+		Webhooks: []connectorsdk.WebhookConfig{
+			{
+				Path: "/api/v1/webhooks/zendesk",
+				EventTypes: []string{
+					"ticket.created",
+					"ticket.updated",
+					"ticket.solved",
+				},
+				SigningSecretHeader: "X-Zendesk-Webhook-Signature",
+			},
+		},
+	}
+}
+
+// Authenticate exchanges Zendesk OAuth credentials using the existing service.
+func (c *ZendeskConnector) Authenticate(ctx context.Context, req connectorsdk.AuthRequest) (*connectorsdk.AuthResult, error) {
+	if c.oauth == nil {
+		return nil, &ValidationError{Field: providerZendesk, Message: "Zendesk OAuth service is not configured"}
+	}
+	orgID, err := parseConnectorOrgID(req.OrgID)
+	if err != nil {
+		return nil, err
+	}
+	state := req.Metadata["state"]
+	if err := c.oauth.ExchangeCode(ctx, orgID, req.Code, state); err != nil {
+		return nil, err
+	}
+	status, err := c.oauth.GetStatus(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	return &connectorsdk.AuthResult{ExternalAccountID: status.ExternalAccountID, Scopes: []string{"read"}}, nil
+}
+
+// Sync runs a Zendesk full or incremental sync.
+func (c *ZendeskConnector) Sync(ctx context.Context, req connectorsdk.SyncRequest) (*connectorsdk.SyncResult, error) {
+	if c.orchestrator == nil {
+		return nil, &ValidationError{Field: providerZendesk, Message: "Zendesk sync orchestrator is not configured"}
+	}
+	orgID, err := parseConnectorOrgID(req.OrgID)
+	if err != nil {
+		return nil, err
+	}
+
+	var result *ZendeskSyncResult
+	switch req.Mode {
+	case connectorsdk.SyncModeFull:
+		result = c.orchestrator.RunFullSync(ctx, orgID)
+	case connectorsdk.SyncModeIncremental:
+		if req.Since == nil {
+			return nil, &ValidationError{Field: "since", Message: "incremental sync requires since"}
+		}
+		result = c.orchestrator.RunIncrementalSync(ctx, orgID, *req.Since)
+	default:
+		return nil, &ValidationError{Field: "mode", Message: fmt.Sprintf("unsupported sync mode %q", req.Mode)}
+	}
+
+	errorText := strings.Join(result.Errors, "; ")
+	resources := []connectorsdk.ResourceResult{
+		resourceResult("users", result.Users, errorText),
+		resourceResult("tickets", result.Tickets, errorText),
+	}
+	return &connectorsdk.SyncResult{Resources: resources}, nil
+}
+
+// HandleEvent leaves Zendesk webhook handling to provider-specific routes later.
+func (c *ZendeskConnector) HandleEvent(context.Context, connectorsdk.EventRequest) (*connectorsdk.EventResult, error) {
+	return &connectorsdk.EventResult{Accepted: false}, nil
+}
+
+// SalesforceConnector adapts Salesforce services to the connector SDK.
+type SalesforceConnector struct {
+	oauth        *SalesforceOAuthService
+	orchestrator *SalesforceSyncOrchestratorService
+}
+
+// NewSalesforceConnector creates a Salesforce connector adapter.
+func NewSalesforceConnector(oauth *SalesforceOAuthService, orchestrator *SalesforceSyncOrchestratorService) *SalesforceConnector {
+	return &SalesforceConnector{oauth: oauth, orchestrator: orchestrator}
+}
+
+// Manifest returns Salesforce connector metadata.
+func (c *SalesforceConnector) Manifest() connectorsdk.ConnectorManifest {
+	return connectorsdk.ConnectorManifest{
+		ID:          providerSalesforce,
+		Name:        "Salesforce",
+		Version:     "1.0.0",
+		Description: "Syncs Salesforce accounts, contacts, and opportunities.",
+		Categories:  []string{"crm"},
+		Auth: connectorsdk.AuthConfig{
+			Type: connectorsdk.AuthTypeOAuth2,
+			OAuth2: &connectorsdk.OAuth2Config{
+				AuthorizeURL: "https://login.salesforce.com/services/oauth2/authorize",
+				TokenURL:     "https://login.salesforce.com/services/oauth2/token",
+				Scopes:       []string{"api", "refresh_token"},
+			},
+		},
+		Sync: connectorsdk.SyncConfig{
+			SupportedModes: []connectorsdk.SyncMode{connectorsdk.SyncModeFull, connectorsdk.SyncModeIncremental},
+			DefaultMode:    connectorsdk.SyncModeFull,
+			Resources: []connectorsdk.ResourceConfig{
+				{Name: "accounts", Description: "Salesforce account records", Required: true},
+				{Name: "contacts", Description: "Salesforce contact records mapped to customers by email", Required: true},
+				{Name: "opportunities", Description: "Salesforce opportunities mapped to customer events", Required: true},
+			},
+		},
+	}
+}
+
+// Authenticate exchanges Salesforce OAuth credentials using the OAuth service.
+func (c *SalesforceConnector) Authenticate(ctx context.Context, req connectorsdk.AuthRequest) (*connectorsdk.AuthResult, error) {
+	if c.oauth == nil {
+		return nil, &ValidationError{Field: providerSalesforce, Message: "Salesforce OAuth service is not configured"}
+	}
+	orgID, err := parseConnectorOrgID(req.OrgID)
+	if err != nil {
+		return nil, err
+	}
+	state := req.Metadata["state"]
+	if err := c.oauth.ExchangeCode(ctx, orgID, req.Code, state); err != nil {
+		return nil, err
+	}
+	status, err := c.oauth.GetStatus(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	return &connectorsdk.AuthResult{ExternalAccountID: status.ExternalAccountID, Scopes: []string{"api", "refresh_token"}}, nil
+}
+
+// Sync runs a Salesforce full or incremental sync.
+func (c *SalesforceConnector) Sync(ctx context.Context, req connectorsdk.SyncRequest) (*connectorsdk.SyncResult, error) {
+	if c.orchestrator == nil {
+		return nil, &ValidationError{Field: providerSalesforce, Message: "Salesforce sync orchestrator is not configured"}
+	}
+	orgID, err := parseConnectorOrgID(req.OrgID)
+	if err != nil {
+		return nil, err
+	}
+
+	var result *SalesforceSyncResult
+	switch req.Mode {
+	case connectorsdk.SyncModeFull:
+		result = c.orchestrator.RunFullSync(ctx, orgID)
+	case connectorsdk.SyncModeIncremental:
+		if req.Since == nil {
+			return nil, &ValidationError{Field: "since", Message: "incremental sync requires since"}
+		}
+		result = c.orchestrator.RunIncrementalSync(ctx, orgID, *req.Since)
+	default:
+		return nil, &ValidationError{Field: "mode", Message: fmt.Sprintf("unsupported sync mode %q", req.Mode)}
+	}
+
+	errorText := strings.Join(result.Errors, "; ")
+	resources := []connectorsdk.ResourceResult{
+		resourceResult("accounts", result.Accounts, errorText),
+		resourceResult("contacts", result.Contacts, errorText),
+		resourceResult("opportunities", result.Opportunities, errorText),
+	}
+	return &connectorsdk.SyncResult{Resources: resources}, nil
+}
+
+// HandleEvent leaves Salesforce webhook handling for a later task.
+func (c *SalesforceConnector) HandleEvent(context.Context, connectorsdk.EventRequest) (*connectorsdk.EventResult, error) {
 	return &connectorsdk.EventResult{Accepted: false}, nil
 }
 

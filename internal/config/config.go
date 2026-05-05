@@ -20,6 +20,9 @@ type Config struct {
 	BillingStripe BillingStripeConfig
 	HubSpot       HubSpotConfig
 	Intercom      IntercomConfig
+	Zendesk       ZendeskConfig
+	Salesforce    SalesforceConfig
+	PostHog       PostHogConfig
 	OpenAI        OpenAIConfig
 	Internal      InternalConfig
 	Scoring       ScoringConfig
@@ -91,6 +94,31 @@ type IntercomConfig struct {
 	EncryptionKey    string // 32-byte hex-encoded AES key for token encryption
 	WebhookSecret    string
 	SyncIntervalMin  int
+}
+
+// ZendeskConfig holds Zendesk OAuth and sync settings.
+type ZendeskConfig struct {
+	ClientID         string
+	ClientSecret     string
+	OAuthRedirectURL string
+	EncryptionKey    string // 32-byte hex-encoded AES key for token encryption
+	WebhookSecret    string
+	SyncIntervalMin  int
+}
+
+// SalesforceConfig holds Salesforce OAuth and sync settings.
+type SalesforceConfig struct {
+	ClientID         string
+	ClientSecret     string
+	OAuthRedirectURL string
+	EncryptionKey    string // 32-byte hex-encoded AES key for token encryption
+	LoginURL         string
+	SyncIntervalMin  int
+}
+
+// PostHogConfig holds PostHog API-key connector settings.
+type PostHogConfig struct {
+	EncryptionKey string // 32-byte hex-encoded AES key for token encryption
 }
 
 // OpenAIConfig holds LLM provider and safety limit settings.
@@ -220,6 +248,25 @@ func Load() *Config {
 			EncryptionKey:    getEnv("INTERCOM_ENCRYPTION_KEY", ""),
 			WebhookSecret:    getEnv("INTERCOM_WEBHOOK_SECRET", ""),
 			SyncIntervalMin:  getInt("INTERCOM_SYNC_INTERVAL_MIN", 15),
+		},
+		Zendesk: ZendeskConfig{
+			ClientID:         getEnv("ZENDESK_CLIENT_ID", ""),
+			ClientSecret:     getEnv("ZENDESK_CLIENT_SECRET", ""),
+			OAuthRedirectURL: getEnv("ZENDESK_OAUTH_REDIRECT_URL", "http://localhost:8080/api/v1/integrations/zendesk/callback"),
+			EncryptionKey:    getEnv("ZENDESK_ENCRYPTION_KEY", ""),
+			WebhookSecret:    getEnv("ZENDESK_WEBHOOK_SECRET", ""),
+			SyncIntervalMin:  getInt("ZENDESK_SYNC_INTERVAL_MIN", 15),
+		},
+		Salesforce: SalesforceConfig{
+			ClientID:         getEnv("SALESFORCE_CLIENT_ID", ""),
+			ClientSecret:     getEnv("SALESFORCE_CLIENT_SECRET", ""),
+			OAuthRedirectURL: getEnv("SALESFORCE_OAUTH_REDIRECT_URL", "http://localhost:8080/api/v1/integrations/salesforce/callback"),
+			EncryptionKey:    getEnv("SALESFORCE_ENCRYPTION_KEY", ""),
+			LoginURL:         getEnv("SALESFORCE_LOGIN_URL", "https://login.salesforce.com"),
+			SyncIntervalMin:  getInt("SALESFORCE_SYNC_INTERVAL_MIN", 15),
+		},
+		PostHog: PostHogConfig{
+			EncryptionKey: getEnv("POSTHOG_ENCRYPTION_KEY", ""),
 		},
 		OpenAI: OpenAIConfig{
 			APIKey:            getEnv("OPENAI_API_KEY", ""),

@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/onnwee/pulse-score/internal/auth"
+	"github.com/onnwee/pulse-score/internal/service"
 )
 
 // IntegrationHandler provides integration management HTTP endpoints.
@@ -33,6 +35,35 @@ func (h *IntegrationHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"integrations": summaries})
+}
+
+// Connect handles POST /api/v1/integrations/{provider}/connect.
+func (h *IntegrationHandler) Connect(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := auth.GetOrgID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	provider := chi.URLParam(r, "provider")
+	if provider == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse("provider is required"))
+		return
+	}
+
+	var req service.ConnectIntegrationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse("invalid request body"))
+		return
+	}
+
+	result, err := h.integrationService.Connect(r.Context(), orgID, provider, req)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
 }
 
 // GetStatus handles GET /api/v1/integrations/{provider}/status.

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/onnwee/pulse-score/internal/integration"
 	connectorsdk "github.com/onnwee/pulse-score/pkg/connector-sdk"
 )
 
@@ -52,14 +53,36 @@ func TestConnectorSyncServiceMissingProvider(t *testing.T) {
 }
 
 func TestNewIntegrationConnectorRegistryContainsBuiltIns(t *testing.T) {
-	registry, err := NewIntegrationConnectorRegistry(nil, nil, nil, nil, nil, nil)
+	registry, err := NewIntegrationConnectorRegistry(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("create registry: %v", err)
 	}
 
-	for _, provider := range []string{"hubspot", "intercom", "stripe"} {
+	for _, provider := range []string{"hubspot", "intercom", "posthog", "salesforce", "stripe", "zendesk"} {
 		if _, ok := registry.Get(provider); !ok {
 			t.Fatalf("expected %s connector to be registered", provider)
+		}
+	}
+}
+
+func TestNewBuiltInIntegrationRegistryContainsOriginalProviders(t *testing.T) {
+	registry, err := NewBuiltInIntegrationRegistry(nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("create registry: %v", err)
+	}
+
+	providers := map[string]integration.AuthType{
+		"hubspot":  integration.AuthTypeOAuth2,
+		"intercom": integration.AuthTypeOAuth2,
+		"stripe":   integration.AuthTypeOAuth2,
+	}
+	for provider, authType := range providers {
+		connector, ok := registry.Get(provider)
+		if !ok {
+			t.Fatalf("expected %s connector to be registered", provider)
+		}
+		if connector.Name() != provider || connector.AuthType() != authType {
+			t.Fatalf("unexpected %s connector identity: %s/%s", provider, connector.Name(), connector.AuthType())
 		}
 	}
 }

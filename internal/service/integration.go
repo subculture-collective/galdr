@@ -11,6 +11,8 @@ import (
 	"github.com/onnwee/pulse-score/internal/repository"
 )
 
+const connectorProjectIDMetadataKey = "project_id"
+
 // IntegrationService handles integration management business logic.
 type IntegrationService struct {
 	connStore integrationConnectionStore
@@ -53,6 +55,39 @@ type IntegrationStatus struct {
 	IntegrationSummary
 	ExternalAccountID string   `json:"external_account_id"`
 	Scopes            []string `json:"scopes"`
+}
+
+// ConnectIntegrationRequest holds generic connector credentials.
+type ConnectIntegrationRequest struct {
+	APIKey    string            `json:"api_key"`
+	ProjectID string            `json:"project_id"`
+	Metadata  map[string]string `json:"metadata"`
+}
+
+// Connect validates and stores credentials for connectors that support direct auth.
+func (s *IntegrationService) Connect(ctx context.Context, orgID uuid.UUID, provider string, req ConnectIntegrationRequest) (*connectorsdk.AuthResult, error) {
+	if s.registry == nil {
+		return nil, &ValidationError{Field: "connector_registry", Message: "connector registry is not configured"}
+	}
+	registered, ok := s.registry.Get(provider)
+	if !ok {
+		return nil, &NotFoundError{Resource: "connector", Message: fmt.Sprintf("no %s connector registered", provider)}
+	}
+	if registered.Manifest.Auth.Type != connectorsdk.AuthTypeAPIKey {
+		return nil, &ValidationError{Field: provider, Message: "direct API-key connection is not supported for this provider"}
+	}
+	metadata := make(map[string]string, len(req.Metadata)+1)
+	for key, value := range req.Metadata {
+		metadata[key] = value
+	}
+	if req.ProjectID != "" {
+		metadata[connectorProjectIDMetadataKey] = req.ProjectID
+	}
+	return registered.Connector.Authenticate(ctx, connectorsdk.AuthRequest{
+		OrgID:    orgID.String(),
+		APIKey:   req.APIKey,
+		Metadata: metadata,
+	})
 }
 
 // List returns all integration connections for an org.

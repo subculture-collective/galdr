@@ -97,7 +97,7 @@ func newRouter(cfg *config.Config, pool *database.Pool, jwtMgr *auth.JWTManager)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.CORS.AllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Internal-Analytics-Token", "X-Request-ID", "X-Organization-ID"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Internal-Analytics-Token", "X-Request-ID", "X-Organization-ID", "X-PulseScore-Signature"},
 		ExposedHeaders:   []string{"X-Request-ID"},
 		AllowCredentials: true,
 		MaxAge:           corsMaxAgeSeconds,
@@ -154,13 +154,16 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			eventRepo := repository.NewCustomerEventRepository(pool.P)
 			playbookRepo := repository.NewPlaybookRepository(pool.P)
 			savedViewRepo := repository.NewSavedViewRepository(pool.P)
+			genericWebhookConfigRepo := repository.NewGenericWebhookConfigRepository(pool.P)
 
-			// HubSpot/Intercom repositories
+			// HubSpot/Intercom/Zendesk repositories
 			hubspotContactRepo := repository.NewHubSpotContactRepository(pool.P)
 			hubspotDealRepo := repository.NewHubSpotDealRepository(pool.P)
 			hubspotCompanyRepo := repository.NewHubSpotCompanyRepository(pool.P)
 			intercomContactRepo := repository.NewIntercomContactRepository(pool.P)
 			intercomConversationRepo := repository.NewIntercomConversationRepository(pool.P)
+			zendeskUserRepo := repository.NewZendeskUserRepository(pool.P)
+			zendeskTicketRepo := repository.NewZendeskTicketRepository(pool.P)
 
 			// Onboarding repositories
 			onboardingStatusRepo := repository.NewOnboardingStatusRepository(pool.P)
@@ -202,8 +205,26 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				EncryptionKey:    cfg.Intercom.EncryptionKey,
 			}, connRepo)
 
+			zendeskOAuthSvc := service.NewZendeskOAuthService(service.ZendeskOAuthConfig{
+				ClientID:         cfg.Zendesk.ClientID,
+				ClientSecret:     cfg.Zendesk.ClientSecret,
+				OAuthRedirectURL: cfg.Zendesk.OAuthRedirectURL,
+				EncryptionKey:    cfg.Zendesk.EncryptionKey,
+			}, connRepo)
+
+			salesforceOAuthSvc := service.NewSalesforceOAuthService(service.SalesforceOAuthConfig{
+				ClientID:         cfg.Salesforce.ClientID,
+				ClientSecret:     cfg.Salesforce.ClientSecret,
+				OAuthRedirectURL: cfg.Salesforce.OAuthRedirectURL,
+				EncryptionKey:    cfg.Salesforce.EncryptionKey,
+				LoginURL:         cfg.Salesforce.LoginURL,
+			}, connRepo)
+
 			hubspotClient := service.NewHubSpotClient()
 			intercomClient := service.NewIntercomClient()
+			zendeskClient := service.NewZendeskClient()
+			salesforceClient := service.NewSalesforceClient()
+			posthogClient := service.NewPostHogClient("", nil)
 
 			stripeSyncSvc := service.NewStripeSyncService(
 				customerRepo, subRepo, paymentRepo, eventRepo,
@@ -231,6 +252,30 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				eventRepo,
 			)
 
+			zendeskSyncSvc := service.NewZendeskSyncService(
+				zendeskOAuthSvc,
+				zendeskClient,
+				zendeskUserRepo,
+				zendeskTicketRepo,
+				customerRepo,
+				eventRepo,
+			)
+
+			salesforceSyncSvc := service.NewSalesforceSyncService(
+				salesforceOAuthSvc,
+				salesforceClient,
+				customerRepo,
+				eventRepo,
+			)
+
+			posthogSvc := service.NewPostHogService(
+				service.PostHogConfig{EncryptionKey: cfg.PostHog.EncryptionKey},
+				connRepo,
+				posthogClient,
+				customerRepo,
+				eventRepo,
+			)
+
 			mrrSvc := service.NewMRRService(customerRepo, subRepo, eventRepo)
 			paymentHealthSvc := service.NewPaymentHealthService(paymentRepo, eventRepo, customerRepo)
 			paymentRecencySvc := service.NewPaymentRecencyService(paymentRepo, subRepo)
@@ -238,6 +283,8 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			syncOrchestrator := service.NewSyncOrchestratorService(connRepo, stripeSyncSvc, mrrSvc)
 			hubspotSyncOrchestrator := service.NewHubSpotSyncOrchestratorService(connRepo, hubspotSyncSvc, mergeSvc)
 			intercomSyncOrchestrator := service.NewIntercomSyncOrchestratorService(connRepo, intercomSyncSvc, mergeSvc)
+			zendeskSyncOrchestrator := service.NewZendeskSyncOrchestratorService(connRepo, zendeskSyncSvc, mergeSvc)
+			salesforceSyncOrchestrator := service.NewSalesforceSyncOrchestratorService(connRepo, salesforceSyncSvc)
 			connectorRegistry, err := service.NewIntegrationConnectorRegistry(
 				stripeOAuthSvc,
 				syncOrchestrator,
@@ -245,6 +292,11 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				hubspotSyncOrchestrator,
 				intercomOAuthSvc,
 				intercomSyncOrchestrator,
+				zendeskOAuthSvc,
+				zendeskSyncOrchestrator,
+				salesforceOAuthSvc,
+				salesforceSyncOrchestrator,
+				posthogSvc,
 			)
 			if err != nil {
 				slog.Error("failed to create connector registry", "error", err)
@@ -341,6 +393,9 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				intercomConversationRepo,
 				eventRepo,
 			)
+
+			genericWebhookSvc := service.NewGenericWebhookService(orgRepo, genericWebhookConfigRepo, customerRepo, eventRepo)
+			genericWebhookHandler := handler.NewGenericWebhookHandler(genericWebhookSvc)
 
 			onboardingSvc := service.NewOnboardingService(onboardingStatusRepo, onboardingEventRepo)
 
@@ -547,6 +602,9 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			intercomWebhookHandler := handler.NewWebhookIntercomHandler(intercomWebhookSvc)
 			r.Post("/webhooks/intercom", intercomWebhookHandler.HandleWebhook)
 
+			// Generic webhook receiver (public — optionally verified by config secret)
+			r.Post("/webhooks/generic/{org_slug}/{webhook_id}", genericWebhookHandler.Process)
+
 			// Protected routes (JWT required)
 			r.Group(func(r chi.Router) {
 				r.Use(middleware.JWTAuth(jwtMgr))
@@ -630,8 +688,18 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				integrationHandler := handler.NewIntegrationHandler(integrationSvc)
 				r.Route("/integrations", func(r chi.Router) {
 					r.Get("/", integrationHandler.List)
+					r.Route("/generic-webhooks", func(r chi.Router) {
+						r.Use(middleware.RequireRole("admin"))
+						r.Get("/", genericWebhookHandler.List)
+						r.Post("/", genericWebhookHandler.Create)
+						r.Post("/test", genericWebhookHandler.Test)
+						r.Get("/{id}", genericWebhookHandler.Get)
+						r.Patch("/{id}", genericWebhookHandler.Update)
+						r.Delete("/{id}", genericWebhookHandler.Delete)
+					})
 					r.Route("/{provider}", func(r chi.Router) {
 						r.Use(middleware.RequireRole("admin"))
+						r.Post("/connect", integrationHandler.Connect)
 						r.Get("/status", integrationHandler.GetStatus)
 						r.Post("/sync", integrationHandler.TriggerSync)
 						r.Delete("/", integrationHandler.Disconnect)
@@ -731,6 +799,28 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 					r.Get("/status", intercomHandler.Status)
 					r.Delete("/", intercomHandler.Disconnect)
 					r.Post("/sync", intercomHandler.TriggerSync)
+				})
+
+				// Zendesk integration routes (admin+ required)
+				zendeskHandler := handler.NewIntegrationZendeskHandler(zendeskOAuthSvc, connectorSyncSvc)
+				r.Route("/integrations/zendesk", func(r chi.Router) {
+					r.Use(middleware.RequireRole("admin"))
+					r.With(middleware.RequireIntegrationLimit(billingLimitsSvc, "zendesk")).Get("/connect", zendeskHandler.Connect)
+					r.Get("/callback", zendeskHandler.Callback)
+					r.Get("/status", zendeskHandler.Status)
+					r.Delete("/", zendeskHandler.Disconnect)
+					r.Post("/sync", zendeskHandler.TriggerSync)
+				})
+
+				// Salesforce integration routes (admin+ required)
+				salesforceHandler := handler.NewIntegrationSalesforceHandler(salesforceOAuthSvc, connectorSyncSvc)
+				r.Route("/integrations/salesforce", func(r chi.Router) {
+					r.Use(middleware.RequireRole("admin"))
+					r.With(middleware.RequireIntegrationLimit(billingLimitsSvc, "salesforce")).Get("/connect", salesforceHandler.Connect)
+					r.Get("/callback", salesforceHandler.Callback)
+					r.Get("/status", salesforceHandler.Status)
+					r.Delete("/", salesforceHandler.Disconnect)
+					r.Post("/sync", salesforceHandler.TriggerSync)
 				})
 
 				// Onboarding routes

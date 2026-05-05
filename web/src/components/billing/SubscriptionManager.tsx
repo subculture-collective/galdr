@@ -54,8 +54,9 @@ export default function SubscriptionManager({
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [openingPortal, setOpeningPortal] = useState(false);
-  const [selectedPlan, setSelectedPlan] =
-    useState<SelectedPlanChange | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<SelectedPlanChange | null>(
+    null,
+  );
   const [targetCycle, setTargetCycle] = useState<BillingCycle>("monthly");
 
   const toast = useToast();
@@ -289,7 +290,8 @@ export default function SubscriptionManager({
         </div>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           {recommendedPlans.map((plan) => {
-            const isCurrent = plan.tier === currentTier && targetCycle === cycle;
+            const isCurrent =
+              plan.tier === currentTier && targetCycle === cycle;
             const price =
               targetCycle === "monthly" ? plan.monthlyPrice : plan.annualPrice;
             const cycleLabel = targetCycle === "monthly" ? "mo" : "yr";

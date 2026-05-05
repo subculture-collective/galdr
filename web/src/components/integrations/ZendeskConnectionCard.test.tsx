@@ -79,5 +79,3 @@ assertMatch(syncing, /Users synced: 3/);
 const errored = render({ status: "error", last_sync_error: "rate limited" });
 assertMatch(errored, /Error/);
 assertMatch(errored, /Last error: rate limited/);
-
-console.log("ZendeskConnectionCard states render correctly");
