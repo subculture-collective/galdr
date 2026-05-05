@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
 import { useToast } from "@/contexts/ToastContext";
+import {
+  LIMIT_INTEGRATION,
+  useFeatureFlag,
+} from "@/contexts/FeatureFlagContext";
 import StripeConnectionCard from "@/components/integrations/StripeConnectionCard";
 import HubSpotConnectionCard from "@/components/integrations/HubSpotConnectionCard";
 import IntercomConnectionCard from "@/components/integrations/IntercomConnectionCard";
 import ZendeskConnectionCard from "@/components/integrations/ZendeskConnectionCard";
 import IntegrationCard from "@/components/IntegrationCard";
+import UpgradePrompt from "@/components/UpgradePrompt";
 import { Loader2 } from "lucide-react";
 
 interface IntegrationConnection {
@@ -27,6 +32,7 @@ export default function IntegrationsTab() {
   const [integrations, setIntegrations] = useState<IntegrationConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
+  const integrationLimit = useFeatureFlag(LIMIT_INTEGRATION);
 
   const fetchIntegrations = useCallback(async () => {
     try {
@@ -59,6 +65,16 @@ export default function IntegrationsTab() {
 
   return (
     <div className="space-y-6">
+      {!integrationLimit.allowed && integrationLimit.limit !== null && (
+        <UpgradePrompt
+          featureName="More integrations"
+          recommendedTier={integrationLimit.recommendedTier}
+          description={`Your current plan includes ${integrationLimit.limit} integration${
+            integrationLimit.limit === 1 ? "" : "s"
+          }. Upgrade to connect additional data sources.`}
+        />
+      )}
+
       <div>
         <h3 className="mb-4 text-sm font-medium text-[var(--galdr-fg)]">
           Stripe

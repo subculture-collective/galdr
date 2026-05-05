@@ -26,11 +26,25 @@ type LimitName =
   | typeof LIMIT_INTEGRATION
   | typeof LIMIT_TEAM_MEMBER;
 
+interface LimitUsage {
+  current: number | null;
+  limit: number | null;
+}
+
+export interface FeatureFlagDecision {
+  allowed: boolean;
+  limit: number | null;
+  current: number | null;
+  recommendedTier: string | null;
+  currentPlan: string | null;
+}
+
 interface FeatureFlagContextValue {
   loading: boolean;
   error: string | null;
   subscription: BillingSubscriptionResponse | null;
   hasFeature: (featureName: string) => boolean;
+  getFeatureDecision: (featureName: string) => FeatureFlagDecision;
   getLimit: (limitName: LimitName) => number | null;
   refresh: () => Promise<void>;
 }
@@ -73,19 +87,68 @@ export function FeatureFlagProvider({ children }: { children: ReactNode }) {
     [subscription],
   );
 
-  const getLimit = useCallback(
-    (limitName: LimitName) => {
-      if (!subscription) return null;
+  const getLimitUsage = useCallback(
+    (limitName: LimitName): LimitUsage => {
+      if (!subscription) return { current: null, limit: null };
       switch (limitName) {
         case LIMIT_CUSTOMER:
-          return subscription.usage.customers.limit;
+          return usageMetricToLimitUsage(subscription.usage.customers);
         case LIMIT_INTEGRATION:
-          return subscription.usage.integrations.limit;
+          return usageMetricToLimitUsage(subscription.usage.integrations);
         case LIMIT_TEAM_MEMBER:
-          return subscription.usage.team_members.limit;
+          return usageMetricToLimitUsage(subscription.usage.team_members);
       }
     },
     [subscription],
+  );
+
+  const getLimit = useCallback(
+    (limitName: LimitName) => {
+      return getLimitUsage(limitName).limit;
+    },
+    [getLimitUsage],
+  );
+
+  const getFeatureDecision = useCallback(
+    (featureName: string): FeatureFlagDecision => {
+      if (!subscription) {
+        return {
+          allowed: false,
+          limit: null,
+          current: null,
+          recommendedTier: "growth",
+          currentPlan: null,
+        };
+      }
+
+      if (isLimitName(featureName)) {
+        const usage = getLimitUsage(featureName);
+        const allowed =
+          usage.limit === null ||
+          usage.current === null ||
+          usage.limit === -1 ||
+          usage.current < usage.limit;
+        return {
+          allowed,
+          limit: usage.limit,
+          current: usage.current,
+          recommendedTier: allowed ? null : nextTier(subscription.tier),
+          currentPlan: subscription.tier,
+        };
+      }
+
+      const allowed = Boolean(subscription.features[featureName]);
+      return {
+        allowed,
+        limit: null,
+        current: null,
+        recommendedTier: allowed
+          ? null
+          : tierForFeature(featureName, subscription.tier),
+        currentPlan: subscription.tier,
+      };
+    },
+    [getLimitUsage, subscription],
   );
 
   const value = useMemo<FeatureFlagContextValue>(
@@ -94,10 +157,11 @@ export function FeatureFlagProvider({ children }: { children: ReactNode }) {
       error,
       subscription,
       hasFeature,
+      getFeatureDecision,
       getLimit,
       refresh,
     }),
-    [loading, error, subscription, hasFeature, getLimit, refresh],
+    [loading, error, subscription, hasFeature, getFeatureDecision, getLimit, refresh],
   );
 
   return (
@@ -115,10 +179,40 @@ export function useFeatureFlags(): FeatureFlagContextValue {
   return ctx;
 }
 
-export function useFeatureFlag(featureName: string): boolean {
-  return useFeatureFlags().hasFeature(featureName);
+export function useFeatureFlag(featureName: string): FeatureFlagDecision {
+  return useFeatureFlags().getFeatureDecision(featureName);
 }
 
 export function useFeatureLimit(limitName: LimitName): number | null {
   return useFeatureFlags().getLimit(limitName);
+}
+
+function isLimitName(value: string): value is LimitName {
+  return (
+    value === LIMIT_CUSTOMER ||
+    value === LIMIT_INTEGRATION ||
+    value === LIMIT_TEAM_MEMBER
+  );
+}
+
+function nextTier(tier: string) {
+  if (tier === "growth") return "scale";
+  return "growth";
+}
+
+function tierForFeature(featureName: string, currentTier: string) {
+  if (
+    featureName === FEATURE_AI_INSIGHTS ||
+    featureName === FEATURE_BENCHMARKS
+  ) {
+    return "scale";
+  }
+  return nextTier(currentTier);
+}
+
+function usageMetricToLimitUsage(metric: {
+  used: number;
+  limit: number;
+}): LimitUsage {
+  return { current: metric.used, limit: metric.limit };
 }

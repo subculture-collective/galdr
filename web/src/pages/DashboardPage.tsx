@@ -1,7 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
 import { useToast } from "@/contexts/ToastContext";
+import {
+  FEATURE_FULL_DASHBOARD,
+  useFeatureFlag,
+} from "@/contexts/FeatureFlagContext";
 import StatCard from "@/components/StatCard";
+import UpgradePrompt from "@/components/UpgradePrompt";
 import CardSkeleton from "@/components/skeletons/CardSkeleton";
 import { Users, AlertTriangle, DollarSign, Activity } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
@@ -49,6 +54,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const toast = useToast();
+  const fullDashboard = useFeatureFlag(FEATURE_FULL_DASHBOARD);
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -115,27 +121,40 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Suspense fallback={<ChartPanelFallback />}>
-          <ScoreDistributionChart />
-        </Suspense>
-        <Suspense fallback={<ChartPanelFallback />}>
-          <MRRTrendChart />
-        </Suspense>
-      </div>
+      {fullDashboard.allowed ? (
+        <>
+          {/* Charts */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <Suspense fallback={<ChartPanelFallback />}>
+              <ScoreDistributionChart />
+            </Suspense>
+            <Suspense fallback={<ChartPanelFallback />}>
+              <MRRTrendChart />
+            </Suspense>
+          </div>
 
-      {/* Risk overview */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <Suspense fallback={<ChartPanelFallback />}>
-          <RiskDistributionChart />
-        </Suspense>
-        <div className="lg:col-span-2">
-          <Suspense fallback={<TablePanelFallback />}>
-            <AtRiskCustomersTable />
-          </Suspense>
+          {/* Risk overview */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <Suspense fallback={<ChartPanelFallback />}>
+              <RiskDistributionChart />
+            </Suspense>
+            <div className="lg:col-span-2">
+              <Suspense fallback={<TablePanelFallback />}>
+                <AtRiskCustomersTable />
+              </Suspense>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <UpgradePrompt
+            featureName="Full dashboard"
+            recommendedTier={fullDashboard.recommendedTier}
+            description="Unlock score distribution, MRR trend, risk breakdown, and at-risk customer views."
+            className="lg:col-span-2"
+          />
         </div>
-      </div>
+      )}
     </div>
   );
 }

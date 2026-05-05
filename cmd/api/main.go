@@ -534,7 +534,9 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				dashboardSvc := service.NewDashboardService(customerRepo, healthScoreRepo)
 				dashboardHandler := handler.NewDashboardHandler(dashboardSvc)
 				r.Get("/dashboard/summary", dashboardHandler.GetSummary)
-				r.Get("/dashboard/score-distribution", dashboardHandler.GetScoreDistribution)
+				r.With(
+					middleware.RequireFeature(billingLimitsSvc, billingcatalog.FeatureFullDashboard),
+				).Get("/dashboard/score-distribution", dashboardHandler.GetScoreDistribution)
 
 				// Integration management routes (admin+ required)
 				integrationSvc := service.NewIntegrationService(connRepo, connectorSyncSvc, connectorRegistry)
@@ -657,8 +659,12 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				// Health scoring routes
 				scoringHandler := handler.NewScoringHandler(scoringConfigSvc, riskCategorizer, scoreScheduler)
 				r.Route("/scoring", func(r chi.Router) {
-					r.Get("/risk-distribution", scoringHandler.GetRiskDistribution)
-					r.Get("/histogram", scoringHandler.GetScoreHistogram)
+					r.With(
+						middleware.RequireFeature(billingLimitsSvc, billingcatalog.FeatureFullDashboard),
+					).Get("/risk-distribution", scoringHandler.GetRiskDistribution)
+					r.With(
+						middleware.RequireFeature(billingLimitsSvc, billingcatalog.FeatureFullDashboard),
+					).Get("/histogram", scoringHandler.GetScoreHistogram)
 					r.Post("/customers/{id}/recalculate", scoringHandler.RecalculateCustomer)
 					r.Route("/config", func(r chi.Router) {
 						r.Use(middleware.RequireRole("admin"))
