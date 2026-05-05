@@ -22,6 +22,7 @@ type Config struct {
 	Intercom      IntercomConfig
 	Zendesk       ZendeskConfig
 	Salesforce    SalesforceConfig
+	PostHog       PostHogConfig
 	OpenAI        OpenAIConfig
 	Scoring       ScoringConfig
 	Alert         AlertConfig
@@ -107,6 +108,11 @@ type SalesforceConfig struct {
 	EncryptionKey    string // 32-byte hex-encoded AES key for token encryption
 	LoginURL         string
 	SyncIntervalMin  int
+}
+
+// PostHogConfig holds PostHog API-key connector settings.
+type PostHogConfig struct {
+	EncryptionKey string // 32-byte hex-encoded AES key for token encryption
 }
 
 // OpenAIConfig holds LLM provider and safety limit settings.
@@ -252,6 +258,9 @@ func Load() *Config {
 			EncryptionKey:    getEnv("SALESFORCE_ENCRYPTION_KEY", ""),
 			LoginURL:         getEnv("SALESFORCE_LOGIN_URL", "https://login.salesforce.com"),
 			SyncIntervalMin:  getInt("SALESFORCE_SYNC_INTERVAL_MIN", 15),
+		},
+		PostHog: PostHogConfig{
+			EncryptionKey: getEnv("POSTHOG_ENCRYPTION_KEY", ""),
 		},
 		OpenAI: OpenAIConfig{
 			APIKey:            getEnv("OPENAI_API_KEY", ""),

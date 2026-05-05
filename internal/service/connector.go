@@ -71,6 +71,7 @@ func NewIntegrationConnectorRegistry(
 	zendeskOrchestrator *ZendeskSyncOrchestratorService,
 	salesforceOAuth *SalesforceOAuthService,
 	salesforceOrchestrator *SalesforceSyncOrchestratorService,
+	posthog *PostHogService,
 ) (*connectorsdk.Registry, error) {
 	registry := connectorsdk.NewRegistry()
 	connectors := []connectorsdk.Connector{
@@ -79,6 +80,7 @@ func NewIntegrationConnectorRegistry(
 		NewIntercomConnector(intercomOAuth, intercomOrchestrator),
 		NewZendeskConnector(zendeskOAuth, zendeskOrchestrator),
 		NewSalesforceConnector(salesforceOAuth, salesforceOrchestrator),
+		NewPostHogConnector(posthog),
 	}
 
 	for _, connector := range connectors {
