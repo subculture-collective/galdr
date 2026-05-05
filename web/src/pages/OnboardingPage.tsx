@@ -383,14 +383,18 @@ function OnboardingContent() {
 
   async function handleWelcomeComplete() {
     const orgName = welcomeValue.name.trim();
+    const industry = welcomeValue.industry.trim();
     if (!orgName) {
       throw new Error("Organization name is required.");
+    }
+    if (!industry) {
+      throw new Error("Industry is required.");
     }
 
     try {
       await api.patch("/organizations/current", {
         name: orgName,
-        industry: welcomeValue.industry,
+        industry,
       });
     } catch {
       throw new Error("Failed to save organization setup.");
@@ -398,7 +402,7 @@ function OnboardingContent() {
 
     const payload = {
       name: orgName,
-      industry: welcomeValue.industry,
+      industry,
       company_size: welcomeValue.company_size,
     };
 
@@ -457,7 +461,8 @@ function OnboardingContent() {
       id: "welcome",
       label: "Welcome",
       canProceed:
-        welcomeValue.name.trim().length > 0 && welcomeValue.industry.length > 0,
+        welcomeValue.name.trim().length > 0 &&
+        welcomeValue.industry.trim().length > 0,
       content: (
         <WelcomeStep
           value={welcomeValue}
