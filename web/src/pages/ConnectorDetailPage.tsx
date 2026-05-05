@@ -64,6 +64,29 @@ function connectorCategories(connector: MarketplaceConnector) {
     : ["uncategorized"];
 }
 
+function DeveloperValue({
+  developer,
+}: {
+  developer: MarketplaceConnector["manifest"]["developer"];
+}) {
+  if (!developer?.name) {
+    return null;
+  }
+
+  if (!developer.website) {
+    return developer.name;
+  }
+
+  return (
+    <a
+      className="galdr-link inline-flex items-center gap-1"
+      href={developer.website}
+    >
+      {developer.name} <ExternalLink className="h-3.5 w-3.5" />
+    </a>
+  );
+}
+
 export function ConnectorDetailPageView({
   connector,
   loading,
@@ -168,17 +191,7 @@ export function ConnectorDetailPageView({
                 <div>
                   <dt className="text-[var(--galdr-fg-muted)]">Developer</dt>
                   <dd className="font-medium text-[var(--galdr-fg)]">
-                    {developer.website ? (
-                      <a
-                        className="galdr-link inline-flex items-center gap-1"
-                        href={developer.website}
-                      >
-                        {developer.name}{" "}
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    ) : (
-                      developer.name
-                    )}
+                    <DeveloperValue developer={developer} />
                   </dd>
                 </div>
               )}

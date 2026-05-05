@@ -73,6 +73,14 @@ export interface MarketplacePageViewProps {
   onRetry: () => void;
 }
 
+interface MarketplaceResultsProps {
+  visibleConnectors: MarketplaceConnector[];
+  loading: boolean;
+  error: string;
+  onRetry: () => void;
+  onOpenInstall: (connector: MarketplaceConnector) => void;
+}
+
 function authLabel(type: string) {
   switch (type) {
     case "oauth2":
@@ -139,6 +147,115 @@ function filterConnectors(
       (!normalizedSearch || searchTarget.includes(normalizedSearch))
     );
   });
+}
+
+function MarketplaceResults({
+  visibleConnectors,
+  loading,
+  error,
+  onRetry,
+  onOpenInstall,
+}: MarketplaceResultsProps) {
+  if (loading) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {[...Array(6)].map((_, index) => (
+          <div key={index} className="galdr-card h-64 animate-pulse p-5" />
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div role="alert" className="galdr-alert-danger p-6 text-center">
+        <p className="text-sm">{error}</p>
+        <button
+          onClick={onRetry}
+          className="galdr-link mt-2 text-sm font-medium"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (visibleConnectors.length === 0) {
+    return (
+      <div className="galdr-card">
+        <EmptyState
+          icon={<PlugZap className="h-12 w-12" />}
+          title="No connectors found"
+          description="Try a different search or category filter."
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {visibleConnectors.map((connector) => (
+        <article
+          key={`${connector.id}:${connector.version}`}
+          className="galdr-card flex min-h-72 flex-col p-5"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[color:rgb(34_211_238_/_0.26)] bg-[color:rgb(34_211_238_/_0.11)] text-[var(--galdr-accent-2)]">
+              <PlugZap className="h-6 w-6" />
+            </div>
+            <span className="galdr-pill px-2.5 py-1 text-xs font-medium">
+              v{connector.version}
+            </span>
+          </div>
+          <div className="mt-4 flex-1">
+            <h2 className="text-xl font-semibold text-[var(--galdr-fg)]">
+              <a
+                className="galdr-link"
+                href={`/marketplace/connectors/${connector.id}`}
+              >
+                {connector.name}
+              </a>
+            </h2>
+            <p className="mt-2 line-clamp-3 text-sm leading-6 text-[var(--galdr-fg-muted)]">
+              {connector.description}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {connectorCategories(connector).map((item) => (
+                <span key={item} className="galdr-pill px-2.5 py-1 text-xs">
+                  {formatCategory(item)}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="mt-5 grid gap-2 text-xs text-[var(--galdr-fg-muted)]">
+            <span className="inline-flex items-center gap-2">
+              <Star className="h-4 w-4 text-[var(--galdr-at-risk)]" />
+              {connectorRating(connector)} · {connectorInstallCount(connector)}
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-[var(--galdr-success)]" />
+              {authLabel(connector.manifest.auth.type)} ·{" "}
+              {connector.manifest.sync.resources.length} resources
+            </span>
+          </div>
+          <div className="mt-5 flex gap-2">
+            <a
+              href={`/marketplace/connectors/${connector.id}`}
+              className="galdr-button-secondary inline-flex flex-1 items-center justify-center px-3 py-2 text-sm font-medium"
+            >
+              Details
+            </a>
+            <button
+              onClick={() => onOpenInstall(connector)}
+              className="galdr-button-primary inline-flex flex-1 items-center justify-center px-3 py-2 text-sm font-medium"
+            >
+              Install
+            </button>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
 }
 
 export function MarketplacePageView({
@@ -238,95 +355,13 @@ export function MarketplacePageView({
         </div>
       </section>
 
-      {loading ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {[...Array(6)].map((_, index) => (
-            <div key={index} className="galdr-card h-64 animate-pulse p-5" />
-          ))}
-        </div>
-      ) : error ? (
-        <div role="alert" className="galdr-alert-danger p-6 text-center">
-          <p className="text-sm">{error}</p>
-          <button
-            onClick={onRetry}
-            className="galdr-link mt-2 text-sm font-medium"
-          >
-            Retry
-          </button>
-        </div>
-      ) : visibleConnectors.length === 0 ? (
-        <div className="galdr-card">
-          <EmptyState
-            icon={<PlugZap className="h-12 w-12" />}
-            title="No connectors found"
-            description="Try a different search or category filter."
-          />
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {visibleConnectors.map((connector) => (
-            <article
-              key={`${connector.id}:${connector.version}`}
-              className="galdr-card flex min-h-72 flex-col p-5"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[color:rgb(34_211_238_/_0.26)] bg-[color:rgb(34_211_238_/_0.11)] text-[var(--galdr-accent-2)]">
-                  <PlugZap className="h-6 w-6" />
-                </div>
-                <span className="galdr-pill px-2.5 py-1 text-xs font-medium">
-                  v{connector.version}
-                </span>
-              </div>
-              <div className="mt-4 flex-1">
-                <h2 className="text-xl font-semibold text-[var(--galdr-fg)]">
-                  <a
-                    className="galdr-link"
-                    href={`/marketplace/connectors/${connector.id}`}
-                  >
-                    {connector.name}
-                  </a>
-                </h2>
-                <p className="mt-2 line-clamp-3 text-sm leading-6 text-[var(--galdr-fg-muted)]">
-                  {connector.description}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {connectorCategories(connector).map((item) => (
-                    <span key={item} className="galdr-pill px-2.5 py-1 text-xs">
-                      {formatCategory(item)}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <div className="mt-5 grid gap-2 text-xs text-[var(--galdr-fg-muted)]">
-                <span className="inline-flex items-center gap-2">
-                  <Star className="h-4 w-4 text-[var(--galdr-at-risk)]" />
-                  {connectorRating(connector)} ·{" "}
-                  {connectorInstallCount(connector)}
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-[var(--galdr-success)]" />
-                  {authLabel(connector.manifest.auth.type)} ·{" "}
-                  {connector.manifest.sync.resources.length} resources
-                </span>
-              </div>
-              <div className="mt-5 flex gap-2">
-                <a
-                  href={`/marketplace/connectors/${connector.id}`}
-                  className="galdr-button-secondary inline-flex flex-1 items-center justify-center px-3 py-2 text-sm font-medium"
-                >
-                  Details
-                </a>
-                <button
-                  onClick={() => onOpenInstall(connector)}
-                  className="galdr-button-primary inline-flex flex-1 items-center justify-center px-3 py-2 text-sm font-medium"
-                >
-                  Install
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
+      <MarketplaceResults
+        visibleConnectors={visibleConnectors}
+        loading={loading}
+        error={error}
+        onRetry={onRetry}
+        onOpenInstall={onOpenInstall}
+      />
 
       {selectedInstall && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
