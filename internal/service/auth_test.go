@@ -17,11 +17,5 @@ func TestAuthRegisterRejectsUnknownIndustry(t *testing.T) {
 		Industry:  "Professional Services",
 	})
 
-	validationErr, ok := err.(*ValidationError)
-	if !ok {
-		t.Fatalf("expected ValidationError, got %T", err)
-	}
-	if validationErr.Field != "industry" {
-		t.Fatalf("expected industry validation error, got %q", validationErr.Field)
-	}
+	assertIndustryValidationError(t, err)
 }

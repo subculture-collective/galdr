@@ -31,14 +31,9 @@ var allowedIndustries = map[string]struct{}{
 
 const industryValidationMessage = "industry must be one of the predefined options"
 
-func isAllowedIndustry(industry string) bool {
-	_, ok := allowedIndustries[industry]
-	return ok
-}
-
 func validateIndustry(industry string) (string, error) {
 	industry = strings.TrimSpace(industry)
-	if industry != "" && !isAllowedIndustry(industry) {
+	if _, ok := allowedIndustries[industry]; industry != "" && !ok {
 		return "", &ValidationError{Field: "industry", Message: industryValidationMessage}
 	}
 	return industry, nil
