@@ -22,16 +22,19 @@ export function validatePostHogCredentials(
   apiKey: string,
   projectId: string,
 ): ValidationResult {
-  if (!apiKey.trim()) {
+  const trimmedApiKey = apiKey.trim();
+  const trimmedProjectId = projectId.trim();
+
+  if (!trimmedApiKey) {
     return { valid: false, message: "Enter a PostHog API key." };
   }
-  if (!apiKey.trim().startsWith("phx_")) {
+  if (!trimmedApiKey.startsWith("phx_")) {
     return {
       valid: false,
       message: "Enter a valid PostHog personal API key.",
     };
   }
-  if (!projectId.trim()) {
+  if (!trimmedProjectId) {
     return { valid: false, message: "Enter a PostHog project ID." };
   }
   return { valid: true, message: "" };
@@ -42,34 +45,43 @@ export function getPostHogConnectionView(
 ): PostHogConnectionView {
   const statusValue = status?.status ?? "disconnected";
   const isConnected = statusValue === "active" || statusValue === "syncing";
-  const metrics: string[] = [];
-
-  if (isConnected && status) {
-    if (status.project_id) metrics.push(`Project ID: ${status.project_id}`);
-    if (status.event_count !== undefined) {
-      metrics.push(`Events synced: ${formatCount(status.event_count)}`);
-    }
-    if (status.user_count !== undefined) {
-      metrics.push(`Users synced: ${formatCount(status.user_count)}`);
-    }
-    if (status.last_sync_at) {
-      metrics.push(`Last sync: ${formatSyncTime(status.last_sync_at)}`);
-    }
-  }
 
   return {
     badge: badgeLabel(statusValue),
     isConnected,
     canSync: statusValue === "active",
-    metrics,
+    metrics: isConnected && status ? connectionMetrics(status) : [],
   };
 }
 
 function badgeLabel(status: string): string {
-  if (status === "active") return "Connected";
-  if (status === "syncing") return "Syncing";
-  if (status === "error") return "Error";
-  return "Not connected";
+  switch (status) {
+    case "active":
+      return "Connected";
+    case "syncing":
+      return "Syncing";
+    case "error":
+      return "Error";
+    default:
+      return "Not connected";
+  }
+}
+
+function connectionMetrics(status: PostHogConnectionStatus): string[] {
+  const metrics: string[] = [];
+
+  if (status.project_id) metrics.push(`Project ID: ${status.project_id}`);
+  if (status.event_count !== undefined) {
+    metrics.push(`Events synced: ${formatCount(status.event_count)}`);
+  }
+  if (status.user_count !== undefined) {
+    metrics.push(`Users synced: ${formatCount(status.user_count)}`);
+  }
+  if (status.last_sync_at) {
+    metrics.push(`Last sync: ${formatSyncTime(status.last_sync_at)}`);
+  }
+
+  return metrics;
 }
 
 function formatCount(value: number): string {

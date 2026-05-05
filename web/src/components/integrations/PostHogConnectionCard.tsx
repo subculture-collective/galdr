@@ -219,37 +219,26 @@ export default function PostHogConnectionCard() {
 }
 
 function StatusBadge({ status, label }: { status?: string; label: string }) {
-  if (!status || status === "disconnected") {
-    return (
-      <span className="galdr-pill inline-flex items-center px-2.5 py-0.5 text-xs font-medium">
-        {label}
-      </span>
-    );
+  const className = postHogStatusBadgeClassName(status);
+
+  return <span className={className}>{label}</span>;
+}
+
+function postHogStatusBadgeClassName(status?: string): string {
+  const baseClassName =
+    "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium";
+
+  switch (status) {
+    case "active":
+      return `${baseClassName} border-[color:rgb(52_211_153_/_0.35)] bg-[color:rgb(52_211_153_/_0.14)] text-[var(--galdr-success)]`;
+    case "syncing":
+      return `${baseClassName} border-[color:rgb(34_211_238_/_0.35)] bg-[color:rgb(34_211_238_/_0.14)] text-[var(--galdr-accent-2)]`;
+    case "error":
+      return `${baseClassName} border-[color:rgb(244_63_94_/_0.35)] bg-[color:rgb(244_63_94_/_0.14)] text-[var(--galdr-danger)]`;
+    case undefined:
+    case "disconnected":
+      return "galdr-pill inline-flex items-center px-2.5 py-0.5 text-xs font-medium";
+    default:
+      return `${baseClassName} border-[color:rgb(245_158_11_/_0.35)] bg-[color:rgb(245_158_11_/_0.14)] text-[var(--galdr-at-risk)]`;
   }
-  if (status === "active") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-[color:rgb(52_211_153_/_0.35)] bg-[color:rgb(52_211_153_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-success)]">
-        {label}
-      </span>
-    );
-  }
-  if (status === "syncing") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-[color:rgb(34_211_238_/_0.35)] bg-[color:rgb(34_211_238_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-accent-2)]">
-        {label}
-      </span>
-    );
-  }
-  if (status === "error") {
-    return (
-      <span className="inline-flex items-center rounded-full border border-[color:rgb(244_63_94_/_0.35)] bg-[color:rgb(244_63_94_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-danger)]">
-        {label}
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center rounded-full border border-[color:rgb(245_158_11_/_0.35)] bg-[color:rgb(245_158_11_/_0.14)] px-2.5 py-0.5 text-xs font-medium text-[var(--galdr-at-risk)]">
-      {label}
-    </span>
-  );
 }
