@@ -99,6 +99,9 @@ func (e *WebhookActionExecutor) Execute(ctx context.Context, req WebhookActionRe
 	if req.Action == nil {
 		return nil, errors.New("action is required")
 	}
+	if req.Action.ActionType != repository.PlaybookActionWebhook {
+		return nil, fmt.Errorf("webhook executor cannot run %q actions", req.Action.ActionType)
+	}
 	cfg, err := parseWebhookActionConfig(req.Action.ActionConfig)
 	if err != nil {
 		return nil, err

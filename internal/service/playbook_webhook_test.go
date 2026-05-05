@@ -117,6 +117,22 @@ func TestWebhookActionRejectsNonHTTPSURL(t *testing.T) {
 	}
 }
 
+func TestWebhookActionRejectsNonWebhookAction(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("non-webhook action should not be delivered")
+	}))
+	defer server.Close()
+
+	req := minimalWebhookRequest(server.URL)
+	req.Action.ActionType = repository.PlaybookActionSendEmail
+
+	executor := NewWebhookActionExecutor(WebhookActionExecutorConfig{HTTPClient: server.Client()})
+	_, err := executor.Execute(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected non-webhook action error")
+	}
+}
+
 func TestWebhookActionRecordsPermanentFailure(t *testing.T) {
 	attempts := 0
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
