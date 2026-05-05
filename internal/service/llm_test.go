@@ -107,9 +107,7 @@ func TestLLMServiceRetriesProviderRateLimits(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected retry success, got %v", err)
 	}
-	if res.Text != "retried" || provider.calls != 2 {
-		t.Fatalf("expected retried response and two calls, got res=%+v calls=%d", res, provider.calls)
-	}
+	assertRetriedResponse(t, res, provider)
 }
 
 func TestLLMServiceRetriesProviderRateLimitsUsingRetryAfter(t *testing.T) {
@@ -136,6 +134,11 @@ func TestLLMServiceRetriesProviderRateLimitsUsingRetryAfter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected retry-after success, got %v", err)
 	}
+	assertRetriedResponse(t, res, provider)
+}
+
+func assertRetriedResponse(t *testing.T, res *LLMCompletionResponse, provider *fakeLLMProvider) {
+	t.Helper()
 	if res.Text != "retried" || provider.calls != 2 {
 		t.Fatalf("expected retried response and two calls, got res=%+v calls=%d", res, provider.calls)
 	}
