@@ -118,7 +118,21 @@ func (c *StripeConnector) Manifest() connectorsdk.ConnectorManifest {
 			},
 		},
 		Webhooks: []connectorsdk.WebhookConfig{
-			{Path: "/api/v1/webhooks/stripe", EventTypes: []string{"customer.created", "customer.updated", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted", "charge.succeeded", "charge.failed", "invoice.payment_succeeded", "invoice.payment_failed"}, SigningSecretHeader: "Stripe-Signature"},
+			{
+				Path: "/api/v1/webhooks/stripe",
+				EventTypes: []string{
+					"customer.created",
+					"customer.updated",
+					"customer.subscription.created",
+					"customer.subscription.updated",
+					"customer.subscription.deleted",
+					"charge.succeeded",
+					"charge.failed",
+					"invoice.payment_succeeded",
+					"invoice.payment_failed",
+				},
+				SigningSecretHeader: "Stripe-Signature",
+			},
 		},
 	}
 }
@@ -217,7 +231,20 @@ func (c *HubSpotConnector) Manifest() connectorsdk.ConnectorManifest {
 			},
 		},
 		Webhooks: []connectorsdk.WebhookConfig{
-			{Path: "/api/v1/webhooks/hubspot", EventTypes: []string{"contact.creation", "contact.propertyChange", "contact.deletion", "deal.creation", "deal.propertyChange", "deal.deletion", "company.creation", "company.propertyChange"}, SigningSecretHeader: "X-HubSpot-Signature-v3"},
+			{
+				Path: "/api/v1/webhooks/hubspot",
+				EventTypes: []string{
+					"contact.creation",
+					"contact.propertyChange",
+					"contact.deletion",
+					"deal.creation",
+					"deal.propertyChange",
+					"deal.deletion",
+					"company.creation",
+					"company.propertyChange",
+				},
+				SigningSecretHeader: "X-HubSpot-Signature-v3",
+			},
 		},
 	}
 }
@@ -315,7 +342,20 @@ func (c *IntercomConnector) Manifest() connectorsdk.ConnectorManifest {
 			},
 		},
 		Webhooks: []connectorsdk.WebhookConfig{
-			{Path: "/api/v1/webhooks/intercom", EventTypes: []string{"contact.created", "contact.updated", "contact.deleted", "conversation.created", "conversation.updated", "conversation.closed", "conversation.reopened", "conversation.assigned"}, SigningSecretHeader: "X-Hub-Signature"},
+			{
+				Path: "/api/v1/webhooks/intercom",
+				EventTypes: []string{
+					"contact.created",
+					"contact.updated",
+					"contact.deleted",
+					"conversation.created",
+					"conversation.updated",
+					"conversation.closed",
+					"conversation.reopened",
+					"conversation.assigned",
+				},
+				SigningSecretHeader: "X-Hub-Signature",
+			},
 		},
 	}
 }

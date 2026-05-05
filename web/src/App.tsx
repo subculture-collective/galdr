@@ -43,7 +43,6 @@ function App() {
               <ErrorBoundary>
                 <Suspense fallback={<RouteLoadingFallback />}>
                   <Routes>
-                    {/* Public marketing + auth routes */}
                     <Route path="/" element={<LandingPage />} />
                     <Route path="/pricing" element={<PricingPage />} />
                     <Route
@@ -107,7 +106,6 @@ function App() {
                     <Route path="/privacy" element={<PrivacyPage />} />
                     <Route path="/terms" element={<TermsPage />} />
 
-                    {/* Backward-compatible auth aliases */}
                     <Route
                       path="/auth/login"
                       element={<Navigate to="/login" replace />}
@@ -117,7 +115,6 @@ function App() {
                       element={<Navigate to="/register" replace />}
                     />
 
-                    {/* Protected app routes */}
                     <Route
                       element={
                         <ProtectedRoute>
@@ -135,7 +132,6 @@ function App() {
                       <Route path="/settings/*" element={<SettingsPage />} />
                     </Route>
 
-                    {/* Catch-all 404 */}
                     <Route path="*" element={<NotFoundPage />} />
                   </Routes>
                 </Suspense>
