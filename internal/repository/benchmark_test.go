@@ -60,7 +60,7 @@ func TestBenchmarkContributionModelContainsOnlyOrgLevelFields(t *testing.T) {
 }
 
 func TestBenchmarkMigrationUpFileContainsTablesAndOptInFields(t *testing.T) {
-	data, err := os.ReadFile("../../migrations/000024_create_benchmarking.up.sql")
+	data, err := os.ReadFile("../../migrations/000025_create_benchmarking.up.sql")
 	if err != nil {
 		t.Fatalf("failed to read migration file: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestBenchmarkMigrationUpFileContainsTablesAndOptInFields(t *testing.T) {
 }
 
 func TestBenchmarkMigrationUpFilePreventsIndividualCustomerData(t *testing.T) {
-	data, err := os.ReadFile("../../migrations/000024_create_benchmarking.up.sql")
+	data, err := os.ReadFile("../../migrations/000025_create_benchmarking.up.sql")
 	if err != nil {
 		t.Fatalf("failed to read migration file: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestBenchmarkMigrationUpFilePreventsIndividualCustomerData(t *testing.T) {
 }
 
 func TestBenchmarkMigrationDownFileDropsTablesAndOptInFields(t *testing.T) {
-	data, err := os.ReadFile("../../migrations/000024_create_benchmarking.down.sql")
+	data, err := os.ReadFile("../../migrations/000025_create_benchmarking.down.sql")
 	if err != nil {
 		t.Fatalf("failed to read migration file: %v", err)
 	}

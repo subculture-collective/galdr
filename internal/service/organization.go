@@ -149,20 +149,9 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 		industry = requestedIndustry
 	}
 
-	slug := generateSlug(name)
-	baseSlug := slug
-	for i := 1; ; i++ {
-		exists, err := s.orgs.SlugExists(ctx, slug)
-		if err != nil {
-			return nil, fmt.Errorf("check slug: %w", err)
-		}
-		if !exists {
-			break
-		}
-		if org.Slug == slug {
-			break
-		}
-		slug = fmt.Sprintf("%s-%d", baseSlug, i)
+	slug, err := s.uniqueSlug(ctx, name, org.Slug)
+	if err != nil {
+		return nil, err
 	}
 
 	benchmarkingEnabled := org.BenchmarkingEnabled
@@ -201,17 +190,9 @@ func (s *OrganizationService) Create(ctx context.Context, userID uuid.UUID, req 
 		return nil, err
 	}
 
-	slug := generateSlug(name)
-	baseSlug := slug
-	for i := 1; ; i++ {
-		exists, err := s.orgs.SlugExists(ctx, slug)
-		if err != nil {
-			return nil, fmt.Errorf("check slug: %w", err)
-		}
-		if !exists {
-			break
-		}
-		slug = fmt.Sprintf("%s-%d", baseSlug, i)
+	slug, err := s.uniqueSlug(ctx, name, "")
+	if err != nil {
+		return nil, err
 	}
 
 	org := &repository.Organization{
@@ -247,4 +228,19 @@ func (s *OrganizationService) Create(ctx context.Context, userID uuid.UUID, req 
 		BenchmarkingEnabled: false,
 		CompanySize:         0,
 	}, nil
+}
+
+func (s *OrganizationService) uniqueSlug(ctx context.Context, name, currentSlug string) (string, error) {
+	slug := generateSlug(name)
+	baseSlug := slug
+	for i := 1; ; i++ {
+		exists, err := s.orgs.SlugExists(ctx, slug)
+		if err != nil {
+			return "", fmt.Errorf("check slug: %w", err)
+		}
+		if !exists || currentSlug == slug {
+			return slug, nil
+		}
+		slug = fmt.Sprintf("%s-%d", baseSlug, i)
+	}
 }
