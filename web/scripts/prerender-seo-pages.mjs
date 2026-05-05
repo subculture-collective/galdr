@@ -2,59 +2,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 
 const SITE_ORIGIN = "https://pulsescore.app";
 
-const FAMILY_CONFIG = {
-  templates: {
-    path: "/templates",
-    label: "Templates",
-    hubTitle: "Customer health templates for lean SaaS teams",
-    hubDescription:
-      "Action-ready customer health templates you can use immediately, then operationalize in PulseScore.",
-  },
-  integrations: {
-    path: "/integrations",
-    label: "Integrations",
-    hubTitle: "Integration playbooks for customer health scoring",
-    hubDescription:
-      "Connect billing, CRM, and support signals to unify churn-risk visibility in one workflow.",
-  },
-  personas: {
-    path: "/for",
-    label: "Personas",
-    hubTitle: "PulseScore by persona and growth stage",
-    hubDescription:
-      "See how founders, CS, and RevOps teams tailor health scoring to their operating model.",
-  },
-  comparisons: {
-    path: "/compare",
-    label: "Comparisons",
-    hubTitle: "PulseScore comparison guides",
-    hubDescription:
-      "Balanced comparisons focused on setup speed, pricing, and fit for lean teams.",
-  },
-  glossary: {
-    path: "/glossary",
-    label: "Glossary",
-    hubTitle: "Customer success and churn glossary",
-    hubDescription:
-      "Clear, practical definitions with examples and implementation context for SaaS operators.",
-  },
-  examples: {
-    path: "/examples",
-    label: "Examples",
-    hubTitle: "Real customer health examples",
-    hubDescription:
-      "Concrete examples of health scores, thresholds, alerts, and intervention patterns.",
-  },
-  curation: {
-    path: "/best",
-    label: "Best-of Guides",
-    hubTitle: "Curated best-of customer success guides",
-    hubDescription:
-      "Research-backed shortlists of tools and approaches by team size, stack, and outcomes.",
-  },
-};
 const FAMILY_CONFIG = JSON.parse(
-  readFileSync(
+  await readFile(
     new URL("../src/content/seo-family-config.json", import.meta.url),
     "utf8",
   ),
