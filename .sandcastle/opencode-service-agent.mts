@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { closeSync, openSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createServer } from "node:net";
 import path from "node:path";
 import process from "node:process";
 
@@ -21,11 +22,70 @@ type OpenCodeModel = {
   modelID: string;
 };
 
-const baseUrl = "http://127.0.0.1:4096";
-const stateDir = "/tmp/sandcastle-opencode";
+const hostname = "127.0.0.1";
+const stateRoot = "/tmp/sandcastle-opencode";
+const stateKey = Buffer.from(process.cwd()).toString("base64url").slice(0, 48);
+const stateDir = path.join(stateRoot, stateKey);
 const pidFile = path.join(stateDir, "opencode.pid");
 const logFile = path.join(stateDir, "opencode.log");
+const portFile = path.join(stateDir, "opencode.port");
 const healthTimeoutMs = 30_000;
+let servicePort: number | undefined;
+
+function baseUrl() {
+  if (servicePort === undefined) {
+    throw new Error("OpenCode service port has not been resolved.");
+  }
+
+  return `http://${hostname}:${servicePort}`;
+}
+
+function configuredPort(): number | undefined {
+  const raw = process.env.SANDCASTLE_OPENCODE_PORT;
+  if (!raw) return undefined;
+
+  const port = Number.parseInt(raw, 10);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error(`Invalid SANDCASTLE_OPENCODE_PORT: ${raw}`);
+  }
+
+  return port;
+}
+
+async function initialPort(): Promise<number | undefined> {
+  const explicit = configuredPort();
+  if (explicit) return explicit;
+
+  try {
+    const raw = await readFile(portFile, "utf8");
+    const port = Number.parseInt(raw.trim(), 10);
+    if (Number.isInteger(port) && port > 0 && port <= 65_535) {
+      return port;
+    }
+  } catch {
+    // No previously allocated port for this worktree.
+  }
+
+  return undefined;
+}
+
+async function allocateFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.unref();
+    server.once("error", reject);
+    server.listen(0, hostname, () => {
+      const address = server.address();
+      server.close(() => {
+        if (address && typeof address === "object") {
+          resolve(address.port);
+        } else {
+          reject(new Error("Could not allocate an OpenCode service port."));
+        }
+      });
+    });
+  });
+}
 
 const modelEnvByRole: Record<Role, string> = {
   planner: "SANDCASTLE_OPENCODE_PLANNER_MODEL",
@@ -124,18 +184,30 @@ function validateRuntime(role: Role): void {
   }
 }
 
-async function request(url: string, init: RequestInit = {}): Promise<Response> {
+async function request(url: string, init: RequestInit = {}, attempts = 3): Promise<Response> {
   const headers = new Headers(init.headers);
   for (const [key, value] of Object.entries(authHeader())) {
     headers.set(key, value);
   }
 
-  return fetch(url, { ...init, headers });
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fetch(url, { ...init, headers });
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts) break;
+      await delay(250 * attempt);
+    }
+  }
+
+  throw lastError;
 }
 
 async function isHealthy(): Promise<boolean> {
   try {
-    const response = await request(`${baseUrl}/global/health`);
+    const response = await request(`${baseUrl()}/global/health`, {}, 1);
     return response.ok;
   } catch {
     return false;
@@ -144,10 +216,13 @@ async function isHealthy(): Promise<boolean> {
 
 async function ensureService(): Promise<void> {
   await mkdir(stateDir, { recursive: true });
+  servicePort = await initialPort();
 
   if (await isHealthy()) return;
 
   await killStalePid();
+  servicePort = configuredPort() ?? (await allocateFreePort());
+  await writeFile(portFile, `${servicePort}\n`);
   await startService();
 
   if (await waitForHealth()) return;
@@ -182,15 +257,16 @@ async function killStalePid(): Promise<void> {
 }
 
 async function startService(): Promise<void> {
-  console.error(`[sandcastle-opencode] starting OpenCode service at ${baseUrl}`);
-  await writeFile(logFile, `[sandcastle-opencode] starting OpenCode service at ${baseUrl}\n`, {
+  const url = baseUrl();
+  console.error(`[sandcastle-opencode] starting OpenCode service at ${url}`);
+  await writeFile(logFile, `[sandcastle-opencode] starting OpenCode service at ${url}\n`, {
     flag: "a",
   });
 
   const stdoutFd = openSync(logFile, "a");
   const stderrFd = openSync(logFile, "a");
 
-  const child = spawn("opencode", ["serve", "--hostname", "127.0.0.1", "--port", "4096"], {
+  const child = spawn("opencode", ["serve", "--hostname", hostname, "--port", String(servicePort)], {
     detached: true,
     stdio: ["ignore", stdoutFd, stderrFd],
     env: process.env,
@@ -217,7 +293,7 @@ async function waitForHealth(): Promise<boolean> {
 
 async function createSession(role: Role, title?: string): Promise<string> {
   const sessionTitle = `sandcastle ${role}${title ? `: ${title}` : ""}`;
-  const response = await request(`${baseUrl}/session`, {
+  const response = await request(`${baseUrl()}/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title: sessionTitle }),
@@ -261,7 +337,7 @@ async function sendPrompt(sessionId: string, role: Role, prompt: string): Promis
     body.model = model;
   }
 
-  const response = await request(`${baseUrl}/session/${encodeURIComponent(sessionId)}/message`, {
+  const response = await request(`${baseUrl()}/session/${encodeURIComponent(sessionId)}/message`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -406,7 +482,7 @@ async function main(): Promise<void> {
   await ensureService();
 
   if (args.healthcheckOnly) {
-    console.error(`[sandcastle-opencode] service healthy at ${baseUrl}`);
+    console.error(`[sandcastle-opencode] service healthy at ${baseUrl()}`);
     return;
   }
 
