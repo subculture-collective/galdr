@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "@/contexts/ToastContext";
 import WebhookConfig from "@/components/integrations/WebhookConfig";
 import { webhooksApi } from "@/lib/webhooks";
@@ -62,6 +62,10 @@ describe("WebhookConfig", () => {
     } as unknown as Awaited<ReturnType<typeof webhooksApi.testMapping>>);
   });
 
+  afterEach(() => {
+    cleanup();
+  });
+
   it("creates a webhook, builds mappings, tests a sample payload, and lists status", async () => {
     const user = userEvent.setup();
     render(
@@ -113,5 +117,35 @@ describe("WebhookConfig", () => {
       });
     });
     expect(await screen.findByText(/"email": "founder@acme.test"/)).toBeInTheDocument();
+  });
+
+  it("loads common webhook example payloads for testing", async () => {
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <WebhookConfig />
+      </ToastProvider>,
+    );
+
+    await screen.findByText("Zapier lifecycle events");
+
+    await user.click(screen.getByRole("button", { name: "Use Zapier sample" }));
+    expect(
+      (screen.getByLabelText("Sample payload") as HTMLTextAreaElement).value,
+    ).toContain('"zapier_hook_id"');
+
+    await user.type(screen.getByLabelText("Source path 1"), "contact.email");
+    await user.type(screen.getByLabelText("Target field 1"), "email");
+    await user.click(screen.getByRole("button", { name: "Test mapping" }));
+
+    await waitFor(() => {
+      expect(mockedWebhooksApi.testMapping).toHaveBeenCalledWith({
+        mappings: [{ source_path: "contact.email", target_field: "email" }],
+        sample_payload: expect.objectContaining({
+          zapier_hook_id: "hook_123",
+          contact: expect.objectContaining({ email: "founder@acme.test" }),
+        }),
+      });
+    });
   });
 });

@@ -23,6 +23,39 @@ const defaultPayload = JSON.stringify(
   2,
 );
 
+const examplePayloads = [
+  {
+    name: "Customer.io",
+    payload: {
+      user: { email: "founder@acme.test", id: "cio_123" },
+      company: { name: "Acme Corp" },
+      account: { mrr: 12900 },
+      event: "customer.updated",
+    },
+  },
+  {
+    name: "Zapier",
+    payload: {
+      zapier_hook_id: "hook_123",
+      contact: { email: "founder@acme.test", name: "Avery Stone" },
+      account: { company: "Acme Corp", monthly_revenue: 12900 },
+      event_type: "contact.updated",
+    },
+  },
+  {
+    name: "PostHog",
+    payload: {
+      event: "feature_used",
+      distinct_id: "user_123",
+      properties: {
+        email: "founder@acme.test",
+        company_name: "Acme Corp",
+      },
+      timestamp: "2026-05-05T18:00:00Z",
+    },
+  },
+];
+
 const targetFields = [
   "email",
   "name",
@@ -152,6 +185,11 @@ export default function WebhookConfig() {
     }
   }
 
+  function loadExamplePayload(payload: Record<string, unknown>) {
+    setSamplePayload(JSON.stringify(payload, null, 2));
+    setMappedResult(null);
+  }
+
   return (
     <section className="space-y-6">
       <div className="galdr-card overflow-hidden p-0">
@@ -261,6 +299,18 @@ export default function WebhookConfig() {
                 <Code2 className="h-4 w-4 text-[var(--galdr-accent-2)]" />
                 Test sender
               </h4>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {examplePayloads.map((example) => (
+                  <button
+                    key={example.name}
+                    type="button"
+                    onClick={() => loadExamplePayload(example.payload)}
+                    className="galdr-pill px-2.5 py-1 text-xs font-medium text-[var(--galdr-fg)] transition hover:border-[var(--galdr-accent-2)]"
+                  >
+                    Use {example.name} sample
+                  </button>
+                ))}
+              </div>
               <label className="mt-3 block text-xs font-medium text-[var(--galdr-fg-muted)]">
                 Sample payload
                 <textarea
