@@ -309,42 +309,21 @@ func latestActivityAt(customer *repository.Customer, events []*repository.Custom
 }
 
 func countUsageEvents(events []*repository.CustomerEvent, start, end time.Time) int {
-	count := 0
-	for _, event := range events {
-		if event == nil || !isUsageEvent(event.EventType) || !occurredInHalfOpenWindow(event.OccurredAt, start, end) {
-			continue
-		}
-		count++
-	}
-	return count
-}
-
-func countEvents(events []*repository.CustomerEvent, eventType string, start, end time.Time) int {
-	count := 0
-	for _, event := range events {
-		if event == nil || event.EventType != eventType || !occurredInHalfOpenWindow(event.OccurredAt, start, end) {
-			continue
-		}
-		count++
-	}
-	return count
+	return countEventsMatching(events, isUsageEvent, start, end)
 }
 
 func countSupportOpenedEvents(events []*repository.CustomerEvent, start, end time.Time) int {
-	count := 0
-	for _, event := range events {
-		if event == nil || !isSupportOpenedEvent(event.EventType) || !occurredInHalfOpenWindow(event.OccurredAt, start, end) {
-			continue
-		}
-		count++
-	}
-	return count
+	return countEventsMatching(events, isSupportOpenedEvent, start, end)
 }
 
 func countSupportResolvedEvents(events []*repository.CustomerEvent, start, end time.Time) int {
+	return countEventsMatching(events, isSupportResolvedEvent, start, end)
+}
+
+func countEventsMatching(events []*repository.CustomerEvent, matches func(string) bool, start, end time.Time) int {
 	count := 0
 	for _, event := range events {
-		if event == nil || !isSupportResolvedEvent(event.EventType) || !occurredInHalfOpenWindow(event.OccurredAt, start, end) {
+		if event == nil || !matches(event.EventType) || !occurredInHalfOpenWindow(event.OccurredAt, start, end) {
 			continue
 		}
 		count++
