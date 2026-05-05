@@ -118,6 +118,37 @@ func TestBenchmarkAnonymizerRejectsPIIIndustrySegments(t *testing.T) {
 	}
 }
 
+func TestBenchmarkAnonymizerRejectsNonpositiveCustomerCounts(t *testing.T) {
+	anonymizer := NewBenchmarkAnonymizer()
+
+	for _, tc := range []struct {
+		name          string
+		customerCount int
+	}{
+		{"zero", 0},
+		{"negative", -1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			contribution, err := anonymizer.Anonymize(BenchmarkOrgMetrics{
+				OrgID:          uuid.New(),
+				Industry:       "SaaS",
+				CompanySize:    25,
+				CustomerCount:  tc.customerCount,
+				TotalMRR:       0,
+				AvgHealthScore: 0,
+				AvgChurnRate:   0,
+			})
+
+			if err == nil {
+				t.Fatal("expected anonymizer to reject nonpositive customer count")
+			}
+			if contribution != nil {
+				t.Fatal("expected no contribution for nonpositive customer count")
+			}
+		})
+	}
+}
+
 func TestBenchmarkPipelineSkipsOptedOutOrganizations(t *testing.T) {
 	optedInOrg := repository.Organization{ID: uuid.New(), Industry: "saas", CompanySize: 25, BenchmarkingEnabled: true}
 	optedOutOrg := repository.Organization{ID: uuid.New(), Industry: "fintech", CompanySize: 80, BenchmarkingEnabled: false}
