@@ -196,22 +196,22 @@ func buildPlanChangeImpact(catalog *planmodel.Catalog, sub *repository.OrgSubscr
 	currentRank := planRank(currentTier)
 	targetRank := planRank(targetTier)
 
+	if targetRank == currentRank && targetCycle == currentCycle {
+		return nil, &core.ValidationError{Field: "tier", Message: "target plan matches current plan"}
+	}
+
+	isDowngrade := targetRank < currentRank
+	if targetRank == currentRank {
+		isDowngrade = planPriceCents(targetPlan, targetCycle) < planPriceCents(currentPlan, currentCycle)
+	}
+
 	action := planChangeActionUpgrade
 	status := planChangeStatusCheckoutRequired
 	effectiveAtPeriodEnd := false
-	if targetRank < currentRank {
+	if isDowngrade {
 		action = planChangeActionDowngrade
 		status = planChangeStatusScheduled
 		effectiveAtPeriodEnd = true
-	} else if targetRank == currentRank {
-		if targetCycle == currentCycle {
-			return nil, &core.ValidationError{Field: "tier", Message: "target plan matches current plan"}
-		}
-		if planPriceCents(targetPlan, targetCycle) < planPriceCents(currentPlan, currentCycle) {
-			action = planChangeActionDowngrade
-			status = planChangeStatusScheduled
-			effectiveAtPeriodEnd = true
-		}
 	}
 
 	return &ChangePlanResponse{

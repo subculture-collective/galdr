@@ -43,7 +43,7 @@ func TestPlanChangeImpactUpgradeImmediate(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if resp.Action != "upgrade" || resp.Status != "checkout_required" || resp.EffectiveAtPeriodEnd {
+	if resp.Action != planChangeActionUpgrade || resp.Status != planChangeStatusCheckoutRequired || resp.EffectiveAtPeriodEnd {
 		t.Fatalf("unexpected upgrade response: %+v", resp)
 	}
 	if resp.ProrationCents <= 0 {
@@ -59,7 +59,7 @@ func TestPlanChangeImpactDowngradeAtPeriodEnd(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if resp.Action != "downgrade" || resp.Status != "scheduled" || !resp.EffectiveAtPeriodEnd {
+	if resp.Action != planChangeActionDowngrade || resp.Status != planChangeStatusScheduled || !resp.EffectiveAtPeriodEnd {
 		t.Fatalf("unexpected downgrade response: %+v", resp)
 	}
 	if resp.EffectiveAt == nil || !resp.EffectiveAt.Equal(renewal) {
@@ -75,7 +75,7 @@ func TestPlanChangeImpactSameTierAnnualToMonthlySchedulesDowngrade(t *testing.T)
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if resp.Action != "downgrade" || resp.Status != "scheduled" || !resp.EffectiveAtPeriodEnd {
+	if resp.Action != planChangeActionDowngrade || resp.Status != planChangeStatusScheduled || !resp.EffectiveAtPeriodEnd {
 		t.Fatalf("expected same-tier price decrease to schedule as downgrade, got %+v", resp)
 	}
 	if resp.ProrationCents != 0 {
@@ -122,7 +122,7 @@ func TestChangePlanUpgradePaidSubscriptionProratesAndUpdatesImmediately(t *testi
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if resp.Action != "upgrade" || resp.Status != "active" || resp.CheckoutURL != "" || resp.EffectiveAtPeriodEnd {
+	if resp.Action != planChangeActionUpgrade || resp.Status != planChangeStatusActive || resp.CheckoutURL != "" || resp.EffectiveAtPeriodEnd {
 		t.Fatalf("unexpected upgrade response: %+v", resp)
 	}
 	if updateForm.Get("proration_behavior") != "create_prorations" {
@@ -176,7 +176,7 @@ func TestChangePlanDowngradeReturnsStripePeriodEnd(t *testing.T) {
 	}
 
 	wantEffective := time.Unix(periodEnd, 0)
-	if resp.Action != "downgrade" || resp.Status != "scheduled" || !resp.EffectiveAtPeriodEnd {
+	if resp.Action != planChangeActionDowngrade || resp.Status != planChangeStatusScheduled || !resp.EffectiveAtPeriodEnd {
 		t.Fatalf("unexpected downgrade response: %+v", resp)
 	}
 	if resp.EffectiveAt == nil || !resp.EffectiveAt.Equal(wantEffective) {
