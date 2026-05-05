@@ -143,8 +143,8 @@ func TestOrganizationUpdateCurrent_Success(t *testing.T) {
 			if oID != orgID {
 				t.Errorf("expected orgID %s, got %s", orgID, oID)
 			}
-			if req.Name != "New Name" {
-				t.Errorf("expected name 'New Name', got %s", req.Name)
+			if req.Name == nil || *req.Name != "New Name" {
+				t.Errorf("expected name 'New Name', got %v", req.Name)
 			}
 			if req.Industry != "SaaS" {
 				t.Errorf("expected industry 'SaaS', got %s", req.Industry)
