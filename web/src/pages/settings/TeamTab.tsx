@@ -1,34 +1,140 @@
-import { useEffect, useState } from "react";
-import api from "@/lib/api";
-import { useToast } from "@/contexts/ToastContext";
+import { useEffect, useState, type FormEvent } from "react";
 import { Loader2 } from "lucide-react";
+import { useToast } from "@/contexts/ToastContext";
+import {
+  teamApi,
+  type TeamInvitation,
+  type TeamMember,
+  type TeamRole,
+} from "@/lib/api";
+import { TeamSettingsView } from "./TeamSettingsView";
 
-interface Member {
-  id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: string;
+type InviteRole = Exclude<TeamRole, "owner">;
+
+function getMemberID(member: TeamMember) {
+  return member.user_id;
 }
 
 export default function TeamTab() {
-  const [members, setMembers] = useState<Member[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [pendingInvitations, setPendingInvitations] = useState<TeamInvitation[]>(
+    [],
+  );
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<InviteRole>("member");
   const [loading, setLoading] = useState(true);
+  const [savingInvite, setSavingInvite] = useState(false);
+  const [busyID, setBusyID] = useState<string | null>(null);
   const toast = useToast();
 
+  async function loadTeam() {
+    const [memberRes, invitationRes] = await Promise.all([
+      teamApi.listMembers(),
+      teamApi.listInvitations(),
+    ]);
+    setMembers(memberRes.data.members ?? []);
+    setPendingInvitations(invitationRes.data ?? []);
+  }
+
   useEffect(() => {
-    async function fetch() {
+    async function load() {
       try {
-        const { data } = await api.get<{ members: Member[] }>("/members");
-        setMembers(data.members ?? []);
+        await loadTeam();
       } catch {
-        toast.error("Failed to load team members");
+        toast.error("Failed to load team settings");
       } finally {
         setLoading(false);
       }
     }
-    fetch();
-  }, [toast]);
+    load();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleInviteSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingInvite(true);
+    try {
+      const { data } = await teamApi.createInvitation({
+        email: inviteEmail.trim(),
+        role: inviteRole,
+      });
+      setPendingInvitations((prev) => [data, ...prev]);
+      setInviteEmail("");
+      toast.success("Invitation sent");
+    } catch {
+      toast.error("Failed to send invitation");
+    } finally {
+      setSavingInvite(false);
+    }
+  }
+
+  async function handleRoleChange(member: TeamMember, role: TeamRole) {
+    const userID = getMemberID(member);
+    setBusyID(userID);
+    try {
+      await teamApi.updateRole(userID, role);
+      setMembers((prev) =>
+        prev.map((item) =>
+          getMemberID(item) === userID ? { ...item, role } : item,
+        ),
+      );
+      toast.success("Role updated");
+    } catch {
+      toast.error("Failed to update role");
+    } finally {
+      setBusyID(null);
+    }
+  }
+
+  async function handleRemoveMember(member: TeamMember) {
+    const name = `${member.first_name} ${member.last_name}`.trim() || member.email;
+    if (!window.confirm(`Remove ${name} from this organization?`)) return;
+
+    const userID = getMemberID(member);
+    setBusyID(userID);
+    try {
+      await teamApi.removeMember(userID);
+      setMembers((prev) => prev.filter((item) => getMemberID(item) !== userID));
+      toast.success("Member removed");
+    } catch {
+      toast.error("Failed to remove member");
+    } finally {
+      setBusyID(null);
+    }
+  }
+
+  async function handleResendInvitation(invitation: TeamInvitation) {
+    setBusyID(invitation.id);
+    try {
+      await teamApi.revokeInvitation(invitation.id);
+      const { data } = await teamApi.createInvitation({
+        email: invitation.email,
+        role: invitation.role as InviteRole,
+      });
+      setPendingInvitations((prev) =>
+        prev.map((item) => (item.id === invitation.id ? data : item)),
+      );
+      toast.success("Invitation resent");
+    } catch {
+      toast.error("Failed to resend invitation");
+    } finally {
+      setBusyID(null);
+    }
+  }
+
+  async function handleRevokeInvitation(invitation: TeamInvitation) {
+    setBusyID(invitation.id);
+    try {
+      await teamApi.revokeInvitation(invitation.id);
+      setPendingInvitations((prev) =>
+        prev.filter((item) => item.id !== invitation.id),
+      );
+      toast.success("Invitation revoked");
+    } catch {
+      toast.error("Failed to revoke invitation");
+    } finally {
+      setBusyID(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -39,38 +145,20 @@ export default function TeamTab() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="galdr-card overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-[var(--galdr-border)] bg-[color:rgb(31_31_46_/_0.72)] text-xs uppercase text-[var(--galdr-fg-muted)]">
-            <tr>
-              <th className="px-6 py-3">Name</th>
-              <th className="px-6 py-3">Email</th>
-              <th className="px-6 py-3">Role</th>
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((m) => (
-              <tr
-                key={m.id}
-                className="border-b border-[var(--galdr-border)]/70"
-              >
-                <td className="px-6 py-4 font-medium text-[var(--galdr-fg)]">
-                  {m.first_name} {m.last_name}
-                </td>
-                <td className="px-6 py-4 text-[var(--galdr-fg-muted)]">
-                  {m.email}
-                </td>
-                <td className="px-6 py-4">
-                  <span className="galdr-pill inline-flex px-2.5 py-0.5 text-xs font-medium capitalize">
-                    {m.role}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <TeamSettingsView
+      members={members}
+      pendingInvitations={pendingInvitations}
+      inviteEmail={inviteEmail}
+      inviteRole={inviteRole}
+      busyID={busyID}
+      savingInvite={savingInvite}
+      onInviteEmailChange={setInviteEmail}
+      onInviteRoleChange={setInviteRole}
+      onInviteSubmit={handleInviteSubmit}
+      onRoleChange={handleRoleChange}
+      onRemoveMember={handleRemoveMember}
+      onResendInvitation={handleResendInvitation}
+      onRevokeInvitation={handleRevokeInvitation}
+    />
   );
 }

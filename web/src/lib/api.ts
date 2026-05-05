@@ -143,6 +143,50 @@ export const billingApi = {
   cancelAtPeriodEnd: () => api.post<{ status: string }>("/billing/cancel"),
 };
 
+export type TeamRole = "owner" | "admin" | "member";
+
+export interface TeamMember {
+  user_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  avatar_url?: string;
+  role: TeamRole | string;
+  joined_at: string;
+}
+
+export interface TeamInvitation {
+  id: string;
+  email: string;
+  role: Exclude<TeamRole, "owner"> | string;
+  status: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface CreateTeamInvitationPayload {
+  email: string;
+  role: Exclude<TeamRole, "owner">;
+}
+
+export const teamApi = {
+  listMembers: () => api.get<{ members: TeamMember[] }>("/members"),
+
+  updateRole: (userID: string, role: TeamRole) =>
+    api.patch(`/members/${encodeURIComponent(userID)}/role`, { role }),
+
+  removeMember: (userID: string) =>
+    api.delete(`/members/${encodeURIComponent(userID)}`),
+
+  listInvitations: () => api.get<TeamInvitation[]>("/invitations"),
+
+  createInvitation: (data: CreateTeamInvitationPayload) =>
+    api.post<TeamInvitation>("/invitations", data),
+
+  revokeInvitation: (invitationID: string) =>
+    api.delete(`/invitations/${encodeURIComponent(invitationID)}`),
+};
+
 // Alert types and API
 export interface AlertRule {
   id: string;
