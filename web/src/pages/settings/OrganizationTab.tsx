@@ -4,6 +4,7 @@ import { useToast } from "@/contexts/ToastContext";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { ORGANIZATION_INDUSTRIES } from "@/lib/industries";
+import BenchmarkSettings from "@/components/settings/BenchmarkSettings";
 
 interface Organization {
   id: string;
@@ -11,6 +12,7 @@ interface Organization {
   slug: string;
   industry: string;
   benchmarking_enabled?: boolean;
+  company_size?: number;
   plan?: string;
 }
 
@@ -50,6 +52,8 @@ export default function OrganizationTab() {
 
   if (!org) return null;
 
+  const benchmarkingEnabled = org.benchmarking_enabled ?? false;
+  const companySize = org.company_size ?? 0;
   const industryRequiredForBenchmarking = org.benchmarking_enabled && !industry;
 
   async function saveOrganization() {
@@ -68,6 +72,8 @@ export default function OrganizationTab() {
       const { data } = await api.patch<Organization>("/organizations/current", {
         name: trimmedName,
         industry,
+        benchmarking_enabled: benchmarkingEnabled,
+        company_size: companySize,
       });
       setOrg(data);
       setName(data.name);
@@ -150,6 +156,14 @@ export default function OrganizationTab() {
           </p>
         </div>
       )}
+
+      <BenchmarkSettings
+        org={org}
+        industry={industry}
+        saving={saving}
+        setSaving={setSaving}
+        onSaved={(data) => setOrg({ ...org, ...data })}
+      />
 
       <div className="galdr-panel p-4">
         <h3 className="text-sm font-semibold text-[var(--galdr-fg)]">
