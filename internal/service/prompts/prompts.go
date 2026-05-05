@@ -100,13 +100,6 @@ type Recommendation struct {
 	Rationale string `json:"rationale"`
 }
 
-var (
-	validRiskLevels       = []string{"green", "yellow", "red"}
-	validConfidenceLevels = []string{"high", "medium", "low"}
-	validSignalImpacts    = []string{"positive", "negative", "neutral"}
-	validPriorities       = []string{"high", "medium", "low"}
-)
-
 var specs = map[TemplateName]TemplateSpec{
 	CustomerAnalysisTemplate: {
 		Name:            CustomerAnalysisTemplate,
@@ -205,10 +198,10 @@ func (s StructuredInsight) Validate() error {
 	if strings.TrimSpace(s.Summary) == "" {
 		return errors.New("summary is required")
 	}
-	if !oneOf(s.RiskLevel, validRiskLevels) {
+	if !oneOf(s.RiskLevel, "green", "yellow", "red") {
 		return fmt.Errorf("risk_level must be green, yellow, or red")
 	}
-	if !oneOf(s.Confidence, validConfidenceLevels) {
+	if !oneOf(s.Confidence, "high", "medium", "low") {
 		return fmt.Errorf("confidence must be high, medium, or low")
 	}
 	if len(s.Signals) == 0 {
@@ -234,7 +227,7 @@ func validateSignal(index int, signal InsightSignal) error {
 	if strings.TrimSpace(signal.Name) == "" || strings.TrimSpace(signal.Evidence) == "" {
 		return fmt.Errorf("signal %d requires name and evidence", index)
 	}
-	if !oneOf(signal.Impact, validSignalImpacts) {
+	if !oneOf(signal.Impact, "positive", "negative", "neutral") {
 		return fmt.Errorf("signal %d impact must be positive, negative, or neutral", index)
 	}
 	return nil
@@ -244,7 +237,7 @@ func validateRecommendation(index int, rec Recommendation) error {
 	if strings.TrimSpace(rec.Action) == "" || strings.TrimSpace(rec.Owner) == "" || strings.TrimSpace(rec.Rationale) == "" {
 		return fmt.Errorf("recommendation %d requires action, owner, and rationale", index)
 	}
-	if !oneOf(rec.Priority, validPriorities) {
+	if !oneOf(rec.Priority, "high", "medium", "low") {
 		return fmt.Errorf("recommendation %d priority must be high, medium, or low", index)
 	}
 	return nil
@@ -347,7 +340,7 @@ func formatFloat(n float64) string {
 	return fmt.Sprintf("%.2f", n)
 }
 
-func oneOf(value string, allowed []string) bool {
+func oneOf(value string, allowed ...string) bool {
 	for _, item := range allowed {
 		if value == item {
 			return true
