@@ -108,6 +108,18 @@ type llmTokenBudgetKey struct {
 
 // NewLLMService creates an LLM service around any provider implementation.
 func NewLLMService(provider LLMProvider, tracker LLMUsageTracker, cfg LLMServiceConfig) *LLMService {
+	cfg = normalizeLLMServiceConfig(cfg)
+
+	return &LLMService{
+		providers:   configuredLLMProviders(provider, cfg.FallbackProviders),
+		tracker:     tracker,
+		cfg:         cfg,
+		limiters:    make(map[uuid.UUID]*rate.Limiter),
+		dailyTokens: make(map[llmTokenBudgetKey]int),
+	}
+}
+
+func normalizeLLMServiceConfig(cfg LLMServiceConfig) LLMServiceConfig {
 	if cfg.RequestsPerMinute <= 0 {
 		cfg.RequestsPerMinute = defaultLLMRequestsPerMinute
 	}
@@ -123,24 +135,20 @@ func NewLLMService(provider LLMProvider, tracker LLMUsageTracker, cfg LLMService
 	if cfg.Templates == nil {
 		cfg.Templates = loadDefaultLLMTemplates()
 	}
+	return cfg
+}
 
-	providers := make([]LLMProvider, 0, 1+len(cfg.FallbackProviders))
-	if provider != nil {
-		providers = append(providers, provider)
+func configuredLLMProviders(primary LLMProvider, fallbacks []LLMProvider) []LLMProvider {
+	providers := make([]LLMProvider, 0, 1+len(fallbacks))
+	if primary != nil {
+		providers = append(providers, primary)
 	}
-	for _, fallback := range cfg.FallbackProviders {
+	for _, fallback := range fallbacks {
 		if fallback != nil {
 			providers = append(providers, fallback)
 		}
 	}
-
-	return &LLMService{
-		providers:   providers,
-		tracker:     tracker,
-		cfg:         cfg,
-		limiters:    make(map[uuid.UUID]*rate.Limiter),
-		dailyTokens: make(map[llmTokenBudgetKey]int),
-	}
+	return providers
 }
 
 func loadDefaultLLMTemplates() map[string]string {
