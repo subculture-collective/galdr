@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	FeatureScoreTrajectorySlope30d   = "score_trajectory_slope_30d"
+	FeatureScoreTrajectorySlope30d    = "score_trajectory_slope_30d"
 	FeaturePaymentFailureFrequency90d = "payment_failure_frequency_90d"
 	FeaturePaymentSuccessRate90d      = "payment_success_rate_90d"
 	FeatureSupportTicketTrend         = "support_ticket_trend"
@@ -231,11 +231,11 @@ func supportTicketTrend(events []*repository.CustomerEvent, now time.Time) float
 }
 
 func unresolvedTicketRatio(events []*repository.CustomerEvent, now time.Time) float64 {
-	opened := countSupportOpenedEvents(events, daysAgo(now, ticketWindowDays), now)
+	opened := countSupportOpenedEvents(events, daysAgo(now, supportWindowDays), now)
 	if opened == 0 {
 		return 0
 	}
-	resolved := countSupportResolvedEvents(events, daysAgo(now, ticketWindowDays), now)
+	resolved := countSupportResolvedEvents(events, daysAgo(now, supportWindowDays), now)
 	unresolved := opened - resolved
 	if unresolved < 0 {
 		unresolved = 0

@@ -28,9 +28,9 @@ func (m *mockFeatureAccessChecker) CanAccess(ctx context.Context, orgID uuid.UUI
 func TestRequireFeatureReturnsPaymentRequiredForDeniedFeature(t *testing.T) {
 	checker := &mockFeatureAccessChecker{decision: &billing.FeatureDecision{
 		Allowed:                false,
-		CurrentPlan:            billingcatalog.TierFree,
+		CurrentPlan:            string(billingcatalog.TierFree),
 		Feature:                billingcatalog.FeatureFullDashboard,
-		RecommendedUpgradeTier: billingcatalog.TierGrowth,
+		RecommendedUpgradeTier: string(billingcatalog.TierGrowth),
 	}}
 	nextCalled := false
 	handler := RequireFeature(checker, billingcatalog.FeatureFullDashboard)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +74,7 @@ func TestRequireFeatureReturnsPaymentRequiredForDeniedFeature(t *testing.T) {
 func TestRequireFeatureCallsNextForAllowedFeature(t *testing.T) {
 	checker := &mockFeatureAccessChecker{decision: &billing.FeatureDecision{
 		Allowed:     true,
-		CurrentPlan: billingcatalog.TierGrowth,
+		CurrentPlan: string(billingcatalog.TierGrowth),
 		Feature:     billingcatalog.FeatureFullDashboard,
 	}}
 	handler := RequireFeature(checker, billingcatalog.FeatureFullDashboard)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

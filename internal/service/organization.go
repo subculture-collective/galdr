@@ -182,6 +182,7 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 		return nil, err
 	}
 
+	benchmarkingWasEnabled := org.BenchmarkingEnabled
 	benchmarkingEnabled := org.BenchmarkingEnabled
 	if req.BenchmarkingEnabled != nil {
 		benchmarkingEnabled = *req.BenchmarkingEnabled
@@ -203,7 +204,7 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 	if err := s.orgs.UpdateBenchmarkSettings(ctx, orgID, benchmarkingEnabled, industry, companySize); err != nil {
 		return nil, fmt.Errorf("update org benchmark settings: %w", err)
 	}
-	if org.BenchmarkingEnabled && !benchmarkingEnabled && s.benchmarkContributions != nil {
+	if benchmarkingWasEnabled && !benchmarkingEnabled && s.benchmarkContributions != nil {
 		if err := s.benchmarkContributions.DeleteContributionsByOrg(ctx, orgID); err != nil {
 			return nil, fmt.Errorf("delete benchmark contributions on opt-out: %w", err)
 		}

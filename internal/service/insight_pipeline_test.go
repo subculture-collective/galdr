@@ -126,7 +126,7 @@ func TestInsightPipelineGeneratesForScoreChangeTrigger(t *testing.T) {
 	}
 }
 
-func newTestInsightPipeline(now time.Time, llm *fakeInsightLLM, insights *fakeInsightStore, orgID, customerID uuid.UUID) *InsightPipeline {
+func newTestInsightPipeline(now time.Time, llm *fakeInsightLLM, insights *fakeInsightStore, orgID, customerID uuid.UUID) *testInsightPipeline {
 	customers := &fakeInsightCustomers{byID: map[uuid.UUID]*repository.Customer{
 		customerID: {ID: customerID, OrgID: orgID, Name: "Acme", Email: "a@example.com", CompanyName: "Acme", Source: "stripe", MRRCents: 10000, Currency: "usd", CreatedAt: now.Add(-72 * time.Hour)},
 	}}
@@ -136,7 +136,7 @@ func newTestInsightPipeline(now time.Time, llm *fakeInsightLLM, insights *fakeIn
 	events := &fakeInsightEvents{events: []*repository.CustomerEvent{
 		{OrgID: orgID, CustomerID: customerID, EventType: "score.changed", Source: "health_scoring", OccurredAt: now.Add(-time.Hour), Data: map[string]any{"delta": -12}},
 	}}
-	return NewInsightPipeline(InsightPipelineDeps{
+	pipeline := NewInsightPipeline(InsightPipelineDeps{
 		Customers:    customers,
 		HealthScores: health,
 		Events:       events,
@@ -144,6 +144,13 @@ func newTestInsightPipeline(now time.Time, llm *fakeInsightLLM, insights *fakeIn
 		LLM:          llm,
 		Now:          func() time.Time { return now },
 	})
+	return &testInsightPipeline{InsightPipeline: pipeline, customers: customers, health: health}
+}
+
+type testInsightPipeline struct {
+	*InsightPipeline
+	customers *fakeInsightCustomers
+	health    *fakeInsightHealth
 }
 
 type fakeInsightLLM struct {
@@ -156,7 +163,9 @@ func (f *fakeInsightLLM) Complete(ctx context.Context, req LLMCompletionRequest)
 	return &LLMCompletionResponse{Text: f.text, Provider: "gpt-4o-mini", InputTokens: 100, OutputTokens: 50, CostUSD: 0.001}, nil
 }
 
-type fakeInsightCustomers struct{ byID map[uuid.UUID]*repository.Customer }
+type fakeInsightCustomers struct {
+	byID map[uuid.UUID]*repository.Customer
+}
 
 func (f *fakeInsightCustomers) GetByIDAndOrg(ctx context.Context, customerID, orgID uuid.UUID) (*repository.Customer, error) {
 	c := f.byID[customerID]

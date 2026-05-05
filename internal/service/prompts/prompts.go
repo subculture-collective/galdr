@@ -20,10 +20,10 @@ var templateFS embed.FS
 type TemplateName string
 
 const (
-	CustomerAnalysisTemplate     TemplateName = "customer_analysis"
-	RiskAssessmentTemplate       TemplateName = "risk_assessment"
+	CustomerAnalysisTemplate      TemplateName = "customer_analysis"
+	RiskAssessmentTemplate        TemplateName = "risk_assessment"
 	ActionRecommendationsTemplate TemplateName = "action_recommendations"
-	SummaryTemplate              TemplateName = "summary"
+	SummaryTemplate               TemplateName = "summary"
 )
 
 const SystemPrompt = "You are PulseScore's customer health analyst. Use only provided customer health signals. Do not invent facts. Return only valid JSON that matches the requested schema."
@@ -126,6 +126,14 @@ var specs = map[TemplateName]TemplateSpec{
 		MaxPromptTokens: 500,
 		MaxOutputTokens: 250,
 	},
+}
+
+func Specs() map[TemplateName]TemplateSpec {
+	out := make(map[TemplateName]TemplateSpec, len(specs))
+	for name, spec := range specs {
+		out[name] = spec
+	}
+	return out
 }
 
 func TemplateNames() []TemplateName {

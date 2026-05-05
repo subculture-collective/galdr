@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	InsightTypeCustomerAnalysis       = "customer_analysis"
+	InsightTypeCustomerAnalysis      = "customer_analysis"
 	InsightTriggerManual             = "manual"
 	InsightTriggerScoreDrop          = "score_drop"
 	InsightTriggerRiskLevelChanged   = "risk_level_changed"
@@ -155,7 +155,7 @@ func (p *InsightPipeline) GenerateCustomerInsight(ctx context.Context, orgID, cu
 	data := p.buildPromptData(ctx, customer, healthScore, events)
 	completion, err := p.llm.Complete(ctx, LLMCompletionRequest{
 		OrgID:        orgID,
-		TemplateName: prompts.CustomerAnalysisTemplate,
+		TemplateName: string(prompts.CustomerAnalysisTemplate),
 		TemplateData: data,
 		MaxTokens:    prompts.Specs()[prompts.CustomerAnalysisTemplate].MaxOutputTokens,
 	})
