@@ -16,6 +16,12 @@ type customerServicer interface {
 	ListEvents(ctx context.Context, params repository.EventListParams) (*service.EventListResponse, error)
 }
 
+// customerInsightServicer defines the methods CustomerHandler needs for AI insights.
+type customerInsightServicer interface {
+	GenerateCustomerInsight(ctx context.Context, orgID, customerID uuid.UUID, opts service.InsightGenerationOptions) (*service.CustomerInsightResponse, error)
+	ListCustomerInsights(ctx context.Context, orgID, customerID uuid.UUID, limit int) ([]*repository.CustomerInsight, error)
+}
+
 // dashboardServicer defines the methods the DashboardHandler needs.
 type dashboardServicer interface {
 	GetSummary(ctx context.Context, orgID uuid.UUID) (*service.DashboardSummary, error)
