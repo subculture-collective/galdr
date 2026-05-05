@@ -210,6 +210,36 @@ func TestOpenAIProviderCompleteUsesMockedAPI(t *testing.T) {
 	}
 }
 
+func TestOpenAIProviderRateLimitErrorIncludesRetryMetadata(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Retry-After", "2")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error":{"message":"Rate limit reached for gpt-4o-mini."}}`))
+	}))
+	defer server.Close()
+
+	provider := NewOpenAIProvider(OpenAIProviderConfig{
+		APIKey:  "sk-test",
+		BaseURL: server.URL,
+	})
+
+	_, err := provider.Complete(context.Background(), LLMProviderRequest{Prompt: "summarize", MaxTokens: 50})
+	var providerErr *LLMProviderError
+	if !errors.As(err, &providerErr) {
+		t.Fatalf("expected LLMProviderError, got %v", err)
+	}
+	if providerErr.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 status, got %d", providerErr.StatusCode)
+	}
+	if providerErr.Message != "Rate limit reached for gpt-4o-mini." {
+		t.Fatalf("expected parsed OpenAI error message, got %q", providerErr.Message)
+	}
+	if providerErr.RetryAfter != 2*time.Second {
+		t.Fatalf("expected retry-after 2s, got %v", providerErr.RetryAfter)
+	}
+}
+
 func (f *fakeLLMProvider) CountTokens(text string) int {
 	if f.countTokensFn != nil {
 		return f.countTokensFn(text)

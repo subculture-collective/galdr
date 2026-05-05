@@ -106,7 +106,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req LLMProviderRequest) (
 	if resp.StatusCode >= 400 {
 		return nil, &LLMProviderError{
 			StatusCode: resp.StatusCode,
-			Message:    string(respBody),
+			Message:    parseOpenAIErrorMessage(respBody),
 			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
 		}
 	}
@@ -146,6 +146,20 @@ type openAIChatResponse struct {
 		CompletionTokens int `json:"completion_tokens"`
 		TotalTokens      int `json:"total_tokens"`
 	} `json:"usage"`
+}
+
+type openAIErrorResponse struct {
+	Error struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+func parseOpenAIErrorMessage(body []byte) string {
+	var parsed openAIErrorResponse
+	if err := json.Unmarshal(body, &parsed); err == nil && parsed.Error.Message != "" {
+		return parsed.Error.Message
+	}
+	return string(body)
 }
 
 func parseRetryAfter(value string) time.Duration {
