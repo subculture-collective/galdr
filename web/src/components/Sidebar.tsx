@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Users,
   Plug,
+  Store,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -12,6 +13,7 @@ import {
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/customers", label: "Customers", icon: Users },
+  { to: "/marketplace", label: "Marketplace", icon: Store },
   { to: "/settings/integrations", label: "Integrations", icon: Plug },
   { to: "/settings", label: "Settings", icon: Settings, end: true },
 ];

@@ -19,6 +19,8 @@ const RegisterPage = lazy(() => import("@/pages/auth/RegisterPage"));
 const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
 const CustomersPage = lazy(() => import("@/pages/CustomersPage"));
 const CustomerDetailPage = lazy(() => import("@/pages/CustomerDetailPage"));
+const MarketplacePage = lazy(() => import("@/pages/MarketplacePage"));
+const ConnectorDetailPage = lazy(() => import("@/pages/ConnectorDetailPage"));
 const SettingsPage = lazy(() => import("@/pages/settings/SettingsPage"));
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
 const PrivacyPage = lazy(() => import("@/pages/PrivacyPage"));
@@ -128,6 +130,14 @@ function App() {
                       <Route
                         path="/customers/:id"
                         element={<CustomerDetailPage />}
+                      />
+                      <Route
+                        path="/marketplace"
+                        element={<MarketplacePage />}
+                      />
+                      <Route
+                        path="/marketplace/connectors/:id"
+                        element={<ConnectorDetailPage />}
                       />
                       <Route path="/settings/*" element={<SettingsPage />} />
                     </Route>
