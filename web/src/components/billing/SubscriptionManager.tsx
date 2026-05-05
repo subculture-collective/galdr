@@ -14,6 +14,11 @@ interface SubscriptionManagerProps {
   checkoutState?: "success" | "cancelled" | null;
 }
 
+interface SelectedPlanChange {
+  plan: (typeof billingPlans)[number];
+  cycle: BillingCycle;
+}
+
 function normalizeTier(value?: string): PlanTier {
   const normalized = value?.toLowerCase();
   if (normalized === "growth" || normalized === "scale") return normalized;
@@ -44,14 +49,18 @@ export default function SubscriptionManager({
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [openingPortal, setOpeningPortal] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<
-    (typeof billingPlans)[number] | null
-  >(null);
+  const [selectedPlan, setSelectedPlan] =
+    useState<SelectedPlanChange | null>(null);
+  const [targetCycle, setTargetCycle] = useState<BillingCycle>("monthly");
 
   const toast = useToast();
 
   const currentTier = normalizeTier(subscription?.tier);
   const cycle = (subscription?.billing_cycle ?? "monthly") as BillingCycle;
+
+  useEffect(() => {
+    setTargetCycle(cycle);
+  }, [cycle]);
 
   const fetchSubscription = useCallback(async () => {
     setLoading(true);
@@ -130,9 +139,10 @@ export default function SubscriptionManager({
     <div className="space-y-6">
       {selectedPlan && (
         <PlanChangeDialog
-          plan={selectedPlan}
-          cycle={cycle}
+          plan={selectedPlan.plan}
+          cycle={selectedPlan.cycle}
           currentTier={currentTier}
+          currentCycle={cycle}
           onClose={() => setSelectedPlan(null)}
           onChanged={async () => {
             setSelectedPlan(null);
@@ -229,9 +239,29 @@ export default function SubscriptionManager({
         <h4 className="text-sm font-semibold text-[var(--galdr-fg)]">
           Change plan
         </h4>
+        <div className="mt-3 inline-flex rounded-full border border-[var(--galdr-border)] bg-[color-mix(in_srgb,var(--galdr-surface-soft)_80%,black_20%)] p-1 text-xs font-semibold">
+          {(["monthly", "annual"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setTargetCycle(option)}
+              className={`rounded-full px-3 py-1.5 capitalize transition ${
+                targetCycle === option
+                  ? "bg-[var(--galdr-accent)] text-white"
+                  : "text-[var(--galdr-fg-muted)] hover:text-[var(--galdr-fg)]"
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           {recommendedPlans.map((plan) => {
-            const isCurrent = plan.tier === currentTier;
+            const isCurrent = plan.tier === currentTier && targetCycle === cycle;
+            const price =
+              targetCycle === "monthly" ? plan.monthlyPrice : plan.annualPrice;
+            const cycleLabel = targetCycle === "monthly" ? "mo" : "yr";
+
             return (
               <div
                 key={plan.tier}
@@ -251,14 +281,12 @@ export default function SubscriptionManager({
                     </p>
                   </div>
                   <p className="text-sm font-medium text-[var(--galdr-fg-muted)]">
-                    $
-                    {cycle === "monthly" ? plan.monthlyPrice : plan.annualPrice}
-                    /{cycle === "monthly" ? "mo" : "yr"}
+                    ${price}/{cycleLabel}
                   </p>
                 </div>
                 <button
                   disabled={isCurrent}
-                  onClick={() => setSelectedPlan(plan)}
+                  onClick={() => setSelectedPlan({ plan, cycle: targetCycle })}
                   className="galdr-button-primary mt-3 w-full px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isCurrent ? "Current plan" : `Review switch to ${plan.name}`}
