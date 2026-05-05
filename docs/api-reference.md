@@ -161,7 +161,8 @@ Common HTTP statuses:
   "first_name": "Jane",
   "last_name": "Doe",
   "email": "owner@acme.com",
-  "password": "StrongPassword123!"
+  "password": "StrongPassword123!",
+  "industry": "SaaS"
 }
 ```
 
@@ -179,6 +180,7 @@ Common HTTP statuses:
     "id": "1f0d2f47-5f0b-4e61-a929-b81f16431ba4",
     "name": "Acme Inc",
     "slug": "acme-inc",
+    "industry": "SaaS",
     "role": "owner",
     "plan": "free"
   },

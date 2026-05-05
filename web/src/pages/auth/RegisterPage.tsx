@@ -4,6 +4,7 @@ import { authApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { AxiosError } from "axios";
 import SeoMeta from "@/components/SeoMeta";
+import { ORGANIZATION_INDUSTRIES } from "@/lib/industries";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -15,13 +16,14 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [orgName, setOrgName] = useState("");
+  const [industry, setIndustry] = useState("");
   const [error, setError] = useState("");
   const [fieldError, setFieldError] = useState("");
   const [loading, setLoading] = useState(false);
 
   function validate(): boolean {
-    if (!email || !password || !orgName) {
-      setError("Email, password, and organization name are required.");
+    if (!email || !password || !orgName || !industry) {
+      setError("Email, password, organization name, and industry are required.");
       return false;
     }
     if (password.length < 8) {
@@ -50,6 +52,7 @@ export default function RegisterPage() {
         first_name: firstName,
         last_name: lastName,
         org_name: orgName,
+        industry,
       });
       setSession(data);
       navigate("/dashboard");
@@ -157,6 +160,29 @@ export default function RegisterPage() {
               className="galdr-input mt-1 block w-full px-3 py-2 text-sm"
               placeholder="Acme Inc."
             />
+          </div>
+
+          <div>
+            <label
+              htmlFor="industry"
+              className="block text-sm font-medium text-[var(--galdr-fg-muted)]"
+            >
+              Industry
+            </label>
+            <select
+              id="industry"
+              required
+              value={industry}
+              onChange={(e) => setIndustry(e.target.value)}
+              className="galdr-input mt-1 block w-full px-3 py-2 text-sm"
+            >
+              <option value="">Select an industry</option>
+              {ORGANIZATION_INDUSTRIES.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

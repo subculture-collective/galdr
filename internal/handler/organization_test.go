@@ -237,17 +237,21 @@ func TestOrganizationCreate_Success(t *testing.T) {
 			if req.Name != "New Org" {
 				t.Errorf("expected name 'New Org', got %s", req.Name)
 			}
+			if req.Industry != "Healthcare" {
+				t.Errorf("expected industry 'Healthcare', got %s", req.Industry)
+			}
 			return &service.OrgResponse{
-				ID:   newOrgID,
-				Name: "New Org",
-				Slug: "new-org",
-				Plan: "free",
+				ID:       newOrgID,
+				Name:     "New Org",
+				Slug:     "new-org",
+				Industry: "Healthcare",
+				Plan:     "free",
 			}, nil
 		},
 	}
 
 	h := NewOrganizationHandler(mock)
-	body, _ := json.Marshal(map[string]string{"name": "New Org"})
+	body, _ := json.Marshal(map[string]string{"name": "New Org", "industry": "Healthcare"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/organizations", bytes.NewReader(body))
 	req = req.WithContext(auth.WithUserID(req.Context(), userID))
 	rr := httptest.NewRecorder()
@@ -264,6 +268,9 @@ func TestOrganizationCreate_Success(t *testing.T) {
 	}
 	if resp.Name != "New Org" {
 		t.Errorf("expected name 'New Org', got %s", resp.Name)
+	}
+	if resp.Industry != "Healthcare" {
+		t.Errorf("expected industry 'Healthcare', got %s", resp.Industry)
 	}
 }
 

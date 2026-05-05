@@ -13,7 +13,8 @@ import (
 
 // CreateOrgRequest holds the input for creating an organization.
 type CreateOrgRequest struct {
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	Industry string `json:"industry"`
 }
 
 var allowedIndustries = map[string]struct{}{
@@ -28,9 +29,14 @@ var allowedIndustries = map[string]struct{}{
 	"Other":       {},
 }
 
-func isAllowedIndustry(industry string) bool {
-	_, ok := allowedIndustries[industry]
-	return ok
+const industryValidationMessage = "industry must be one of the predefined options"
+
+func validateIndustry(industry string) (string, error) {
+	industry = strings.TrimSpace(industry)
+	if _, ok := allowedIndustries[industry]; industry != "" && !ok {
+		return "", &ValidationError{Field: "industry", Message: industryValidationMessage}
+	}
+	return industry, nil
 }
 
 // OrgResponse is the response for organization operations.
@@ -116,11 +122,13 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 			return nil, &ValidationError{Field: "name", Message: "organization name is required"}
 		}
 	}
+	industry := org.Industry
 	if req.Industry != nil {
-		ind := strings.TrimSpace(*req.Industry)
-		if ind != "" && !isAllowedIndustry(ind) {
-			return nil, &ValidationError{Field: "industry", Message: "industry must be one of the predefined options"}
+		validated, err := validateIndustry(*req.Industry)
+		if err != nil {
+			return nil, err
 		}
+		industry = validated
 	}
 
 	slug := generateSlug(name)
@@ -142,10 +150,6 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 	benchmarkingEnabled := org.BenchmarkingEnabled
 	if req.BenchmarkingEnabled != nil {
 		benchmarkingEnabled = *req.BenchmarkingEnabled
-	}
-	industry := org.Industry
-	if req.Industry != nil {
-		industry = strings.TrimSpace(*req.Industry)
 	}
 	companySize := org.CompanySize
 	if req.CompanySize != nil {
@@ -171,6 +175,10 @@ func (s *OrganizationService) Create(ctx context.Context, userID uuid.UUID, req 
 	if name == "" {
 		return nil, &ValidationError{Field: "name", Message: "organization name is required"}
 	}
+	industry, err := validateIndustry(req.Industry)
+	if err != nil {
+		return nil, err
+	}
 
 	slug := generateSlug(name)
 	baseSlug := slug
@@ -186,8 +194,9 @@ func (s *OrganizationService) Create(ctx context.Context, userID uuid.UUID, req 
 	}
 
 	org := &repository.Organization{
-		Name: name,
-		Slug: slug,
+		Name:     name,
+		Slug:     slug,
+		Industry: industry,
 	}
 
 	tx, err := s.pool.Begin(ctx)

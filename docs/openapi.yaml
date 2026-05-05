@@ -296,6 +296,18 @@ paths:
                   type: string
                   minLength: 2
                   maxLength: 100
+                industry:
+                  type: string
+                  enum:
+                    - SaaS
+                    - E-commerce
+                    - Fintech
+                    - Healthcare
+                    - Education
+                    - Media
+                    - Marketplace
+                    - Agency
+                    - Other
       responses:
         "201":
           description: Organization created
@@ -1303,6 +1315,18 @@ components:
           type: string
         org_name:
           type: string
+        industry:
+          type: string
+          enum:
+            - SaaS
+            - E-commerce
+            - Fintech
+            - Healthcare
+            - Education
+            - Media
+            - Marketplace
+            - Agency
+            - Other
 
     LoginRequest:
       type: object
@@ -1339,7 +1363,11 @@ components:
               type: string
             slug:
               type: string
+            industry:
+              type: string
             role:
+              type: string
+            plan:
               type: string
         tokens:
           type: object
