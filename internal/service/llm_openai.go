@@ -107,7 +107,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req LLMProviderRequest) (
 		return nil, &LLMProviderError{
 			StatusCode: resp.StatusCode,
 			Message:    parseOpenAIErrorMessage(respBody),
-			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
+			RetryAfter: parseRetryDelay(resp.Header),
 		}
 	}
 
@@ -179,4 +179,15 @@ func parseRetryAfter(value string) time.Duration {
 		return 0
 	}
 	return delay
+}
+
+func parseRetryDelay(header http.Header) time.Duration {
+	if delay := parseRetryAfter(header.Get("Retry-After")); delay > 0 {
+		return delay
+	}
+	milliseconds, err := strconv.Atoi(header.Get("Retry-After-Ms"))
+	if err != nil || milliseconds <= 0 {
+		return 0
+	}
+	return time.Duration(milliseconds) * time.Millisecond
 }

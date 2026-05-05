@@ -238,6 +238,30 @@ func TestOpenAIProviderRateLimitErrorIncludesRetryMetadata(t *testing.T) {
 	}
 }
 
+func TestOpenAIProviderRateLimitErrorUsesRetryAfterMilliseconds(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Retry-After-Ms", "1500")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error":{"message":"Rate limit reached for gpt-4o-mini."}}`))
+	}))
+	defer server.Close()
+
+	provider := NewOpenAIProvider(OpenAIProviderConfig{
+		APIKey:  "sk-test",
+		BaseURL: server.URL,
+	})
+
+	_, err := provider.Complete(context.Background(), LLMProviderRequest{Prompt: "summarize", MaxTokens: 50})
+	var providerErr *LLMProviderError
+	if !errors.As(err, &providerErr) {
+		t.Fatalf("expected LLMProviderError, got %v", err)
+	}
+	if providerErr.RetryAfter != 1500*time.Millisecond {
+		t.Fatalf("expected retry-after-ms 1500ms, got %v", providerErr.RetryAfter)
+	}
+}
+
 func (f *fakeLLMProvider) CountTokens(text string) int {
 	if f.countTokensFn != nil {
 		return f.countTokensFn(text)
