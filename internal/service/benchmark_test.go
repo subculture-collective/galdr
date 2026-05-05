@@ -97,6 +97,16 @@ func TestBenchmarkIndustrySegmentsUsePredefinedOrganizationIndustries(t *testing
 	}
 }
 
+func TestBenchmarkIndustrySegmentsRejectNonCatalogAliases(t *testing.T) {
+	for _, industry := range []string{"AI", "Consumer", "Software"} {
+		t.Run(industry, func(t *testing.T) {
+			if got := NormalizeBenchmarkIndustry(industry); got != unknownBenchmarkIndustry {
+				t.Fatalf("expected non-catalog industry to be unknown, got %q", got)
+			}
+		})
+	}
+}
+
 func TestBenchmarkAnonymizerRejectsPIIIndustrySegments(t *testing.T) {
 	anonymizer := NewBenchmarkAnonymizer()
 
