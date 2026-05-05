@@ -218,6 +218,25 @@ func TestExtractCustomerFeaturesUsesIntercomConversationsForSupportTrend(t *test
 	assertClose(t, features.Values[FeatureSupportTicketTrend], 1.0)
 	assertClose(t, features.Values[FeatureUnresolvedTicketRatio], 0.5)
 }
+
+func TestExtractCustomerFeaturesUsesDottedIntercomConversationEvents(t *testing.T) {
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	features := ExtractCustomerFeatures(FeatureInput{
+		Now: now,
+		Customer: &repository.Customer{
+			ID:    uuid.New(),
+			OrgID: uuid.New(),
+		},
+		Events: []*repository.CustomerEvent{
+			event("conversation.created", now.Add(-50*24*time.Hour), nil),
+			event("conversation.created", now.Add(-8*24*time.Hour), nil),
+			event("conversation.created", now.Add(-4*24*time.Hour), nil),
+			event("conversation.closed", now.Add(-2*24*time.Hour), nil),
+		},
+	})
+
+	assertClose(t, features.Values[FeatureSupportTicketTrend], 1.0)
+	assertClose(t, features.Values[FeatureUnresolvedTicketRatio], 0.5)
 }
 
 func TestNormalizeMinMaxClampsToUnitRange(t *testing.T) {
