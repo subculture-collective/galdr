@@ -75,55 +75,62 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [fetchSummary]);
 
+  let summaryContent = null;
+  if (loading) {
+    summaryContent = (
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <CardSkeleton key={i} />
+        ))}
+      </div>
+    );
+  } else if (error) {
+    summaryContent = (
+      <div role="alert" className="galdr-alert-danger p-6 text-center">
+        <p className="text-sm">Failed to load dashboard data.</p>
+        <button
+          onClick={fetchSummary}
+          className="galdr-link mt-2 text-sm font-medium"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  } else if (summary) {
+    summaryContent = (
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          title="Total Customers"
+          value={summary.total_customers}
+          icon={<Users className="h-5 w-5" />}
+        />
+        <StatCard
+          title="At-Risk Customers"
+          value={summary.at_risk_customers}
+          icon={<AlertTriangle className="h-5 w-5" />}
+        />
+        <StatCard
+          title="Total MRR"
+          value={formatCurrency(summary.total_mrr)}
+          icon={<DollarSign className="h-5 w-5" />}
+        />
+        <StatCard
+          title="Avg Health Score"
+          value={Math.round(summary.average_health_score)}
+          icon={<Activity className="h-5 w-5" />}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-[var(--galdr-fg)]">Dashboard</h1>
 
-      {/* Stat cards */}
-      {loading ? (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <CardSkeleton key={i} />
-          ))}
-        </div>
-      ) : error ? (
-        <div role="alert" className="galdr-alert-danger p-6 text-center">
-          <p className="text-sm">Failed to load dashboard data.</p>
-          <button
-            onClick={fetchSummary}
-            className="galdr-link mt-2 text-sm font-medium"
-          >
-            Retry
-          </button>
-        </div>
-      ) : summary ? (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            title="Total Customers"
-            value={summary.total_customers}
-            icon={<Users className="h-5 w-5" />}
-          />
-          <StatCard
-            title="At-Risk Customers"
-            value={summary.at_risk_customers}
-            icon={<AlertTriangle className="h-5 w-5" />}
-          />
-          <StatCard
-            title="Total MRR"
-            value={formatCurrency(summary.total_mrr)}
-            icon={<DollarSign className="h-5 w-5" />}
-          />
-          <StatCard
-            title="Avg Health Score"
-            value={Math.round(summary.average_health_score)}
-            icon={<Activity className="h-5 w-5" />}
-          />
-        </div>
-      ) : null}
+      {summaryContent}
 
       {fullDashboard.allowed ? (
         <>
-          {/* Charts */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Suspense fallback={<ChartPanelFallback />}>
               <ScoreDistributionChart />
@@ -133,7 +140,6 @@ export default function DashboardPage() {
             </Suspense>
           </div>
 
-          {/* Risk overview */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <Suspense fallback={<ChartPanelFallback />}>
               <RiskDistributionChart />

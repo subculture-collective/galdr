@@ -48,7 +48,7 @@ export default function UpgradePrompt({
             )}
           </div>
         </div>
-        <a href={href} className="galdr-btn-primary shrink-0 text-sm">
+        <a href={href} className="galdr-button-primary shrink-0 text-sm">
           View plans
         </a>
       </div>
