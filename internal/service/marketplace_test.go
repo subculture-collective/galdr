@@ -108,6 +108,28 @@ func TestMarketplaceListPublishedReturnsLatestVersionPerConnector(t *testing.T) 
 	}
 }
 
+func TestMarketplaceListPublishedPrefersStableOverPrerelease(t *testing.T) {
+	repo := &mockMarketplaceRepository{
+		listPublishedConnectorsFn: func(ctx context.Context) ([]*repository.MarketplaceConnector, error) {
+			return []*repository.MarketplaceConnector{
+				marketplaceConnector("mock-crm", "1.0.0-beta.1", repository.MarketplaceConnectorStatusPublished),
+				marketplaceConnector("mock-crm", "1.0.0", repository.MarketplaceConnectorStatusPublished),
+			}, nil
+		},
+	}
+
+	connectors, err := NewMarketplaceService(repo).ListPublished(context.Background())
+	if err != nil {
+		t.Fatalf("list published failed: %v", err)
+	}
+	if len(connectors) != 1 {
+		t.Fatalf("expected 1 latest connector, got %d", len(connectors))
+	}
+	if connectors[0].Version != "1.0.0" {
+		t.Fatalf("expected stable 1.0.0, got %q", connectors[0].Version)
+	}
+}
+
 func TestMarketplaceInstallUsesLatestPublishedVersion(t *testing.T) {
 	orgID := uuid.New()
 	latest := marketplaceConnector("mock-crm", "2.0.0", repository.MarketplaceConnectorStatusPublished)

@@ -167,7 +167,7 @@ func compareSemver(a, b string) int {
 			return -1
 		}
 	}
-	return strings.Compare(a, b)
+	return comparePrerelease(semverPrerelease(a), semverPrerelease(b))
 }
 
 func semverCoreParts(version string) [3]int {
@@ -182,6 +182,65 @@ func semverCoreParts(version string) [3]int {
 		nums[i] = n
 	}
 	return nums
+}
+
+func semverPrerelease(version string) string {
+	withoutBuild := strings.SplitN(version, "+", 2)[0]
+	parts := strings.SplitN(withoutBuild, "-", 2)
+	if len(parts) < 2 {
+		return ""
+	}
+	return parts[1]
+}
+
+func comparePrerelease(a, b string) int {
+	if a == "" && b == "" {
+		return 0
+	}
+	if a == "" {
+		return 1
+	}
+	if b == "" {
+		return -1
+	}
+	aParts := strings.Split(a, ".")
+	bParts := strings.Split(b, ".")
+	for i := 0; i < len(aParts) && i < len(bParts); i++ {
+		if cmp := comparePrereleaseIdentifier(aParts[i], bParts[i]); cmp != 0 {
+			return cmp
+		}
+	}
+	if len(aParts) > len(bParts) {
+		return 1
+	}
+	if len(aParts) < len(bParts) {
+		return -1
+	}
+	return 0
+}
+
+func comparePrereleaseIdentifier(a, b string) int {
+	aNum, aErr := strconv.Atoi(a)
+	bNum, bErr := strconv.Atoi(b)
+	aIsNum := aErr == nil
+	bIsNum := bErr == nil
+
+	if aIsNum && bIsNum {
+		if aNum > bNum {
+			return 1
+		}
+		if aNum < bNum {
+			return -1
+		}
+		return 0
+	}
+	if aIsNum {
+		return -1
+	}
+	if bIsNum {
+		return 1
+	}
+	return strings.Compare(a, b)
 }
 
 func isValidMarketplaceStatus(status string) bool {
