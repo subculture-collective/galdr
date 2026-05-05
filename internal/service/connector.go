@@ -14,12 +14,14 @@ const (
 	providerStripe   = "stripe"
 	providerHubSpot  = "hubspot"
 	providerIntercom = "intercom"
+	providerSalesforce = "salesforce"
 )
 
 var (
 	_ connectorsdk.Connector = (*StripeConnector)(nil)
 	_ connectorsdk.Connector = (*HubSpotConnector)(nil)
 	_ connectorsdk.Connector = (*IntercomConnector)(nil)
+	_ connectorsdk.Connector = (*SalesforceConnector)(nil)
 )
 
 // ConnectorSyncer runs a provider sync through the connector registry.
@@ -63,12 +65,15 @@ func NewIntegrationConnectorRegistry(
 	hubspotOrchestrator *HubSpotSyncOrchestratorService,
 	intercomOAuth *IntercomOAuthService,
 	intercomOrchestrator *IntercomSyncOrchestratorService,
+	salesforceOAuth *SalesforceOAuthService,
+	salesforceOrchestrator *SalesforceSyncOrchestratorService,
 ) (*connectorsdk.Registry, error) {
 	registry := connectorsdk.NewRegistry()
 	connectors := []connectorsdk.Connector{
 		NewStripeConnector(stripeOAuth, stripeOrchestrator),
 		NewHubSpotConnector(hubspotOAuth, hubspotOrchestrator),
 		NewIntercomConnector(intercomOAuth, intercomOrchestrator),
+		NewSalesforceConnector(salesforceOAuth, salesforceOrchestrator),
 	}
 
 	for _, connector := range connectors {
@@ -413,6 +418,102 @@ func (c *IntercomConnector) Sync(ctx context.Context, req connectorsdk.SyncReque
 
 // HandleEvent leaves existing Intercom webhook handling unchanged.
 func (c *IntercomConnector) HandleEvent(context.Context, connectorsdk.EventRequest) (*connectorsdk.EventResult, error) {
+	return &connectorsdk.EventResult{Accepted: false}, nil
+}
+
+// SalesforceConnector adapts Salesforce services to the connector SDK.
+type SalesforceConnector struct {
+	oauth        *SalesforceOAuthService
+	orchestrator *SalesforceSyncOrchestratorService
+}
+
+// NewSalesforceConnector creates a Salesforce connector adapter.
+func NewSalesforceConnector(oauth *SalesforceOAuthService, orchestrator *SalesforceSyncOrchestratorService) *SalesforceConnector {
+	return &SalesforceConnector{oauth: oauth, orchestrator: orchestrator}
+}
+
+// Manifest returns Salesforce connector metadata.
+func (c *SalesforceConnector) Manifest() connectorsdk.ConnectorManifest {
+	return connectorsdk.ConnectorManifest{
+		ID:          providerSalesforce,
+		Name:        "Salesforce",
+		Version:     "1.0.0",
+		Description: "Syncs Salesforce accounts, contacts, and opportunities.",
+		Categories:  []string{"crm"},
+		Auth: connectorsdk.AuthConfig{
+			Type: connectorsdk.AuthTypeOAuth2,
+			OAuth2: &connectorsdk.OAuth2Config{
+				AuthorizeURL: "https://login.salesforce.com/services/oauth2/authorize",
+				TokenURL:     "https://login.salesforce.com/services/oauth2/token",
+				Scopes:       []string{"api", "refresh_token"},
+			},
+		},
+		Sync: connectorsdk.SyncConfig{
+			SupportedModes: []connectorsdk.SyncMode{connectorsdk.SyncModeFull, connectorsdk.SyncModeIncremental},
+			DefaultMode:    connectorsdk.SyncModeFull,
+			Resources: []connectorsdk.ResourceConfig{
+				{Name: "accounts", Description: "Salesforce account records", Required: true},
+				{Name: "contacts", Description: "Salesforce contact records mapped to customers by email", Required: true},
+				{Name: "opportunities", Description: "Salesforce opportunities mapped to customer events", Required: true},
+			},
+		},
+	}
+}
+
+// Authenticate exchanges Salesforce OAuth credentials using the OAuth service.
+func (c *SalesforceConnector) Authenticate(ctx context.Context, req connectorsdk.AuthRequest) (*connectorsdk.AuthResult, error) {
+	if c.oauth == nil {
+		return nil, &ValidationError{Field: providerSalesforce, Message: "Salesforce OAuth service is not configured"}
+	}
+	orgID, err := parseConnectorOrgID(req.OrgID)
+	if err != nil {
+		return nil, err
+	}
+	state := req.Metadata["state"]
+	if err := c.oauth.ExchangeCode(ctx, orgID, req.Code, state); err != nil {
+		return nil, err
+	}
+	status, err := c.oauth.GetStatus(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	return &connectorsdk.AuthResult{ExternalAccountID: status.ExternalAccountID, Scopes: []string{"api", "refresh_token"}}, nil
+}
+
+// Sync runs a Salesforce full or incremental sync.
+func (c *SalesforceConnector) Sync(ctx context.Context, req connectorsdk.SyncRequest) (*connectorsdk.SyncResult, error) {
+	if c.orchestrator == nil {
+		return nil, &ValidationError{Field: providerSalesforce, Message: "Salesforce sync orchestrator is not configured"}
+	}
+	orgID, err := parseConnectorOrgID(req.OrgID)
+	if err != nil {
+		return nil, err
+	}
+
+	var result *SalesforceSyncResult
+	switch req.Mode {
+	case connectorsdk.SyncModeFull:
+		result = c.orchestrator.RunFullSync(ctx, orgID)
+	case connectorsdk.SyncModeIncremental:
+		if req.Since == nil {
+			return nil, &ValidationError{Field: "since", Message: "incremental sync requires since"}
+		}
+		result = c.orchestrator.RunIncrementalSync(ctx, orgID, *req.Since)
+	default:
+		return nil, &ValidationError{Field: "mode", Message: fmt.Sprintf("unsupported sync mode %q", req.Mode)}
+	}
+
+	errorText := strings.Join(result.Errors, "; ")
+	resources := []connectorsdk.ResourceResult{
+		resourceResult("accounts", result.Accounts, errorText),
+		resourceResult("contacts", result.Contacts, errorText),
+		resourceResult("opportunities", result.Opportunities, errorText),
+	}
+	return &connectorsdk.SyncResult{Resources: resources}, nil
+}
+
+// HandleEvent leaves Salesforce webhook handling for a later task.
+func (c *SalesforceConnector) HandleEvent(context.Context, connectorsdk.EventRequest) (*connectorsdk.EventResult, error) {
 	return &connectorsdk.EventResult{Accepted: false}, nil
 }
 

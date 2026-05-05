@@ -198,8 +198,17 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				EncryptionKey:    cfg.Intercom.EncryptionKey,
 			}, connRepo)
 
+			salesforceOAuthSvc := service.NewSalesforceOAuthService(service.SalesforceOAuthConfig{
+				ClientID:         cfg.Salesforce.ClientID,
+				ClientSecret:     cfg.Salesforce.ClientSecret,
+				OAuthRedirectURL: cfg.Salesforce.OAuthRedirectURL,
+				EncryptionKey:    cfg.Salesforce.EncryptionKey,
+				LoginURL:         cfg.Salesforce.LoginURL,
+			}, connRepo)
+
 			hubspotClient := service.NewHubSpotClient()
 			intercomClient := service.NewIntercomClient()
+			salesforceClient := service.NewSalesforceClient()
 
 			stripeSyncSvc := service.NewStripeSyncService(
 				customerRepo, subRepo, paymentRepo, eventRepo,
@@ -227,6 +236,13 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				eventRepo,
 			)
 
+			salesforceSyncSvc := service.NewSalesforceSyncService(
+				salesforceOAuthSvc,
+				salesforceClient,
+				customerRepo,
+				eventRepo,
+			)
+
 			mrrSvc := service.NewMRRService(customerRepo, subRepo, eventRepo)
 			paymentHealthSvc := service.NewPaymentHealthService(paymentRepo, eventRepo, customerRepo)
 			paymentRecencySvc := service.NewPaymentRecencyService(paymentRepo, subRepo)
@@ -234,6 +250,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			syncOrchestrator := service.NewSyncOrchestratorService(connRepo, stripeSyncSvc, mrrSvc)
 			hubspotSyncOrchestrator := service.NewHubSpotSyncOrchestratorService(connRepo, hubspotSyncSvc, mergeSvc)
 			intercomSyncOrchestrator := service.NewIntercomSyncOrchestratorService(connRepo, intercomSyncSvc, mergeSvc)
+			salesforceSyncOrchestrator := service.NewSalesforceSyncOrchestratorService(connRepo, salesforceSyncSvc)
 			connectorRegistry, err := service.NewIntegrationConnectorRegistry(
 				stripeOAuthSvc,
 				syncOrchestrator,
@@ -241,6 +258,8 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				hubspotSyncOrchestrator,
 				intercomOAuthSvc,
 				intercomSyncOrchestrator,
+				salesforceOAuthSvc,
+				salesforceSyncOrchestrator,
 			)
 			if err != nil {
 				slog.Error("failed to create connector registry", "error", err)
@@ -642,6 +661,17 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 					r.Get("/status", intercomHandler.Status)
 					r.Delete("/", intercomHandler.Disconnect)
 					r.Post("/sync", intercomHandler.TriggerSync)
+				})
+
+				// Salesforce integration routes (admin+ required)
+				salesforceHandler := handler.NewIntegrationSalesforceHandler(salesforceOAuthSvc, connectorSyncSvc)
+				r.Route("/integrations/salesforce", func(r chi.Router) {
+					r.Use(middleware.RequireRole("admin"))
+					r.With(middleware.RequireIntegrationLimit(billingLimitsSvc, "salesforce")).Get("/connect", salesforceHandler.Connect)
+					r.Get("/callback", salesforceHandler.Callback)
+					r.Get("/status", salesforceHandler.Status)
+					r.Delete("/", salesforceHandler.Disconnect)
+					r.Post("/sync", salesforceHandler.TriggerSync)
 				})
 
 				// Onboarding routes

@@ -20,6 +20,7 @@ type Config struct {
 	BillingStripe BillingStripeConfig
 	HubSpot       HubSpotConfig
 	Intercom      IntercomConfig
+	Salesforce    SalesforceConfig
 	OpenAI        OpenAIConfig
 	Scoring       ScoringConfig
 	Alert         AlertConfig
@@ -84,6 +85,16 @@ type IntercomConfig struct {
 	OAuthRedirectURL string
 	EncryptionKey    string // 32-byte hex-encoded AES key for token encryption
 	WebhookSecret    string
+	SyncIntervalMin  int
+}
+
+// SalesforceConfig holds Salesforce OAuth and sync settings.
+type SalesforceConfig struct {
+	ClientID         string
+	ClientSecret     string
+	OAuthRedirectURL string
+	EncryptionKey    string // 32-byte hex-encoded AES key for token encryption
+	LoginURL         string
 	SyncIntervalMin  int
 }
 
@@ -214,6 +225,14 @@ func Load() *Config {
 			EncryptionKey:    getEnv("INTERCOM_ENCRYPTION_KEY", ""),
 			WebhookSecret:    getEnv("INTERCOM_WEBHOOK_SECRET", ""),
 			SyncIntervalMin:  getInt("INTERCOM_SYNC_INTERVAL_MIN", 15),
+		},
+		Salesforce: SalesforceConfig{
+			ClientID:         getEnv("SALESFORCE_CLIENT_ID", ""),
+			ClientSecret:     getEnv("SALESFORCE_CLIENT_SECRET", ""),
+			OAuthRedirectURL: getEnv("SALESFORCE_OAUTH_REDIRECT_URL", "http://localhost:8080/api/v1/integrations/salesforce/callback"),
+			EncryptionKey:    getEnv("SALESFORCE_ENCRYPTION_KEY", ""),
+			LoginURL:         getEnv("SALESFORCE_LOGIN_URL", "https://login.salesforce.com"),
+			SyncIntervalMin:  getInt("SALESFORCE_SYNC_INTERVAL_MIN", 15),
 		},
 		OpenAI: OpenAIConfig{
 			APIKey:            getEnv("OPENAI_API_KEY", ""),
