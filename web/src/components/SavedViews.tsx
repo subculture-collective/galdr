@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Bookmark, Save, Share2, Trash2 } from "lucide-react";
-import {
-  savedViewsApi,
-  type SavedView,
-} from "@/lib/api";
+import { savedViewsApi, type SavedView } from "@/lib/api";
 import {
   applyFiltersToSearchParams,
   filtersFromSearchParams,
@@ -14,7 +11,7 @@ import { useToast } from "@/contexts/ToastContext";
 export default function SavedViews() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [views, setViews] = useState<SavedView[]>([]);
-  const [selectedID, setSelectedID] = useState("");
+  const [selectedViewId, setSelectedViewId] = useState("");
   const [name, setName] = useState("");
   const [isShared, setIsShared] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -36,30 +33,33 @@ export default function SavedViews() {
     loadViews();
   }, [loadViews]);
 
-  const selected = views.find((view) => view.id === selectedID);
+  const selectedView = views.find((view) => view.id === selectedViewId);
 
   function selectView(id: string) {
-    setSelectedID(id);
+    setSelectedViewId(id);
     const view = views.find((item) => item.id === id);
-    if (!view) return;
+    if (!view) {
+      return;
+    }
     setName(view.name);
     setIsShared(view.is_shared);
     setSearchParams((prev) => applyFiltersToSearchParams(prev, view.filters));
   }
 
   async function createView() {
-    if (!name.trim()) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
       toast.warning("Name the saved view first");
       return;
     }
     try {
       const { data } = await savedViewsApi.create({
-        name: name.trim(),
+        name: trimmedName,
         filters: filtersFromSearchParams(searchParams),
         is_shared: isShared,
       });
       setViews((prev) => [data, ...prev]);
-      setSelectedID(data.id);
+      setSelectedViewId(data.id);
       toast.success("Saved view created");
     } catch {
       toast.error("Failed to save view");
@@ -67,14 +67,20 @@ export default function SavedViews() {
   }
 
   async function updateView() {
-    if (!selected) return;
+    if (!selectedView) {
+      return;
+    }
+
+    const trimmedName = name.trim();
     try {
-      const { data } = await savedViewsApi.update(selected.id, {
-        name: name.trim() || selected.name,
+      const { data } = await savedViewsApi.update(selectedView.id, {
+        name: trimmedName || selectedView.name,
         filters: filtersFromSearchParams(searchParams),
         is_shared: isShared,
       });
-      setViews((prev) => prev.map((view) => (view.id === data.id ? data : view)));
+      setViews((prev) =>
+        prev.map((view) => (view.id === data.id ? data : view)),
+      );
       toast.success("Saved view updated");
     } catch {
       toast.error("Only the owner can update this view");
@@ -82,11 +88,14 @@ export default function SavedViews() {
   }
 
   async function deleteView() {
-    if (!selected) return;
+    if (!selectedView) {
+      return;
+    }
+
     try {
-      await savedViewsApi.delete(selected.id);
-      setViews((prev) => prev.filter((view) => view.id !== selected.id));
-      setSelectedID("");
+      await savedViewsApi.delete(selectedView.id);
+      setViews((prev) => prev.filter((view) => view.id !== selectedView.id));
+      setSelectedViewId("");
       setName("");
       setIsShared(false);
       toast.success("Saved view deleted");
@@ -110,13 +119,15 @@ export default function SavedViews() {
 
         <div className="grid gap-2 md:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_auto_auto] md:items-center">
           <select
-            value={selectedID}
+            value={selectedViewId}
             onChange={(event) => selectView(event.target.value)}
             disabled={loading}
             className="galdr-input text-sm"
             aria-label="Load saved view"
           >
-            <option value="">{loading ? "Loading views..." : "Load view"}</option>
+            <option value="">
+              {loading ? "Loading views..." : "Load view"}
+            </option>
             {views.map((view) => (
               <option key={view.id} value={view.id}>
                 {view.name} {view.is_shared ? "(shared)" : "(private)"}
@@ -155,7 +166,7 @@ export default function SavedViews() {
             <button
               type="button"
               onClick={updateView}
-              disabled={!selected}
+              disabled={!selectedView}
               className="galdr-button-secondary px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
             >
               Update
@@ -163,7 +174,7 @@ export default function SavedViews() {
             <button
               type="button"
               onClick={deleteView}
-              disabled={!selected}
+              disabled={!selectedView}
               className="galdr-button-secondary inline-flex items-center gap-1 px-3 py-2 text-sm text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Trash2 className="h-4 w-4" />

@@ -53,6 +53,9 @@ func (r *SavedViewRepository) ListVisible(ctx context.Context, orgID, userID uui
 		}
 		views = append(views, view)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate saved views: %w", err)
+	}
 
 	return views, nil
 }

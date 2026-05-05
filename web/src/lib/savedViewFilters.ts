@@ -1,6 +1,6 @@
 import type { SavedViewFilters } from "@/lib/api";
 
-const filterKeys = [
+const CUSTOMER_FILTER_PARAM_KEYS = [
   "search",
   "risk",
   "source",
@@ -8,7 +8,7 @@ const filterKeys = [
   "order",
   "assignee",
   "tags",
-];
+] as const;
 
 export function filtersFromSearchParams(
   params: URLSearchParams,
@@ -35,7 +35,7 @@ export function applyFiltersToSearchParams(
   filters: SavedViewFilters,
 ): URLSearchParams {
   const next = new URLSearchParams(current);
-  filterKeys.forEach((key) => next.delete(key));
+  CUSTOMER_FILTER_PARAM_KEYS.forEach((key) => next.delete(key));
   next.delete("page");
 
   setIfPresent(next, "search", filters.search);
@@ -65,5 +65,7 @@ function setIfPresent(
   key: string,
   value: string | undefined,
 ) {
-  if (value) params.set(key, value);
+  if (value) {
+    params.set(key, value);
+  }
 }
