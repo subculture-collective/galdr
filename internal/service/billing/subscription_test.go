@@ -19,11 +19,19 @@ func (m *mockOrgSubscriptionReader) GetByOrg(ctx context.Context, orgID uuid.UUI
 }
 
 type mockOrganizationReader struct {
-	getByIDFn func(ctx context.Context, id uuid.UUID) (*repository.Organization, error)
+	getByIDFn       func(ctx context.Context, id uuid.UUID) (*repository.Organization, error)
+	countMembersFn func(ctx context.Context, orgID uuid.UUID) (int, error)
 }
 
 func (m *mockOrganizationReader) GetByID(ctx context.Context, id uuid.UUID) (*repository.Organization, error) {
 	return m.getByIDFn(ctx, id)
+}
+
+func (m *mockOrganizationReader) CountMembers(ctx context.Context, orgID uuid.UUID) (int, error) {
+	if m.countMembersFn == nil {
+		return 0, nil
+	}
+	return m.countMembersFn(ctx, orgID)
 }
 
 type mockCustomerCounter struct {
@@ -98,5 +106,32 @@ func TestIsActiveStatusTransitions(t *testing.T) {
 				t.Fatalf("expected active=%v for status=%s, got %v", expected, status, active)
 			}
 		})
+	}
+}
+
+func TestGetSubscriptionSummaryIncludesTeamMemberUsageLimit(t *testing.T) {
+	orgID := uuid.New()
+	svc := NewSubscriptionService(
+		&mockOrgSubscriptionReader{getByOrgFn: func(context.Context, uuid.UUID) (*repository.OrgSubscription, error) {
+			return &repository.OrgSubscription{OrgID: orgID, PlanTier: "growth", Status: "active"}, nil
+		}},
+		&mockOrganizationReader{
+			getByIDFn: func(context.Context, uuid.UUID) (*repository.Organization, error) {
+				return &repository.Organization{ID: orgID, Plan: "growth"}, nil
+			},
+			countMembersFn: func(context.Context, uuid.UUID) (int, error) { return 3, nil },
+		},
+		&mockCustomerCounter{countByOrgFn: func(context.Context, uuid.UUID) (int, error) { return 42, nil }},
+		&mockIntegrationCounter{countActiveByOrgFn: func(context.Context, uuid.UUID) (int, error) { return 2, nil }},
+		planmodel.NewCatalog(planmodel.PriceConfig{}),
+	)
+
+	summary, err := svc.GetSubscriptionSummary(context.Background(), orgID)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if summary.Usage.TeamMembers.Used != 3 || summary.Usage.TeamMembers.Limit != 5 {
+		t.Fatalf("expected growth team member usage 3/5, got %+v", summary.Usage.TeamMembers)
 	}
 }

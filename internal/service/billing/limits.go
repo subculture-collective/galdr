@@ -115,18 +115,12 @@ func (s *LimitsService) CanAccess(ctx context.Context, orgID uuid.UUID, featureN
 		return nil, err
 	}
 
-	plan, ok := s.catalog.GetPlanByTier(tier)
-	if !ok {
+	if _, ok := s.catalog.GetPlanByTier(tier); !ok {
 		return nil, fmt.Errorf("no plan configured for tier %s", tier)
 	}
 
-	allowed := false
-	switch featureName {
-	case "playbooks":
-		allowed = plan.Features.Playbooks
-	case "ai_insights":
-		allowed = plan.Features.AIInsights
-	default:
+	allowed, known := s.catalog.HasFeature(tier, featureName)
+	if !known {
 		allowed = false
 	}
 
