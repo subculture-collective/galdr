@@ -91,6 +91,22 @@ func TestParseStructuredOutputValidatesInsight(t *testing.T) {
 	}
 }
 
+func TestParseStructuredOutputRejectsTrailingText(t *testing.T) {
+	valid := `{
+		"insight_type":"summary",
+		"summary":"Acme needs billing follow-up.",
+		"risk_level":"red",
+		"confidence":"medium",
+		"signals":[{"name":"Failed payments","evidence":"Two recent failed payments","impact":"negative"}],
+		"recommendations":[{"action":"Confirm payment method","owner":"billing","priority":"high","rationale":"Reduce involuntary churn risk"}]
+	}`
+
+	_, err := ParseStructuredOutput([]byte(valid + "\nHere is why."))
+	if err == nil {
+		t.Fatal("expected trailing text to be rejected")
+	}
+}
+
 func sampleCustomerAnalysisData() CustomerAnalysisData {
 	return CustomerAnalysisData{
 		Customer: CustomerSnapshot{

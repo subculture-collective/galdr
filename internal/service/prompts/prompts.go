@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"sort"
 	"strings"
@@ -184,6 +185,9 @@ func ParseStructuredOutput(raw []byte) (*StructuredInsight, error) {
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&insight); err != nil {
 		return nil, fmt.Errorf("parse structured insight: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return nil, errors.New("structured insight must contain a single JSON object")
 	}
 	if err := insight.Validate(); err != nil {
 		return nil, err
