@@ -24,8 +24,6 @@ const (
 )
 
 const (
-	featureCount = 11
-
 	eventLogin          = "login"
 	eventFeatureUse     = "feature_use"
 	eventAPICall        = "api_call"
@@ -33,6 +31,32 @@ const (
 	eventTicketResolved = "ticket.resolved"
 	eventMRRChanged     = "mrr.changed"
 )
+
+const (
+	scoreTrajectoryWindowDays = 30
+	paymentWindowDays         = 90
+	ticketWindowDays          = 90
+	supportWindowDays         = 30
+	usageWindowDays           = 30
+	mrrWindowDays             = 90
+	engagementWindowDays      = 30
+	activityMaxDays           = 40
+	contractMaxDays           = 365
+)
+
+var featureNames = [...]string{
+	FeatureScoreTrajectorySlope30d,
+	FeaturePaymentFailureFrequency90d,
+	FeaturePaymentSuccessRate90d,
+	FeatureSupportTicketTrend,
+	FeatureUnresolvedTicketRatio,
+	FeatureUsageFrequencyChange30d,
+	FeatureMRRChangeRate,
+	FeatureDaysSinceLastActivity,
+	FeatureEngagementEventsPerDay,
+	FeatureContractTenure,
+	FeatureCurrentHealthScore,
+}
 
 var usageEventTypes = map[string]struct{}{
 	eventLogin:      {},
@@ -65,7 +89,7 @@ func ExtractCustomerFeatures(input FeatureInput) FeatureVector {
 	}
 
 	vector := FeatureVector{
-		Values:       make(map[string]float64, featureCount),
+		Values:       make(map[string]float64, len(featureNames)),
 		CalculatedAt: now,
 	}
 	if input.Customer != nil {
@@ -99,7 +123,7 @@ func NormalizeMinMax(value, min, max float64) float64 {
 func scoreTrajectorySlope(history []*repository.HealthScore, now time.Time) float64 {
 	var latest, oldest *repository.HealthScore
 	for _, score := range history {
-		if score == nil || score.CalculatedAt.Before(now.AddDate(0, 0, -30)) || score.CalculatedAt.After(now) {
+		if score == nil || score.CalculatedAt.Before(daysAgo(now, scoreTrajectoryWindowDays)) || score.CalculatedAt.After(now) {
 			continue
 		}
 		if latest == nil || score.CalculatedAt.After(latest.CalculatedAt) {
@@ -116,7 +140,7 @@ func scoreTrajectorySlope(history []*repository.HealthScore, now time.Time) floa
 	if days <= 0 {
 		return 0.5
 	}
-	pointsPer30Days := float64(latest.OverallScore-oldest.OverallScore) / days * 30
+	pointsPer30Days := float64(latest.OverallScore-oldest.OverallScore) / days * scoreTrajectoryWindowDays
 	return NormalizeMinMax(pointsPer30Days, -50, 50)
 }
 
@@ -138,7 +162,7 @@ func paymentSuccessRate(payments []*repository.StripePayment, now time.Time) flo
 
 func paymentCounts90d(payments []*repository.StripePayment, now time.Time) (int, int) {
 	var total, failed int
-	start := now.AddDate(0, 0, -90)
+	start := daysAgo(now, paymentWindowDays)
 	for _, payment := range payments {
 		if payment == nil {
 			continue
@@ -159,8 +183,10 @@ func paymentCounts90d(payments []*repository.StripePayment, now time.Time) (int,
 }
 
 func supportTicketTrend(events []*repository.CustomerEvent, now time.Time) float64 {
-	recent := countEvents(events, eventTicketOpened, now.AddDate(0, 0, -30), now)
-	previous := countEvents(events, eventTicketOpened, now.AddDate(0, 0, -60), now.AddDate(0, 0, -30))
+	recentStart := daysAgo(now, supportWindowDays)
+	previousStart := daysAgo(now, supportWindowDays*2)
+	recent := countEvents(events, eventTicketOpened, recentStart, now)
+	previous := countEvents(events, eventTicketOpened, previousStart, recentStart)
 	if recent > previous {
 		return 1
 	}
@@ -171,11 +197,11 @@ func supportTicketTrend(events []*repository.CustomerEvent, now time.Time) float
 }
 
 func unresolvedTicketRatio(events []*repository.CustomerEvent, now time.Time) float64 {
-	opened := countEvents(events, eventTicketOpened, now.AddDate(0, 0, -90), now)
+	opened := countEvents(events, eventTicketOpened, daysAgo(now, ticketWindowDays), now)
 	if opened == 0 {
 		return 0
 	}
-	resolved := countEvents(events, eventTicketResolved, now.AddDate(0, 0, -90), now)
+	resolved := countEvents(events, eventTicketResolved, daysAgo(now, ticketWindowDays), now)
 	unresolved := opened - resolved
 	if unresolved < 0 {
 		unresolved = 0
@@ -184,8 +210,10 @@ func unresolvedTicketRatio(events []*repository.CustomerEvent, now time.Time) fl
 }
 
 func usageFrequencyChange(events []*repository.CustomerEvent, now time.Time) float64 {
-	recent := countUsageEvents(events, now.AddDate(0, 0, -30), now)
-	previous := countUsageEvents(events, now.AddDate(0, 0, -60), now.AddDate(0, 0, -30))
+	recentStart := daysAgo(now, usageWindowDays)
+	previousStart := daysAgo(now, usageWindowDays*2)
+	recent := countUsageEvents(events, recentStart, now)
+	previous := countUsageEvents(events, previousStart, recentStart)
 	if previous == 0 {
 		if recent == 0 {
 			return 0.5
@@ -198,7 +226,7 @@ func usageFrequencyChange(events []*repository.CustomerEvent, now time.Time) flo
 
 func mrrChangeRate(events []*repository.CustomerEvent, now time.Time) float64 {
 	var oldest, latest *repository.CustomerEvent
-	start := now.AddDate(0, 0, -90)
+	start := daysAgo(now, mrrWindowDays)
 	for _, event := range events {
 		if event == nil || event.EventType != eventMRRChanged || event.OccurredAt.Before(start) || event.OccurredAt.After(now) {
 			continue
@@ -227,19 +255,19 @@ func daysSinceLastActivity(customer *repository.Customer, events []*repository.C
 	if lastActivity == nil {
 		return 1
 	}
-	return NormalizeMinMax(now.Sub(*lastActivity).Hours()/24, 0, 40)
+	return NormalizeMinMax(now.Sub(*lastActivity).Hours()/24, 0, activityMaxDays)
 }
 
 func engagementEventsPerDay(events []*repository.CustomerEvent, now time.Time) float64 {
-	count := countAllEvents(events, now.AddDate(0, 0, -30), now)
-	return NormalizeMinMax(float64(count)/30, 0, 10)
+	count := countAllEvents(events, daysAgo(now, engagementWindowDays), now)
+	return NormalizeMinMax(float64(count)/engagementWindowDays, 0, 10)
 }
 
 func contractTenure(customer *repository.Customer, now time.Time) float64 {
 	if customer == nil || customer.FirstSeenAt == nil {
 		return 0
 	}
-	return NormalizeMinMax(now.Sub(*customer.FirstSeenAt).Hours()/24, 0, 365)
+	return NormalizeMinMax(now.Sub(*customer.FirstSeenAt).Hours()/24, 0, contractMaxDays)
 }
 
 func currentHealthScore(history []*repository.HealthScore) float64 {
@@ -315,6 +343,10 @@ func isUsageEvent(eventType string) bool {
 
 func occurredInHalfOpenWindow(occurredAt, start, end time.Time) bool {
 	return !occurredAt.Before(start) && occurredAt.Before(end)
+}
+
+func daysAgo(now time.Time, days int) time.Time {
+	return now.AddDate(0, 0, -days)
 }
 
 func numberFromEvent(event *repository.CustomerEvent, key string) float64 {
