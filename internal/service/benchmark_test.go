@@ -74,6 +74,29 @@ func TestBenchmarkAnonymizerStripsPIIAndBucketsRawMetrics(t *testing.T) {
 	}
 }
 
+func TestBenchmarkIndustrySegmentsUsePredefinedOrganizationIndustries(t *testing.T) {
+	for _, tc := range []struct {
+		industry string
+		segment  string
+	}{
+		{"SaaS", "saas"},
+		{"E-commerce", "e-commerce"},
+		{"Fintech", "fintech"},
+		{"Healthcare", "healthcare"},
+		{"Education", "education"},
+		{"Media", "media"},
+		{"Marketplace", "marketplace"},
+		{"Agency", "agency"},
+		{"Other", "other"},
+	} {
+		t.Run(tc.industry, func(t *testing.T) {
+			if got := NormalizeBenchmarkIndustry(tc.industry); got != tc.segment {
+				t.Fatalf("expected %q segment, got %q", tc.segment, got)
+			}
+		})
+	}
+}
+
 func TestBenchmarkAnonymizerRejectsPIIIndustrySegments(t *testing.T) {
 	anonymizer := NewBenchmarkAnonymizer()
 

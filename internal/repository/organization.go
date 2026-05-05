@@ -153,7 +153,7 @@ func (r *OrganizationRepository) Update(ctx context.Context, orgID uuid.UUID, na
 func (r *OrganizationRepository) UpdateBenchmarkSettings(ctx context.Context, orgID uuid.UUID, benchmarkingEnabled bool, industry string, companySize int) error {
 	query := `
 		UPDATE organizations
-		SET benchmarking_enabled = $2, industry = $3, company_size = $4
+		SET benchmarking_enabled = $2, industry = NULLIF($3, ''), company_size = $4
 		WHERE id = $1 AND deleted_at IS NULL`
 	_, err := r.pool.Exec(ctx, query, orgID, benchmarkingEnabled, industry, companySize)
 	if err != nil {

@@ -107,6 +107,15 @@ func (s *OrganizationService) GetCurrent(ctx context.Context, orgID uuid.UUID) (
 
 // UpdateCurrent updates the current org settings.
 func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID, req UpdateOrgRequest) (*OrgDetailResponse, error) {
+	var requestedIndustry string
+	if req.Industry != nil {
+		var err error
+		requestedIndustry, err = validateIndustry(*req.Industry)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	org, err := s.orgs.GetByID(ctx, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("get org: %w", err)
@@ -124,11 +133,7 @@ func (s *OrganizationService) UpdateCurrent(ctx context.Context, orgID uuid.UUID
 	}
 	industry := org.Industry
 	if req.Industry != nil {
-		validated, err := validateIndustry(*req.Industry)
-		if err != nil {
-			return nil, err
-		}
-		industry = validated
+		industry = requestedIndustry
 	}
 
 	slug := generateSlug(name)
