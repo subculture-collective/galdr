@@ -111,6 +111,37 @@ func (r *StripeSubscriptionRepository) ListActiveByCustomer(ctx context.Context,
 	return subs, rows.Err()
 }
 
+// ListByCustomer returns all subscriptions for a customer.
+func (r *StripeSubscriptionRepository) ListByCustomer(ctx context.Context, customerID uuid.UUID) ([]*StripeSubscription, error) {
+	query := `
+		SELECT id, org_id, customer_id, stripe_subscription_id, status, COALESCE(plan_name, ''),
+			amount_cents, currency, COALESCE(interval, ''), current_period_start, current_period_end,
+			canceled_at, COALESCE(metadata, '{}'), created_at, updated_at
+		FROM stripe_subscriptions
+		WHERE customer_id = $1
+		ORDER BY created_at`
+
+	rows, err := r.pool.Query(ctx, query, customerID)
+	if err != nil {
+		return nil, fmt.Errorf("list customer subscriptions: %w", err)
+	}
+	defer rows.Close()
+
+	var subs []*StripeSubscription
+	for rows.Next() {
+		s := &StripeSubscription{}
+		if err := rows.Scan(
+			&s.ID, &s.OrgID, &s.CustomerID, &s.StripeSubscriptionID, &s.Status, &s.PlanName,
+			&s.AmountCents, &s.Currency, &s.Interval, &s.CurrentPeriodStart, &s.CurrentPeriodEnd,
+			&s.CanceledAt, &s.Metadata, &s.CreatedAt, &s.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan customer subscription: %w", err)
+		}
+		subs = append(subs, s)
+	}
+	return subs, rows.Err()
+}
+
 // ListByOrg returns all subscriptions for an org.
 func (r *StripeSubscriptionRepository) ListByOrg(ctx context.Context, orgID uuid.UUID) ([]*StripeSubscription, error) {
 	query := `
