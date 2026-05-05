@@ -61,11 +61,7 @@ func (c *SalesforceClient) ListAccounts(ctx context.Context, access SalesforceAc
 	if since != nil {
 		query += " WHERE LastModifiedDate >= " + formatSalesforceTime(*since)
 	}
-	var records []SalesforceAccount
-	if err := c.query(ctx, access, query, &records); err != nil {
-		return nil, err
-	}
-	return records, nil
+	return querySalesforce[SalesforceAccount](ctx, c.client, access, query)
 }
 
 // ListContacts fetches Salesforce contacts that can map to customers by email.
@@ -74,11 +70,7 @@ func (c *SalesforceClient) ListContacts(ctx context.Context, access SalesforceAc
 	if since != nil {
 		query += " AND LastModifiedDate >= " + formatSalesforceTime(*since)
 	}
-	var records []SalesforceContact
-	if err := c.query(ctx, access, query, &records); err != nil {
-		return nil, err
-	}
-	return records, nil
+	return querySalesforce[SalesforceContact](ctx, c.client, access, query)
 }
 
 // ListOpportunities fetches Salesforce opportunities for customer timeline events.
@@ -87,43 +79,13 @@ func (c *SalesforceClient) ListOpportunities(ctx context.Context, access Salesfo
 	if since != nil {
 		query += " WHERE LastModifiedDate >= " + formatSalesforceTime(*since)
 	}
-	var records []SalesforceOpportunity
-	if err := c.query(ctx, access, query, &records); err != nil {
-		return nil, err
-	}
-	return records, nil
+	return querySalesforce[SalesforceOpportunity](ctx, c.client, access, query)
 }
 
 type salesforceQueryResponse[T any] struct {
 	Done           bool   `json:"done"`
 	NextRecordsURL string `json:"nextRecordsUrl"`
 	Records        []T    `json:"records"`
-}
-
-func (c *SalesforceClient) query(ctx context.Context, access SalesforceAccess, query string, out any) error {
-	switch records := out.(type) {
-	case *[]SalesforceAccount:
-		result, err := querySalesforce[SalesforceAccount](ctx, c.client, access, query)
-		if err != nil {
-			return err
-		}
-		*records = result
-	case *[]SalesforceContact:
-		result, err := querySalesforce[SalesforceContact](ctx, c.client, access, query)
-		if err != nil {
-			return err
-		}
-		*records = result
-	case *[]SalesforceOpportunity:
-		result, err := querySalesforce[SalesforceOpportunity](ctx, c.client, access, query)
-		if err != nil {
-			return err
-		}
-		*records = result
-	default:
-		return &ValidationError{Field: "records", Message: "unsupported Salesforce record type"}
-	}
-	return nil
 }
 
 func querySalesforce[T any](ctx context.Context, client *http.Client, access SalesforceAccess, soql string) ([]T, error) {
