@@ -161,7 +161,7 @@ func Render(name TemplateName, data CustomerAnalysisData) (*RenderedPrompt, erro
 	if err != nil {
 		return nil, err
 	}
-	tmpl, err := template.New(spec.Filename).Option("missingkey=error").Funcs(funcs()).Parse(text)
+	tmpl, err := template.New(spec.Filename).Option("missingkey=error").Funcs(FuncMap()).Parse(text)
 	if err != nil {
 		return nil, fmt.Errorf("parse prompt template: %w", err)
 	}
@@ -264,18 +264,14 @@ func validateData(data CustomerAnalysisData) error {
 	return nil
 }
 
-func funcs() template.FuncMap {
+// FuncMap returns template helpers used by bundled prompt templates.
+func FuncMap() template.FuncMap {
 	return template.FuncMap{
 		"formatMoney":     formatMoney,
 		"formatTenure":    formatTenure,
 		"formatSignedInt": formatSignedInt,
 		"formatFloat":     formatFloat,
 	}
-}
-
-// FuncMap returns template helpers used by bundled prompt templates.
-func FuncMap() template.FuncMap {
-	return funcs()
 }
 
 func formatMoney(cents int, currency string) string {
