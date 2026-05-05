@@ -32,7 +32,7 @@ type BenchmarkOrgMetrics struct {
 
 const unknownBenchmarkIndustry = "unknown"
 
-var benchmarkIndustryAliases = map[string]string{
+var benchmarkIndustrySegments = map[string]string{
 	"agency":                  "agency",
 	"e-commerce":              "e-commerce",
 	"ecommerce":               "e-commerce",
@@ -90,7 +90,7 @@ func NormalizeBenchmarkIndustry(industry string) string {
 		return unknownBenchmarkIndustry
 	}
 
-	if canonical, ok := benchmarkIndustryAliases[normalized]; ok {
+	if canonical, ok := benchmarkIndustrySegments[normalized]; ok {
 		return canonical
 	}
 	return unknownBenchmarkIndustry
