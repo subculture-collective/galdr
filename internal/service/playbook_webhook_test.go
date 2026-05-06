@@ -88,7 +88,7 @@ func TestWebhookActionRetriesTransientFailure(t *testing.T) {
 	attempts := 0
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
-		if attempts < 3 {
+		if attempts < defaultWebhookAttempts {
 			w.WriteHeader(http.StatusBadGateway)
 			return
 		}
@@ -104,17 +104,18 @@ func TestWebhookActionRetriesTransientFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected retry success, got %v", err)
 	}
-	if attempts != 3 || result.Attempts != 3 || result.StatusCode != http.StatusNoContent {
+	if attempts != defaultWebhookAttempts || result.Attempts != defaultWebhookAttempts || result.StatusCode != http.StatusNoContent {
 		t.Fatalf("expected third attempt success, attempts=%d result=%+v", attempts, result)
 	}
 }
 
 func TestWebhookActionRetriesRequestErrors(t *testing.T) {
 	attempts := 0
+	requestErr := errors.New("dial webhook: connection refused")
 	client := &http.Client{
 		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 			attempts++
-			return nil, errors.New("dial webhook: connection refused")
+			return nil, requestErr
 		}),
 	}
 
@@ -126,7 +127,10 @@ func TestWebhookActionRetriesRequestErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected request failure")
 	}
-	if attempts != 3 || result.Attempts != 3 || result.Error == "" {
+	if !errors.Is(err, requestErr) {
+		t.Fatalf("expected original request error, got %v", err)
+	}
+	if attempts != defaultWebhookAttempts || result.Attempts != defaultWebhookAttempts || result.Error != requestErr.Error() {
 		t.Fatalf("expected recorded third-attempt request failure, attempts=%d result=%+v", attempts, result)
 	}
 }
