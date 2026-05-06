@@ -153,6 +153,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			paymentRepo := repository.NewStripePaymentRepository(pool.P)
 			eventRepo := repository.NewCustomerEventRepository(pool.P)
 			playbookRepo := repository.NewPlaybookRepository(pool.P)
+			playbookActionRepo := repository.NewPlaybookActionRepository(pool.P)
 			savedViewRepo := repository.NewSavedViewRepository(pool.P)
 			genericWebhookConfigRepo := repository.NewGenericWebhookConfigRepository(pool.P)
 
@@ -763,6 +764,17 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				alertRuleSvc := service.NewAlertRuleService(alertRuleRepo)
 				alertRuleHandler := handler.NewAlertRuleHandler(alertRuleSvc)
 				alertHistoryHandler := handler.NewAlertHistoryHandler(alertHistoryRepo)
+				playbookSvc := service.NewPlaybookService(playbookRepo, playbookActionRepo)
+				playbookHandler := handler.NewPlaybookHandler(playbookSvc)
+				r.Route("/playbooks", func(r chi.Router) {
+					r.Use(middleware.RequireRole("admin"))
+					r.Get("/", playbookHandler.List)
+					r.Post("/", playbookHandler.Create)
+					r.Get("/{id}", playbookHandler.Get)
+					r.Put("/{id}", playbookHandler.Update)
+					r.Delete("/{id}", playbookHandler.Delete)
+					r.Put("/{id}/enable", playbookHandler.SetEnabled)
+				})
 				r.Route("/alerts/rules", func(r chi.Router) {
 					r.Use(middleware.RequireRole("admin"))
 					r.Get("/", alertRuleHandler.List)

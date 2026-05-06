@@ -224,6 +224,15 @@ func (r *PlaybookActionRepository) Create(ctx context.Context, a *PlaybookAction
 	).Scan(&a.ID)
 }
 
+// DeleteByPlaybook deletes all actions for a playbook.
+func (r *PlaybookActionRepository) DeleteByPlaybook(ctx context.Context, playbookID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM playbook_actions WHERE playbook_id = $1`, playbookID)
+	if err != nil {
+		return fmt.Errorf("delete playbook actions: %w", err)
+	}
+	return nil
+}
+
 // PlaybookExecutionRepository handles playbook_executions database operations.
 type PlaybookExecutionRepository struct {
 	pool *pgxpool.Pool
