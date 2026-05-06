@@ -116,6 +116,37 @@ func (r *PlaybookRepository) List(ctx context.Context, orgID uuid.UUID) ([]*Play
 	return playbooks, nil
 }
 
+// ListEnabledByTrigger returns enabled playbooks for an org and trigger type.
+func (r *PlaybookRepository) ListEnabledByTrigger(ctx context.Context, orgID uuid.UUID, triggerType string) ([]*Playbook, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, org_id, name, description, enabled, trigger_type, trigger_config, created_at, updated_at
+		FROM playbooks
+		WHERE org_id = $1 AND trigger_type = $2 AND enabled = true
+		ORDER BY created_at DESC
+	`, orgID, triggerType)
+	if err != nil {
+		return nil, fmt.Errorf("query enabled playbooks by trigger: %w", err)
+	}
+	defer rows.Close()
+
+	var playbooks []*Playbook
+	for rows.Next() {
+		p := &Playbook{}
+		if err := rows.Scan(
+			&p.ID, &p.OrgID, &p.Name, &p.Description,
+			&p.Enabled, &p.TriggerType, &p.TriggerConfig,
+			&p.CreatedAt, &p.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan enabled playbook by trigger: %w", err)
+		}
+		playbooks = append(playbooks, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate enabled playbooks by trigger: %w", err)
+	}
+	return playbooks, nil
+}
+
 // GetByID returns a single playbook by ID scoped to an org.
 func (r *PlaybookRepository) GetByID(ctx context.Context, id, orgID uuid.UUID) (*Playbook, error) {
 	p := &Playbook{}
@@ -278,6 +309,22 @@ func (r *PlaybookExecutionRepository) Create(ctx context.Context, e *PlaybookExe
 		RETURNING id, triggered_at
 	`, e.PlaybookID, e.CustomerID, e.Status, e.Result,
 	).Scan(&e.ID, &e.TriggeredAt)
+}
+
+// HasRecentCustomerExecution reports whether a playbook already ran for a customer since a cutoff.
+func (r *PlaybookExecutionRepository) HasRecentCustomerExecution(ctx context.Context, playbookID, customerID uuid.UUID, since time.Time) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM playbook_executions
+			WHERE playbook_id = $1 AND customer_id = $2 AND triggered_at >= $3
+		)
+	`, playbookID, customerID, since).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("query recent playbook customer execution: %w", err)
+	}
+	return exists, nil
 }
 
 // UpdateStatus updates the status and result of an execution.
