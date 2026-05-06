@@ -61,3 +61,15 @@ func (s *PostgresLLMUsageStore) CountLLMUsageRequests(ctx context.Context, orgID
 	}
 	return count, nil
 }
+
+func (s *PostgresLLMUsageStore) SumLLMUsageTokens(ctx context.Context, orgID uuid.UUID, start, end time.Time) (int, int, error) {
+	var inputTokens, outputTokens int64
+	err := s.pool.QueryRow(ctx, `
+		SELECT COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0)
+		FROM llm_usage
+		WHERE org_id = $1 AND created_at >= $2 AND created_at < $3`, orgID, start, end).Scan(&inputTokens, &outputTokens)
+	if err != nil {
+		return 0, 0, fmt.Errorf("sum llm usage tokens: %w", err)
+	}
+	return int(inputTokens), int(outputTokens), nil
+}

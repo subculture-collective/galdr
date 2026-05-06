@@ -26,6 +26,7 @@ type LLMUsageRepository interface {
 	TrackLLMUsage(ctx context.Context, usage LLMUsage) error
 	SumLLMUsageCost(ctx context.Context, orgID uuid.UUID, start, end time.Time) (float64, error)
 	CountLLMUsageRequests(ctx context.Context, orgID uuid.UUID, start, end time.Time) (int, error)
+	SumLLMUsageTokens(ctx context.Context, orgID uuid.UUID, start, end time.Time) (int, int, error)
 }
 
 type LLMBudgetWarningNotifier interface {
@@ -73,7 +74,8 @@ func (s *LLMUsageService) CheckLLMUsage(ctx context.Context, orgID uuid.UUID, es
 	if limits.DailyRequests >= 0 && summary.RequestsToday >= limits.DailyRequests {
 		return ErrLLMRateLimited
 	}
-	if limits.BudgetUSD >= 0 && summary.MonthlyCostUSD+estimatedCostUSD > limits.BudgetUSD {
+	projectedMonthlyCostUSD := summary.MonthlyCostUSD + estimatedCostUSD
+	if limits.BudgetUSD >= 0 && projectedMonthlyCostUSD >= limits.BudgetUSD {
 		if manualRegeneration {
 			return ErrLLMBudgetConfirmationRequired
 		}
@@ -128,6 +130,10 @@ func (s *LLMUsageService) currentUsage(ctx context.Context, orgID uuid.UUID) (ll
 	if err != nil {
 		return limits, nil, fmt.Errorf("count monthly llm requests: %w", err)
 	}
+	monthlyInputTokens, monthlyOutputTokens, err := s.usage.SumLLMUsageTokens(ctx, orgID, monthStart, nextMonth)
+	if err != nil {
+		return limits, nil, fmt.Errorf("sum monthly llm tokens: %w", err)
+	}
 
 	percent := 0.0
 	if limits.BudgetUSD > 0 {
@@ -144,6 +150,8 @@ func (s *LLMUsageService) currentUsage(ctx context.Context, orgID uuid.UUID) (ll
 		DailyRequestLimit:  limits.DailyRequests,
 		RequestsThisMonth:  requestsMonth,
 		RemainingBudgetUSD: remaining,
+		InputTokensMonth:   monthlyInputTokens,
+		OutputTokensMonth:  monthlyOutputTokens,
 	}, nil
 }
 

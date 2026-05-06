@@ -462,6 +462,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 					RequestsPerMinute: cfg.OpenAI.RequestsPerMinute,
 					MaxTokensPerDay:   cfg.OpenAI.MaxTokensPerDay,
 					DefaultMaxTokens:  cfg.OpenAI.MaxTokens,
+					UsageGate:         llmUsageSvc,
 				},
 			)
 			insightPipeline := service.NewInsightPipeline(service.InsightPipelineDeps{

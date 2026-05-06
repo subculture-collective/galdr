@@ -16,15 +16,19 @@ func (f fakeLLMPlanResolver) GetCurrentPlan(ctx context.Context, orgID uuid.UUID
 }
 
 type fakeLLMUsageRepo struct {
-	cost     float64
-	dayCount int
-	monCount int
-	tracked  []LLMUsage
+	cost         float64
+	dayCount     int
+	monCount     int
+	inputTokens  int
+	outputTokens int
+	tracked      []LLMUsage
 }
 
 func (f *fakeLLMUsageRepo) TrackLLMUsage(ctx context.Context, usage LLMUsage) error {
 	f.tracked = append(f.tracked, usage)
 	f.cost += usage.CostUSD
+	f.inputTokens += usage.InputTokens
+	f.outputTokens += usage.OutputTokens
 	f.dayCount++
 	f.monCount++
 	return nil
@@ -41,12 +45,25 @@ func (f *fakeLLMUsageRepo) CountLLMUsageRequests(ctx context.Context, orgID uuid
 	return f.monCount, nil
 }
 
+func (f *fakeLLMUsageRepo) SumLLMUsageTokens(ctx context.Context, orgID uuid.UUID, start, end time.Time) (int, int, error) {
+	return f.inputTokens, f.outputTokens, nil
+}
+
 func TestLLMUsageServiceEnforcesTierBudget(t *testing.T) {
 	svc := NewLLMUsageService(&fakeLLMUsageRepo{cost: 4.99}, fakeLLMPlanResolver{tier: "growth"}, nil)
 
 	err := svc.CheckLLMUsage(context.Background(), uuid.New(), 0.02, false)
 	if !errors.Is(err, ErrLLMBudgetExceeded) {
 		t.Fatalf("expected budget exceeded, got %v", err)
+	}
+}
+
+func TestLLMUsageServiceEnforcesBudgetAtLimit(t *testing.T) {
+	svc := NewLLMUsageService(&fakeLLMUsageRepo{cost: 4.99}, fakeLLMPlanResolver{tier: "growth"}, nil)
+
+	err := svc.CheckLLMUsage(context.Background(), uuid.New(), 0.01, false)
+	if !errors.Is(err, ErrLLMBudgetExceeded) {
+		t.Fatalf("expected budget exceeded at limit, got %v", err)
 	}
 }
 
@@ -77,5 +94,24 @@ func TestLLMUsageServiceReportsBudgetWarningAtEightyPercent(t *testing.T) {
 	}
 	if !summary.BudgetWarning || summary.BudgetPercentUsed != 0.8 || summary.DailyRequestLimit != 50 {
 		t.Fatalf("unexpected summary: %+v", summary)
+	}
+}
+
+func TestLLMUsageServiceReportsMonthlyTokenUsage(t *testing.T) {
+	repo := &fakeLLMUsageRepo{
+		cost:         1.25,
+		dayCount:     2,
+		monCount:     3,
+		inputTokens:  1200,
+		outputTokens: 450,
+	}
+	svc := NewLLMUsageService(repo, fakeLLMPlanResolver{tier: "growth"}, nil)
+
+	summary, err := svc.GetLLMUsageSummary(context.Background(), uuid.New())
+	if err != nil {
+		t.Fatalf("expected summary, got %v", err)
+	}
+	if summary.InputTokensMonth != 1200 || summary.OutputTokensMonth != 450 {
+		t.Fatalf("unexpected token totals: %+v", summary)
 	}
 }
