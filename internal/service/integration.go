@@ -12,9 +12,26 @@ import (
 	"github.com/onnwee/pulse-score/internal/repository"
 )
 
-const connectorProjectIDMetadataKey = "project_id"
+const (
+	connectorProjectIDMetadataKey = "project_id"
+	integrationHealthStaleAfter   = 24 * time.Hour
 
-const integrationHealthStaleAfter = 24 * time.Hour
+	integrationHealthHealthy      = "healthy"
+	integrationHealthWarning      = "warning"
+	integrationHealthDown         = "down"
+	integrationHealthDisconnected = "disconnected"
+
+	integrationStatusActive       = "active"
+	integrationStatusError        = "error"
+	integrationStatusDisconnected = "disconnected"
+
+	integrationSyncStatusSuccess = "success"
+	integrationSyncStatusError   = "error"
+
+	integrationAlertDown              = "integration_down"
+	integrationAlertConsecutiveErrors = "consecutive_errors"
+	integrationAlertSyncStale         = "sync_stale"
+)
 
 // IntegrationService handles integration management business logic.
 type IntegrationService struct {
@@ -225,8 +242,8 @@ func (s *IntegrationService) integrationHealth(ctx context.Context, orgID uuid.U
 	if conn == nil {
 		return IntegrationHealthSummary{
 			Provider:     provider,
-			Status:       "disconnected",
-			HealthStatus: "disconnected",
+			Status:       integrationStatusDisconnected,
+			HealthStatus: integrationHealthDisconnected,
 			Alerts:       []IntegrationHealthAlert{},
 			SyncHistory:  []IntegrationSyncHistoryPoint{},
 		}, nil
@@ -266,29 +283,29 @@ func (s *IntegrationService) integrationHealth(ctx context.Context, orgID uuid.U
 }
 
 func integrationHealthStatus(conn *repository.IntegrationConnection, errorCount int, hasAlerts bool) string {
-	if conn.Status == "disconnected" {
-		return "disconnected"
+	if conn.Status == integrationStatusDisconnected {
+		return integrationHealthDisconnected
 	}
-	if conn.Status == "error" || errorCount >= 5 {
-		return "down"
+	if conn.Status == integrationStatusError || errorCount >= 5 {
+		return integrationHealthDown
 	}
 	if hasAlerts || conn.LastSyncError != "" || errorCount > 0 {
-		return "warning"
+		return integrationHealthWarning
 	}
-	return "healthy"
+	return integrationHealthHealthy
 }
 
 func integrationHealthAlerts(conn *repository.IntegrationConnection, errorCount int) []IntegrationHealthAlert {
 	alerts := make([]IntegrationHealthAlert, 0, 3)
 	provider := providerDisplayName(conn.Provider)
-	if conn.Status == "error" || errorCount >= 5 {
-		alerts = append(alerts, IntegrationHealthAlert{Type: "integration_down", Severity: "critical", Message: fmt.Sprintf("%s sync is down.", provider)})
+	if conn.Status == integrationStatusError || errorCount >= 5 {
+		alerts = append(alerts, IntegrationHealthAlert{Type: integrationAlertDown, Severity: "critical", Message: fmt.Sprintf("%s sync is down.", provider)})
 	}
 	if errorCount >= 3 {
-		alerts = append(alerts, IntegrationHealthAlert{Type: "consecutive_errors", Severity: "warning", Message: fmt.Sprintf("%s has %d consecutive sync errors.", provider, errorCount)})
+		alerts = append(alerts, IntegrationHealthAlert{Type: integrationAlertConsecutiveErrors, Severity: "warning", Message: fmt.Sprintf("%s has %d consecutive sync errors.", provider, errorCount)})
 	}
-	if conn.Status == "active" && (conn.LastSyncAt == nil || time.Since(*conn.LastSyncAt) > integrationHealthStaleAfter) {
-		alerts = append(alerts, IntegrationHealthAlert{Type: "sync_stale", Severity: "warning", Message: "Last successful sync is stale."})
+	if conn.Status == integrationStatusActive && (conn.LastSyncAt == nil || time.Since(*conn.LastSyncAt) > integrationHealthStaleAfter) {
+		alerts = append(alerts, IntegrationHealthAlert{Type: integrationAlertSyncStale, Severity: "warning", Message: "Last successful sync is stale."})
 	}
 	return alerts
 }
@@ -300,9 +317,9 @@ func integrationSyncHistory(conn *repository.IntegrationConnection, recordsSynce
 	if conn.LastSyncAt == nil {
 		return []IntegrationSyncHistoryPoint{}
 	}
-	status := "success"
-	if conn.LastSyncError != "" || conn.Status == "error" {
-		status = "error"
+	status := integrationSyncStatusSuccess
+	if conn.LastSyncError != "" || conn.Status == integrationStatusError {
+		status = integrationSyncStatusError
 	}
 	return []IntegrationSyncHistoryPoint{{
 		Date:          conn.LastSyncAt.UTC().Format("2006-01-02"),
