@@ -9,7 +9,7 @@
     "seo:artifacts": "node scripts/generate-seo-artifacts.mjs",
     "seo:prerender": "node scripts/prerender-seo-pages.mjs",
     "typecheck": "tsc -b --noEmit",
-    "test": "tsx --tsconfig tsconfig.app.json src/components/integrations/ZendeskConnectionCard.test.tsx && tsx --tsconfig tsconfig.app.json src/components/UpgradePrompt.test.tsx && tsx --tsconfig tsconfig.app.json src/pages/MarketplacePage.test.tsx && tsx --tsconfig tsconfig.app.json src/pages/ConnectorDetailPage.test.tsx && tsx --tsconfig tsconfig.app.json src/components/charts/BenchmarkChart.test.tsx && tsx --tsconfig tsconfig.app.json src/lib/posthogConnectionView.test.ts && tsx --tsconfig tsconfig.app.json src/pages/settings/TeamTab.test.tsx && vitest run src/components/integrations/WebhookConfig.test.tsx",
+    "test": "tsx --tsconfig tsconfig.app.json src/components/integrations/ZendeskConnectionCard.test.tsx && tsx --tsconfig tsconfig.app.json src/components/UpgradePrompt.test.tsx && tsx --tsconfig tsconfig.app.json src/pages/MarketplacePage.test.tsx && tsx --tsconfig tsconfig.app.json src/pages/ConnectorDetailPage.test.tsx && tsx --tsconfig tsconfig.app.json src/components/charts/BenchmarkChart.test.tsx && tsx --tsconfig tsconfig.app.json src/lib/posthogConnectionView.test.ts && tsx --tsconfig tsconfig.app.json src/pages/settings/TeamTab.test.tsx && vitest run src/components/AccountAssignment.test.tsx src/components/integrations/WebhookConfig.test.tsx",
     "build": "npm run seo:validate && tsc -b && vite build && npm run seo:artifacts && npm run seo:prerender",
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",

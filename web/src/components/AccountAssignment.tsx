@@ -36,9 +36,11 @@ interface AccountAssignmentProps {
   initialAssignments?: CustomerAssignment[];
 }
 
+const EMPTY_ASSIGNMENTS: CustomerAssignment[] = [];
+
 export default function AccountAssignment({
   customerId,
-  initialAssignments = [],
+  initialAssignments = EMPTY_ASSIGNMENTS,
 }: AccountAssignmentProps) {
   const [assignments, setAssignments] =
     useState<CustomerAssignment[]>(initialAssignments);
