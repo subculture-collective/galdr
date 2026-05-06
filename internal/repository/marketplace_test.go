@@ -79,6 +79,27 @@ func TestConnectorInstallationModel(t *testing.T) {
 	}
 }
 
+func TestConnectorAnalyticsModel(t *testing.T) {
+	metric := &ConnectorDailyMetric{
+		ConnectorID:         "mock-crm",
+		MetricDate:          time.Date(2026, 5, 6, 0, 0, 0, 0, time.UTC),
+		InstallCount:        4,
+		ActiveInstalls:      3,
+		SyncSuccessCount:    8,
+		SyncFailureCount:    2,
+		AvgSyncDurationMS:   1250,
+		ErrorRate:           20,
+		SyncSuccessRate:     80,
+		UninstallCount:      1,
+		UninstallRate:       25,
+		AlertThresholdBreached: true,
+	}
+
+	if metric.ConnectorID != "mock-crm" || metric.SyncSuccessRate != 80 || !metric.AlertThresholdBreached {
+		t.Fatalf("expected connector analytics fields to be retained: %+v", metric)
+	}
+}
+
 func TestConnectorReviewResultModel(t *testing.T) {
 	reviewerID := uuid.New()
 	result := &ConnectorReviewResult{
@@ -164,5 +185,36 @@ func TestConnectorReviewMigrationContainsReviewResults(t *testing.T) {
 	}
 	if !strings.Contains(string(down), "DROP TABLE IF EXISTS connector_review_results") {
 		t.Fatal("review migration down file must drop connector_review_results")
+	}
+}
+
+func TestConnectorMetricsMigrationContainsDailyAggregates(t *testing.T) {
+	data, err := os.ReadFile("../../migrations/000033_create_connector_metrics.up.sql")
+	if err != nil {
+		t.Fatalf("failed to read migration file: %v", err)
+	}
+	sql := string(data)
+	for _, fragment := range []string{
+		"CREATE TABLE connector_metrics",
+		"connector_id VARCHAR(100) NOT NULL",
+		"metric_date DATE NOT NULL",
+		"install_count INTEGER NOT NULL DEFAULT 0",
+		"active_installs INTEGER NOT NULL DEFAULT 0",
+		"sync_success_count INTEGER NOT NULL DEFAULT 0",
+		"sync_failure_count INTEGER NOT NULL DEFAULT 0",
+		"total_sync_duration_ms BIGINT NOT NULL DEFAULT 0",
+		"UNIQUE (connector_id, metric_date)",
+	} {
+		if !strings.Contains(sql, fragment) {
+			t.Fatalf("connector metrics migration missing fragment: %s", fragment)
+		}
+	}
+
+	down, err := os.ReadFile("../../migrations/000033_create_connector_metrics.down.sql")
+	if err != nil {
+		t.Fatalf("failed to read migration file: %v", err)
+	}
+	if !strings.Contains(string(down), "DROP TABLE IF EXISTS connector_metrics") {
+		t.Fatal("connector metrics migration down file must drop connector_metrics")
 	}
 }

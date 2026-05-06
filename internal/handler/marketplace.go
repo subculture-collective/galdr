@@ -94,6 +94,21 @@ func (h *MarketplaceHandler) Install(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, installation)
 }
 
+func (h *MarketplaceHandler) Analytics(w http.ResponseWriter, r *http.Request) {
+	id := connectorIDParam(r)
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse("connector id is required"))
+		return
+	}
+
+	analytics, err := h.service.Analytics(r.Context(), id)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, analytics)
+}
+
 func (h *MarketplaceHandler) Review(w http.ResponseWriter, r *http.Request) {
 	reviewerID, ok := auth.GetUserID(r.Context())
 	if !ok {

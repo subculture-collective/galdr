@@ -961,6 +961,45 @@ HTTP/1.1 204 No Content
 
 ---
 
+## Integration Marketplace
+
+### GET `/marketplace/connectors/{id}/analytics`
+- **Auth required:** Yes (JWT + admin)
+- **Description:** Connector usage and health analytics for developer dashboards and marketplace monitoring.
+
+**Response (200)**
+
+```json
+{
+  "connector_id": "mock-crm",
+  "install_count": 128,
+  "active_installs": 117,
+  "sync_success_rate": 96,
+  "avg_sync_duration_ms": 1430,
+  "error_rate": 4,
+  "uninstall_rate": 2,
+  "alert_threshold_breached": false,
+  "metrics": [
+    {
+      "connector_id": "mock-crm",
+      "metric_date": "2026-05-06T00:00:00Z",
+      "install_count": 4,
+      "active_installs": 117,
+      "sync_success_count": 48,
+      "sync_failure_count": 2,
+      "avg_sync_duration_ms": 1430,
+      "sync_success_rate": 96,
+      "error_rate": 4,
+      "uninstall_count": 0,
+      "uninstall_rate": 0,
+      "alert_threshold_breached": false
+    }
+  ]
+}
+```
+
+---
+
 ## Additional implemented public endpoints
 
 The following routes are also public API endpoints in the current implementation:

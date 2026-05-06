@@ -35,6 +35,8 @@ const (
 
 	ConnectorReviewCheckPassed = "passed"
 	ConnectorReviewCheckFailed = "failed"
+
+	connectorErrorRateAlertThreshold = 20.0
 )
 
 // MarketplaceConnector represents a versioned marketplace connector manifest.
@@ -61,6 +63,37 @@ type ConnectorInstallation struct {
 	Status           string         `json:"status"`
 	InstalledAt      time.Time      `json:"installed_at"`
 	UpdatedAt        time.Time      `json:"updated_at"`
+}
+
+// ConnectorDailyMetric stores one daily connector analytics aggregate.
+type ConnectorDailyMetric struct {
+	ConnectorID              string    `json:"connector_id"`
+	MetricDate               time.Time `json:"metric_date"`
+	InstallCount             int       `json:"install_count"`
+	ActiveInstalls           int       `json:"active_installs"`
+	SyncSuccessCount         int       `json:"sync_success_count"`
+	SyncFailureCount         int       `json:"sync_failure_count"`
+	AvgSyncDurationMS        int64     `json:"avg_sync_duration_ms"`
+	SyncSuccessRate          float64   `json:"sync_success_rate"`
+	ErrorRate                float64   `json:"error_rate"`
+	UninstallCount           int       `json:"uninstall_count"`
+	UninstallRate            float64   `json:"uninstall_rate"`
+	AlertThresholdBreached   bool      `json:"alert_threshold_breached"`
+	CreatedAt                time.Time `json:"created_at"`
+	UpdatedAt                time.Time `json:"updated_at"`
+}
+
+// ConnectorAnalytics summarizes connector usage and health metrics.
+type ConnectorAnalytics struct {
+	ConnectorID              string                 `json:"connector_id"`
+	InstallCount             int                    `json:"install_count"`
+	ActiveInstalls           int                    `json:"active_installs"`
+	SyncSuccessRate          float64                `json:"sync_success_rate"`
+	AvgSyncDurationMS        int64                  `json:"avg_sync_duration_ms"`
+	ErrorRate                float64                `json:"error_rate"`
+	UninstallRate            float64                `json:"uninstall_rate"`
+	AlertThresholdBreached   bool                   `json:"alert_threshold_breached"`
+	Metrics                  []ConnectorDailyMetric `json:"metrics"`
 }
 
 // ConnectorReviewCheck records one automated or sandbox review check.
@@ -170,6 +203,127 @@ func (r *MarketplaceRepository) CreateInstallation(ctx context.Context, installa
 	).Scan(&installation.ID, &installation.InstalledAt, &installation.UpdatedAt)
 }
 
+// IncrementConnectorInstallMetric increments the daily install aggregate.
+func (r *MarketplaceRepository) IncrementConnectorInstallMetric(ctx context.Context, connectorID string, at time.Time) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO connector_metrics (connector_id, metric_date, install_count, active_installs)
+		VALUES ($1, $2, 1, (
+			SELECT COUNT(*) FROM connector_installations WHERE connector_id = $1 AND status = $3
+		))
+		ON CONFLICT (connector_id, metric_date)
+		DO UPDATE SET
+			install_count = connector_metrics.install_count + 1,
+			active_installs = EXCLUDED.active_installs,
+			updated_at = NOW()
+	`, connectorID, metricDate(at), ConnectorInstallationStatusActive)
+	if err != nil {
+		return fmt.Errorf("increment connector install metric: %w", err)
+	}
+	return nil
+}
+
+// RecordConnectorSyncMetric increments daily sync success/failure and duration aggregates.
+func (r *MarketplaceRepository) RecordConnectorSyncMetric(ctx context.Context, connectorID string, duration time.Duration, succeeded bool, at time.Time) error {
+	successCount := 0
+	failureCount := 0
+	if succeeded {
+		successCount = 1
+	} else {
+		failureCount = 1
+	}
+	durationMS := duration.Milliseconds()
+	if durationMS < 0 {
+		durationMS = 0
+	}
+
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO connector_metrics (connector_id, metric_date, active_installs, sync_success_count, sync_failure_count, total_sync_duration_ms)
+		VALUES ($1, $2, (
+			SELECT COUNT(*) FROM connector_installations WHERE connector_id = $1 AND status = $6
+		), $3, $4, $5)
+		ON CONFLICT (connector_id, metric_date)
+		DO UPDATE SET
+			active_installs = EXCLUDED.active_installs,
+			sync_success_count = connector_metrics.sync_success_count + EXCLUDED.sync_success_count,
+			sync_failure_count = connector_metrics.sync_failure_count + EXCLUDED.sync_failure_count,
+			total_sync_duration_ms = connector_metrics.total_sync_duration_ms + EXCLUDED.total_sync_duration_ms,
+			updated_at = NOW()
+	`, connectorID, metricDate(at), successCount, failureCount, durationMS, ConnectorInstallationStatusActive)
+	if err != nil {
+		return fmt.Errorf("record connector sync metric: %w", err)
+	}
+	return nil
+}
+
+// GetConnectorAnalytics returns connector usage and health analytics since a date.
+func (r *MarketplaceRepository) GetConnectorAnalytics(ctx context.Context, connectorID string, since time.Time) (*ConnectorAnalytics, error) {
+	activeInstalls := 0
+	if err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM connector_installations
+		WHERE connector_id = $1 AND status = $2
+	`, connectorID, ConnectorInstallationStatusActive).Scan(&activeInstalls); err != nil {
+		return nil, fmt.Errorf("query connector active installs: %w", err)
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT connector_id, metric_date, install_count, active_installs, sync_success_count,
+			sync_failure_count, total_sync_duration_ms, uninstall_count, created_at, updated_at
+		FROM connector_metrics
+		WHERE connector_id = $1 AND metric_date >= $2
+		ORDER BY metric_date ASC
+	`, connectorID, metricDate(since))
+	if err != nil {
+		return nil, fmt.Errorf("query connector metrics: %w", err)
+	}
+	defer rows.Close()
+
+	analytics := &ConnectorAnalytics{ConnectorID: connectorID, ActiveInstalls: activeInstalls}
+	var totalSyncDurationMS int64
+	var syncSuccessCount, syncFailureCount, uninstallCount int
+	for rows.Next() {
+		metric := ConnectorDailyMetric{}
+		var totalMetricDurationMS int64
+		if err := rows.Scan(
+			&metric.ConnectorID,
+			&metric.MetricDate,
+			&metric.InstallCount,
+			&metric.ActiveInstalls,
+			&metric.SyncSuccessCount,
+			&metric.SyncFailureCount,
+			&totalMetricDurationMS,
+			&metric.UninstallCount,
+			&metric.CreatedAt,
+			&metric.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan connector metric: %w", err)
+		}
+		metric.AvgSyncDurationMS = avgDurationMS(totalMetricDurationMS, metric.SyncSuccessCount+metric.SyncFailureCount)
+		metric.SyncSuccessRate = percentage(metric.SyncSuccessCount, metric.SyncSuccessCount+metric.SyncFailureCount)
+		metric.ErrorRate = percentage(metric.SyncFailureCount, metric.SyncSuccessCount+metric.SyncFailureCount)
+		metric.UninstallRate = percentage(metric.UninstallCount, metric.InstallCount+metric.UninstallCount)
+		metric.AlertThresholdBreached = metric.ErrorRate >= connectorErrorRateAlertThreshold
+
+		analytics.InstallCount += metric.InstallCount
+		syncSuccessCount += metric.SyncSuccessCount
+		syncFailureCount += metric.SyncFailureCount
+		uninstallCount += metric.UninstallCount
+		totalSyncDurationMS += totalMetricDurationMS
+		analytics.Metrics = append(analytics.Metrics, metric)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate connector metrics: %w", err)
+	}
+
+	syncTotal := syncSuccessCount + syncFailureCount
+	analytics.SyncSuccessRate = percentage(syncSuccessCount, syncTotal)
+	analytics.ErrorRate = percentage(syncFailureCount, syncTotal)
+	analytics.AvgSyncDurationMS = avgDurationMS(totalSyncDurationMS, syncTotal)
+	analytics.UninstallRate = percentage(uninstallCount, analytics.InstallCount+uninstallCount)
+	analytics.AlertThresholdBreached = analytics.ErrorRate >= connectorErrorRateAlertThreshold
+	return analytics, nil
+}
+
 // CreateReviewResult records the connector review outcome for one submission.
 func (r *MarketplaceRepository) CreateReviewResult(ctx context.Context, result *ConnectorReviewResult) error {
 	automatedChecks, err := json.Marshal(result.AutomatedChecks)
@@ -219,4 +373,26 @@ func scanMarketplaceConnector(scanner marketplaceConnectorScanner) (*Marketplace
 		return nil, fmt.Errorf("unmarshal connector manifest: %w", err)
 	}
 	return connector, nil
+}
+
+func metricDate(at time.Time) time.Time {
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+	at = at.UTC()
+	return time.Date(at.Year(), at.Month(), at.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+func percentage(part, total int) float64 {
+	if total <= 0 {
+		return 0
+	}
+	return (float64(part) / float64(total)) * 100
+}
+
+func avgDurationMS(total int64, count int) int64 {
+	if count <= 0 {
+		return 0
+	}
+	return total / int64(count)
 }

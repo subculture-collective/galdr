@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,6 +19,8 @@ type marketplaceRepository interface {
 	GetConnector(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error)
 	ListPublishedConnectors(ctx context.Context) ([]*repository.MarketplaceConnector, error)
 	CreateInstallation(ctx context.Context, installation *repository.ConnectorInstallation) error
+	IncrementConnectorInstallMetric(ctx context.Context, connectorID string, at time.Time) error
+	GetConnectorAnalytics(ctx context.Context, connectorID string, since time.Time) (*repository.ConnectorAnalytics, error)
 	CreateReviewResult(ctx context.Context, result *repository.ConnectorReviewResult) error
 	UpdateConnectorStatus(ctx context.Context, id, version, status string) error
 }
@@ -130,7 +133,19 @@ func (s *MarketplaceService) Install(ctx context.Context, orgID uuid.UUID, id st
 	if err := s.repo.CreateInstallation(ctx, installation); err != nil {
 		return nil, err
 	}
+	if err := s.repo.IncrementConnectorInstallMetric(ctx, connector.ID, time.Now().UTC()); err != nil {
+		slog.Warn("failed to record connector install metric", "connector", connector.ID, "error", err)
+	}
 	return installation, nil
+}
+
+func (s *MarketplaceService) Analytics(ctx context.Context, id string) (*repository.ConnectorAnalytics, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, &ValidationError{Field: "connector_id", Message: "connector id is required"}
+	}
+	since := time.Now().UTC().AddDate(0, 0, -30)
+	return s.repo.GetConnectorAnalytics(ctx, id, since)
 }
 
 func (s *MarketplaceService) Review(ctx context.Context, reviewerID uuid.UUID, id, version string, req ConnectorReviewRequest) (*repository.ConnectorReviewResult, error) {

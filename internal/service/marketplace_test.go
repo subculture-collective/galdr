@@ -16,6 +16,8 @@ type mockMarketplaceRepository struct {
 	getConnectorFn            func(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error)
 	listPublishedConnectorsFn func(ctx context.Context) ([]*repository.MarketplaceConnector, error)
 	createInstallationFn      func(ctx context.Context, installation *repository.ConnectorInstallation) error
+	incrementInstallMetricFn  func(ctx context.Context, connectorID string, at time.Time) error
+	getAnalyticsFn            func(ctx context.Context, connectorID string, since time.Time) (*repository.ConnectorAnalytics, error)
 	createReviewResultFn      func(ctx context.Context, result *repository.ConnectorReviewResult) error
 	updateConnectorStatusFn   func(ctx context.Context, id, version, status string) error
 }
@@ -34,6 +36,14 @@ func (m *mockMarketplaceRepository) ListPublishedConnectors(ctx context.Context)
 
 func (m *mockMarketplaceRepository) CreateInstallation(ctx context.Context, installation *repository.ConnectorInstallation) error {
 	return m.createInstallationFn(ctx, installation)
+}
+
+func (m *mockMarketplaceRepository) IncrementConnectorInstallMetric(ctx context.Context, connectorID string, at time.Time) error {
+	return m.incrementInstallMetricFn(ctx, connectorID, at)
+}
+
+func (m *mockMarketplaceRepository) GetConnectorAnalytics(ctx context.Context, connectorID string, since time.Time) (*repository.ConnectorAnalytics, error) {
+	return m.getAnalyticsFn(ctx, connectorID, since)
 }
 
 func (m *mockMarketplaceRepository) CreateReviewResult(ctx context.Context, result *repository.ConnectorReviewResult) error {
@@ -143,6 +153,7 @@ func TestMarketplaceListPublishedPrefersStableOverPrerelease(t *testing.T) {
 func TestMarketplaceInstallUsesLatestPublishedVersion(t *testing.T) {
 	orgID := uuid.New()
 	latest := marketplaceConnector("mock-crm", "2.0.0", repository.MarketplaceConnectorStatusPublished)
+	metricRecorded := false
 	repo := &mockMarketplaceRepository{
 		listPublishedConnectorsFn: func(ctx context.Context) ([]*repository.MarketplaceConnector, error) {
 			return []*repository.MarketplaceConnector{marketplaceConnector("mock-crm", "1.0.0", repository.MarketplaceConnectorStatusPublished), latest}, nil
@@ -159,6 +170,16 @@ func TestMarketplaceInstallUsesLatestPublishedVersion(t *testing.T) {
 			}
 			return nil
 		},
+		incrementInstallMetricFn: func(ctx context.Context, connectorID string, at time.Time) error {
+			if connectorID != "mock-crm" {
+				t.Fatalf("expected install metric for mock-crm, got %s", connectorID)
+			}
+			if at.IsZero() {
+				t.Fatal("expected install metric timestamp")
+			}
+			metricRecorded = true
+			return nil
+		},
 	}
 
 	installation, err := NewMarketplaceService(repo).Install(context.Background(), orgID, "mock-crm", InstallConnectorRequest{Config: map[string]any{"region": "us"}})
@@ -167,6 +188,40 @@ func TestMarketplaceInstallUsesLatestPublishedVersion(t *testing.T) {
 	}
 	if installation.ConnectorVersion != latest.Version {
 		t.Fatalf("expected connector version %s, got %s", latest.Version, installation.ConnectorVersion)
+	}
+	if !metricRecorded {
+		t.Fatal("expected install metric to be recorded")
+	}
+}
+
+func TestMarketplaceAnalyticsReturnsConnectorMetrics(t *testing.T) {
+	repo := &mockMarketplaceRepository{
+		getAnalyticsFn: func(ctx context.Context, connectorID string, since time.Time) (*repository.ConnectorAnalytics, error) {
+			if connectorID != "mock-crm" {
+				t.Fatalf("expected analytics for mock-crm, got %s", connectorID)
+			}
+			if since.IsZero() {
+				t.Fatal("expected analytics since timestamp")
+			}
+			return &repository.ConnectorAnalytics{
+				ConnectorID:     connectorID,
+				InstallCount:    10,
+				ActiveInstalls:  8,
+				SyncSuccessRate: 90,
+				ErrorRate:       10,
+				Metrics: []repository.ConnectorDailyMetric{
+					{ConnectorID: connectorID, InstallCount: 2},
+				},
+			}, nil
+		},
+	}
+
+	analytics, err := NewMarketplaceService(repo).Analytics(context.Background(), "mock-crm")
+	if err != nil {
+		t.Fatalf("analytics failed: %v", err)
+	}
+	if analytics.ConnectorID != "mock-crm" || analytics.InstallCount != 10 || len(analytics.Metrics) != 1 {
+		t.Fatalf("unexpected analytics response: %+v", analytics)
 	}
 }
 

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -34,11 +35,21 @@ type ConnectorSyncer interface {
 // ConnectorSyncService resolves connector syncs from a registry.
 type ConnectorSyncService struct {
 	registry *connectorsdk.Registry
+	metrics  connectorSyncMetricRecorder
+}
+
+type connectorSyncMetricRecorder interface {
+	RecordConnectorSyncMetric(ctx context.Context, connectorID string, duration time.Duration, succeeded bool, at time.Time) error
 }
 
 // NewConnectorSyncService creates a registry-backed sync service.
 func NewConnectorSyncService(registry *connectorsdk.Registry) *ConnectorSyncService {
 	return &ConnectorSyncService{registry: registry}
+}
+
+// NewConnectorSyncServiceWithMetrics creates a sync service that records connector health metrics.
+func NewConnectorSyncServiceWithMetrics(registry *connectorsdk.Registry, metrics connectorSyncMetricRecorder) *ConnectorSyncService {
+	return &ConnectorSyncService{registry: registry, metrics: metrics}
 }
 
 // Sync looks up a provider connector and runs the requested sync mode.
@@ -52,11 +63,22 @@ func (s *ConnectorSyncService) Sync(ctx context.Context, provider string, orgID 
 		return nil, &NotFoundError{Resource: "connector", Message: fmt.Sprintf("no %s connector registered", provider)}
 	}
 
-	return registered.Connector.Sync(ctx, connectorsdk.SyncRequest{
+	startedAt := time.Now().UTC()
+	result, err := registered.Connector.Sync(ctx, connectorsdk.SyncRequest{
 		OrgID: orgID.String(),
 		Mode:  mode,
 		Since: since,
 	})
+	if s.metrics != nil {
+		duration := time.Since(startedAt)
+		if duration <= 0 {
+			duration = time.Millisecond
+		}
+		if metricErr := s.metrics.RecordConnectorSyncMetric(ctx, provider, duration, err == nil, startedAt); metricErr != nil {
+			slog.Warn("failed to record connector sync metric", "connector", provider, "error", metricErr)
+		}
+	}
+	return result, err
 }
 
 // NewIntegrationConnectorRegistry registers built-in provider connectors.

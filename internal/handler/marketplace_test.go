@@ -21,6 +21,7 @@ type mockMarketplaceService struct {
 	registerFn      func(ctx context.Context, developerID uuid.UUID, req service.RegisterConnectorRequest) (*repository.MarketplaceConnector, error)
 	listPublishedFn func(ctx context.Context) ([]*repository.MarketplaceConnector, error)
 	getPublishedFn  func(ctx context.Context, id string) (*repository.MarketplaceConnector, error)
+	analyticsFn     func(ctx context.Context, id string) (*repository.ConnectorAnalytics, error)
 	installFn       func(ctx context.Context, orgID uuid.UUID, id string, req service.InstallConnectorRequest) (*repository.ConnectorInstallation, error)
 	reviewFn        func(ctx context.Context, reviewerID uuid.UUID, id, version string, req service.ConnectorReviewRequest) (*repository.ConnectorReviewResult, error)
 }
@@ -35,6 +36,10 @@ func (m *mockMarketplaceService) ListPublished(ctx context.Context) ([]*reposito
 
 func (m *mockMarketplaceService) GetPublished(ctx context.Context, id string) (*repository.MarketplaceConnector, error) {
 	return m.getPublishedFn(ctx, id)
+}
+
+func (m *mockMarketplaceService) Analytics(ctx context.Context, id string) (*repository.ConnectorAnalytics, error) {
+	return m.analyticsFn(ctx, id)
 }
 
 func (m *mockMarketplaceService) Install(ctx context.Context, orgID uuid.UUID, id string, req service.InstallConnectorRequest) (*repository.ConnectorInstallation, error) {
@@ -125,6 +130,41 @@ func TestMarketplaceGetPublished_EmptyID(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestMarketplaceAnalytics_Success(t *testing.T) {
+	mock := &mockMarketplaceService{
+		analyticsFn: func(ctx context.Context, id string) (*repository.ConnectorAnalytics, error) {
+			if id != "mock-crm" {
+				t.Fatalf("unexpected analytics connector %s", id)
+			}
+			return &repository.ConnectorAnalytics{
+				ConnectorID:     id,
+				InstallCount:    12,
+				ActiveInstalls:  10,
+				SyncSuccessRate: 95,
+				ErrorRate:       5,
+			}, nil
+		},
+	}
+
+	h := NewMarketplaceHandler(mock)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/marketplace/connectors/mock-crm/analytics", nil)
+	req = withChiParam(req, "id", "mock-crm")
+	rr := httptest.NewRecorder()
+
+	h.Analytics(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var res repository.ConnectorAnalytics
+	if err := json.NewDecoder(rr.Body).Decode(&res); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if res.ConnectorID != "mock-crm" || res.InstallCount != 12 || res.SyncSuccessRate != 95 {
+		t.Fatalf("unexpected analytics response: %+v", res)
 	}
 }
 

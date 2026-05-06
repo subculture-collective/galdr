@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import React from "react";
 import {
   ConnectorDetailPageView,
+  type MarketplaceConnectorAnalytics,
   type ConnectorDetailPageViewProps,
 } from "./ConnectorDetailPage";
 import type { MarketplaceConnector } from "./MarketplacePage";
@@ -44,10 +45,23 @@ const connector: MarketplaceConnector = {
   },
 };
 
+const analytics: MarketplaceConnectorAnalytics = {
+  connector_id: "mock-crm",
+  install_count: 128,
+  active_installs: 117,
+  sync_success_rate: 96,
+  avg_sync_duration_ms: 1430,
+  error_rate: 4,
+  uninstall_rate: 2,
+  alert_threshold_breached: false,
+  metrics: [],
+};
+
 function render(props: Partial<ConnectorDetailPageViewProps> = {}) {
   return renderToStaticMarkup(
     React.createElement(ConnectorDetailPageView, {
       connector,
+      analytics,
       loading: false,
       error: "",
       installing: false,
@@ -74,6 +88,9 @@ assertMatch(detail, /Full connector detail/);
 assertMatch(detail, /PulseScore Labs/);
 assertMatch(detail, /4\.7 rating/);
 assertMatch(detail, /3,210 installs/);
+assertMatch(detail, /Developer analytics/);
+assertMatch(detail, /96%/);
+assertMatch(detail, /117 active/);
 assertMatch(detail, /Account records/);
 assertMatch(detail, /Incremental/);
 assertMatch(detail, /Install connector/);

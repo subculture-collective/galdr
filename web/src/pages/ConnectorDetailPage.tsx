@@ -13,8 +13,34 @@ import EmptyState from "@/components/EmptyState";
 import { useToast } from "@/contexts/ToastContext";
 import { ConnectorIcon, type MarketplaceConnector } from "./MarketplacePage";
 
+export interface MarketplaceConnectorAnalytics {
+  connector_id: string;
+  install_count: number;
+  active_installs: number;
+  sync_success_rate: number;
+  avg_sync_duration_ms: number;
+  error_rate: number;
+  uninstall_rate: number;
+  alert_threshold_breached: boolean;
+  metrics: Array<{
+    connector_id: string;
+    metric_date: string;
+    install_count: number;
+    active_installs: number;
+    sync_success_count: number;
+    sync_failure_count: number;
+    avg_sync_duration_ms: number;
+    sync_success_rate: number;
+    error_rate: number;
+    uninstall_count: number;
+    uninstall_rate: number;
+    alert_threshold_breached: boolean;
+  }>;
+}
+
 export interface ConnectorDetailPageViewProps {
   connector: MarketplaceConnector | null;
+  analytics: MarketplaceConnectorAnalytics | null;
   loading: boolean;
   error: string;
   installing: boolean;
@@ -58,6 +84,17 @@ function installCountLabel(connector: MarketplaceConnector) {
   return `${count.toLocaleString()} ${count === 1 ? "install" : "installs"}`;
 }
 
+function percentLabel(value: number) {
+  return `${Math.round(value)}%`;
+}
+
+function durationLabel(ms: number) {
+  if (ms >= 1000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+  return `${Math.round(ms)}ms`;
+}
+
 function connectorCategories(connector: MarketplaceConnector) {
   return connector.manifest.categories?.length
     ? connector.manifest.categories
@@ -89,6 +126,7 @@ function DeveloperValue({
 
 export function ConnectorDetailPageView({
   connector,
+  analytics,
   loading,
   error,
   installing,
@@ -260,6 +298,60 @@ export function ConnectorDetailPageView({
         </div>
       </section>
 
+      {analytics && (
+        <section className="galdr-card p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold text-[var(--galdr-fg)]">
+                Developer analytics
+              </h2>
+              <p className="mt-2 text-sm text-[var(--galdr-fg-muted)]">
+                Marketplace usage and sync health for the last 30 days.
+              </p>
+            </div>
+            {analytics.alert_threshold_breached && (
+              <span className="galdr-pill border-[color:rgb(248_113_113_/_0.35)] bg-[color:rgb(248_113_113_/_0.12)] px-3 py-1 text-xs text-[var(--galdr-danger)]">
+                Error alert active
+              </span>
+            )}
+          </div>
+          <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-[var(--galdr-border)] p-4">
+              <dt className="text-xs uppercase tracking-[0.2em] text-[var(--galdr-fg-muted)]">
+                Active installs
+              </dt>
+              <dd className="mt-2 text-2xl font-semibold text-[var(--galdr-fg)]">
+                {analytics.active_installs.toLocaleString()} active
+              </dd>
+            </div>
+            <div className="rounded-xl border border-[var(--galdr-border)] p-4">
+              <dt className="text-xs uppercase tracking-[0.2em] text-[var(--galdr-fg-muted)]">
+                Sync success
+              </dt>
+              <dd className="mt-2 text-2xl font-semibold text-[var(--galdr-success)]">
+                {percentLabel(analytics.sync_success_rate)}
+              </dd>
+            </div>
+            <div className="rounded-xl border border-[var(--galdr-border)] p-4">
+              <dt className="text-xs uppercase tracking-[0.2em] text-[var(--galdr-fg-muted)]">
+                Avg sync
+              </dt>
+              <dd className="mt-2 text-2xl font-semibold text-[var(--galdr-fg)]">
+                {durationLabel(analytics.avg_sync_duration_ms)}
+              </dd>
+            </div>
+            <div className="rounded-xl border border-[var(--galdr-border)] p-4">
+              <dt className="text-xs uppercase tracking-[0.2em] text-[var(--galdr-fg-muted)]">
+                Error rate
+              </dt>
+              <dd className="mt-2 text-2xl font-semibold text-[var(--galdr-fg)]">
+                {percentLabel(analytics.error_rate)}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      )}
+
       <section className="galdr-card p-5 sm:p-6">
         <h2 className="text-xl font-semibold text-[var(--galdr-fg)]">
           Screenshots
@@ -327,6 +419,8 @@ export function ConnectorDetailPageView({
 export default function ConnectorDetailPage() {
   const { id } = useParams();
   const [connector, setConnector] = useState<MarketplaceConnector | null>(null);
+  const [analytics, setAnalytics] =
+    useState<MarketplaceConnectorAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [installing, setInstalling] = useState(false);
@@ -337,6 +431,7 @@ export default function ConnectorDetailPage() {
   const fetchConnector = useCallback(async () => {
     if (!id) {
       setConnector(null);
+      setAnalytics(null);
       setLoading(false);
       return;
     }
@@ -346,8 +441,17 @@ export default function ConnectorDetailPage() {
         `/marketplace/connectors/${encodeURIComponent(id)}`,
       );
       setConnector(data);
+      try {
+        const analyticsRes = await api.get<MarketplaceConnectorAnalytics>(
+          `/marketplace/connectors/${encodeURIComponent(id)}/analytics`,
+        );
+        setAnalytics(analyticsRes.data);
+      } catch {
+        setAnalytics(null);
+      }
       setError("");
     } catch {
+      setAnalytics(null);
       setError("Failed to load marketplace connector.");
       toast.error("Failed to load marketplace connector");
     } finally {
@@ -381,6 +485,7 @@ export default function ConnectorDetailPage() {
   return (
     <ConnectorDetailPageView
       connector={connector}
+      analytics={analytics}
       loading={loading}
       error={error}
       installing={installing}

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -40,6 +41,50 @@ func TestConnectorSyncServiceUsesRegistryConnector(t *testing.T) {
 	}
 	if len(result.Resources) != 1 || result.Resources[0].Name != "customers" {
 		t.Fatalf("unexpected resources: %#v", result.Resources)
+	}
+}
+
+func TestConnectorSyncServiceRecordsSuccessMetric(t *testing.T) {
+	registry := connectorsdk.NewRegistry()
+	connector := &recordingConnector{id: "mock-crm"}
+	if _, err := registry.Register(connector); err != nil {
+		t.Fatalf("register connector: %v", err)
+	}
+	recorder := &recordingSyncMetricRecorder{}
+	svc := NewConnectorSyncServiceWithMetrics(registry, recorder)
+
+	_, err := svc.Sync(context.Background(), "mock-crm", uuid.New(), connectorsdk.SyncModeFull, nil)
+	if err != nil {
+		t.Fatalf("sync returned error: %v", err)
+	}
+
+	if recorder.calls != 1 {
+		t.Fatalf("expected one metric call, got %d", recorder.calls)
+	}
+	if recorder.connectorID != "mock-crm" || !recorder.succeeded || recorder.duration <= 0 {
+		t.Fatalf("unexpected metric: %+v", recorder)
+	}
+}
+
+func TestConnectorSyncServiceRecordsFailureMetric(t *testing.T) {
+	registry := connectorsdk.NewRegistry()
+	connector := &recordingConnector{id: "mock-crm", syncErr: errors.New("provider unavailable")}
+	if _, err := registry.Register(connector); err != nil {
+		t.Fatalf("register connector: %v", err)
+	}
+	recorder := &recordingSyncMetricRecorder{}
+	svc := NewConnectorSyncServiceWithMetrics(registry, recorder)
+
+	_, err := svc.Sync(context.Background(), "mock-crm", uuid.New(), connectorsdk.SyncModeFull, nil)
+	if err == nil {
+		t.Fatal("expected sync error")
+	}
+
+	if recorder.calls != 1 {
+		t.Fatalf("expected one metric call, got %d", recorder.calls)
+	}
+	if recorder.connectorID != "mock-crm" || recorder.succeeded || recorder.duration <= 0 {
+		t.Fatalf("unexpected failure metric: %+v", recorder)
 	}
 }
 
@@ -91,6 +136,7 @@ type recordingConnector struct {
 	id          string
 	requests    int
 	lastRequest connectorsdk.SyncRequest
+	syncErr     error
 }
 
 func (c *recordingConnector) Manifest() connectorsdk.ConnectorManifest {
@@ -119,6 +165,9 @@ func (c *recordingConnector) Authenticate(context.Context, connectorsdk.AuthRequ
 func (c *recordingConnector) Sync(_ context.Context, req connectorsdk.SyncRequest) (*connectorsdk.SyncResult, error) {
 	c.requests++
 	c.lastRequest = req
+	if c.syncErr != nil {
+		return nil, c.syncErr
+	}
 	return &connectorsdk.SyncResult{
 		Resources: []connectorsdk.ResourceResult{{Name: "customers", Synced: 3}},
 	}, nil
@@ -126,4 +175,19 @@ func (c *recordingConnector) Sync(_ context.Context, req connectorsdk.SyncReques
 
 func (c *recordingConnector) HandleEvent(context.Context, connectorsdk.EventRequest) (*connectorsdk.EventResult, error) {
 	return &connectorsdk.EventResult{Accepted: false}, nil
+}
+
+type recordingSyncMetricRecorder struct {
+	calls       int
+	connectorID string
+	duration    time.Duration
+	succeeded   bool
+}
+
+func (r *recordingSyncMetricRecorder) RecordConnectorSyncMetric(ctx context.Context, connectorID string, duration time.Duration, succeeded bool, at time.Time) error {
+	r.calls++
+	r.connectorID = connectorID
+	r.duration = duration
+	r.succeeded = succeeded
+	return nil
 }

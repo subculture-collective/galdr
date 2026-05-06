@@ -302,7 +302,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				slog.Error("failed to create connector registry", "error", err)
 				os.Exit(1)
 			}
-			connectorSyncSvc := service.NewConnectorSyncService(connectorRegistry)
+			connectorSyncSvc := service.NewConnectorSyncServiceWithMetrics(connectorRegistry, marketplaceRepo)
 
 			stripeWebhookSvc := service.NewStripeWebhookService(
 				cfg.Stripe.WebhookSecret,
@@ -715,6 +715,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 					r.Group(func(r chi.Router) {
 						r.Use(middleware.RequireRole("admin"))
 						r.Post("/", marketplaceHandler.Register)
+						r.Get("/{id}/analytics", marketplaceHandler.Analytics)
 						r.Post("/{id}/versions/{version}/review", marketplaceHandler.Review)
 						r.Post("/{id}/install", marketplaceHandler.Install)
 					})
