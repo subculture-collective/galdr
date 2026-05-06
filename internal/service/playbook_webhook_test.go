@@ -88,7 +88,7 @@ func TestWebhookActionRetriesTransientFailure(t *testing.T) {
 	attempts := 0
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
-		if attempts < 3 {
+		if attempts < defaultWebhookAttempts {
 			w.WriteHeader(http.StatusBadGateway)
 			return
 		}
@@ -104,8 +104,34 @@ func TestWebhookActionRetriesTransientFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected retry success, got %v", err)
 	}
-	if attempts != 3 || result.Attempts != 3 || result.StatusCode != http.StatusNoContent {
+	if attempts != defaultWebhookAttempts || result.Attempts != defaultWebhookAttempts || result.StatusCode != http.StatusNoContent {
 		t.Fatalf("expected third attempt success, attempts=%d result=%+v", attempts, result)
+	}
+}
+
+func TestWebhookActionRetriesRequestErrors(t *testing.T) {
+	attempts := 0
+	requestErr := errors.New("dial webhook: connection refused")
+	client := &http.Client{
+		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			attempts++
+			return nil, requestErr
+		}),
+	}
+
+	executor := NewWebhookActionExecutor(WebhookActionExecutorConfig{
+		HTTPClient:  client,
+		RetryDelays: []time.Duration{0, 0},
+	})
+	result, err := executor.Execute(context.Background(), minimalWebhookRequest("https://example.test/hook"))
+	if err == nil {
+		t.Fatal("expected request failure")
+	}
+	if !errors.Is(err, requestErr) {
+		t.Fatalf("expected original request error, got %v", err)
+	}
+	if attempts != defaultWebhookAttempts || result.Attempts != defaultWebhookAttempts || result.Error != requestErr.Error() {
+		t.Fatalf("expected recorded third-attempt request failure, attempts=%d result=%+v", attempts, result)
 	}
 }
 
@@ -114,6 +140,17 @@ func TestWebhookActionRejectsNonHTTPSURL(t *testing.T) {
 	_, err := executor.Execute(context.Background(), minimalWebhookRequest("http://example.test/hook"))
 	if err == nil || !errors.Is(err, ErrWebhookURLMustBeHTTPS) {
 		t.Fatalf("expected HTTPS validation error, got %v", err)
+	}
+}
+
+func TestWebhookActionRejectsNonWebhookAction(t *testing.T) {
+	req := minimalWebhookRequest("https://example.test/hook")
+	req.Action.ActionType = repository.PlaybookActionSendEmail
+
+	executor := NewWebhookActionExecutor(WebhookActionExecutorConfig{})
+	_, err := executor.Execute(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected non-webhook action error")
 	}
 }
 
@@ -167,4 +204,10 @@ func nestedString(t *testing.T, values map[string]any, objectKey, valueKey strin
 		t.Fatalf("expected %q.%q to be a string, got %+v", objectKey, valueKey, nested[valueKey])
 	}
 	return value
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
