@@ -12,7 +12,11 @@ import (
 	"github.com/onnwee/pulse-score/internal/repository"
 )
 
-const maxPlaybookNameLength = 255
+const (
+	maxPlaybookNameLength       = 255
+	scoreThresholdDirectionAbove = "above"
+	scoreThresholdDirectionBelow = "below"
+)
 
 type playbookRepository interface {
 	List(ctx context.Context, orgID uuid.UUID) ([]*repository.Playbook, error)
@@ -228,7 +232,7 @@ func validatePlaybookTrigger(triggerType string, config map[string]any) error {
 			return &ValidationError{Field: "trigger_config.threshold", Message: "threshold must be between 0 and 100"}
 		}
 		direction := stringConfigValue(config, "direction")
-		if direction != "" && direction != "above" && direction != "below" {
+		if direction != "" && direction != scoreThresholdDirectionAbove && direction != scoreThresholdDirectionBelow {
 			return &ValidationError{Field: "trigger_config.direction", Message: "direction must be above or below"}
 		}
 	case repository.PlaybookTriggerCustomerEvent:
@@ -236,7 +240,9 @@ func validatePlaybookTrigger(triggerType string, config map[string]any) error {
 			return &ValidationError{Field: "trigger_config.event_type", Message: "event_type is required"}
 		}
 	case repository.PlaybookTriggerSchedule:
-		if _, ok := numberConfigValue(config, "interval_minutes"); !ok && strings.TrimSpace(stringConfigValue(config, "cron")) == "" {
+		_, hasInterval := numberConfigValue(config, "interval_minutes")
+		hasCron := !isBlankConfigString(config, "cron")
+		if !hasInterval && !hasCron {
 			return &ValidationError{Field: "trigger_config", Message: "schedule requires interval_minutes or cron"}
 		}
 	default:
@@ -249,18 +255,18 @@ func validatePlaybookAction(index int, action PlaybookActionRequest) error {
 	field := fmt.Sprintf("actions[%d].action_config", index)
 	switch action.ActionType {
 	case repository.PlaybookActionSendEmail:
-		if strings.TrimSpace(stringConfigValue(action.ActionConfig, "subject")) == "" {
+		if isBlankConfigString(action.ActionConfig, "subject") {
 			return &ValidationError{Field: field + ".subject", Message: "subject is required"}
 		}
-		if strings.TrimSpace(stringConfigValue(action.ActionConfig, "template")) == "" && strings.TrimSpace(stringConfigValue(action.ActionConfig, "body")) == "" {
+		if isBlankConfigString(action.ActionConfig, "template") && isBlankConfigString(action.ActionConfig, "body") {
 			return &ValidationError{Field: field, Message: "template or body is required"}
 		}
 	case repository.PlaybookActionInternalAlert:
-		if strings.TrimSpace(stringConfigValue(action.ActionConfig, "message")) == "" {
+		if isBlankConfigString(action.ActionConfig, "message") {
 			return &ValidationError{Field: field + ".message", Message: "message is required"}
 		}
 	case repository.PlaybookActionTagCustomer:
-		if strings.TrimSpace(stringConfigValue(action.ActionConfig, "tag")) == "" {
+		if isBlankConfigString(action.ActionConfig, "tag") {
 			return &ValidationError{Field: field + ".tag", Message: "tag is required"}
 		}
 	case repository.PlaybookActionWebhook:
@@ -275,6 +281,10 @@ func validatePlaybookAction(index int, action PlaybookActionRequest) error {
 		return &ValidationError{Field: fmt.Sprintf("actions[%d].action_type", index), Message: "unsupported action type"}
 	}
 	return nil
+}
+
+func isBlankConfigString(values map[string]any, key string) bool {
+	return strings.TrimSpace(stringConfigValue(values, key)) == ""
 }
 
 func numberConfigValue(values map[string]any, key string) (float64, bool) {
