@@ -19,6 +19,7 @@ const (
 	InsightTriggerScoreDrop          = "score_drop"
 	InsightTriggerRiskLevelChanged   = "risk_level_changed"
 	InsightRequestTypeCustomerInsight = "customer_insight"
+	insightContentKeyTrigger         = "trigger"
 	defaultInsightCacheTTL           = 24 * time.Hour
 	defaultInsightBatchLimit         = 50
 	defaultScoreDropInsightThreshold = 10
@@ -174,7 +175,7 @@ func (p *InsightPipeline) GenerateCustomerInsight(ctx context.Context, orgID, cu
 		return nil, err
 	}
 	if opts.Trigger != "" {
-		content["trigger"] = opts.Trigger
+		content[insightContentKeyTrigger] = opts.Trigger
 	}
 	insight := &repository.CustomerInsight{
 		OrgID:       orgID,

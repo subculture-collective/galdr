@@ -75,8 +75,8 @@ func TestInsightPipelinePassesManualRegenerationMetadata(t *testing.T) {
 	if !llm.lastReq.ManualRegeneration {
 		t.Fatal("expected manual regeneration to be passed to LLM usage gate")
 	}
-	if resp.Insight.Content["trigger"] != InsightTriggerManual {
-		t.Fatalf("expected trigger metadata to be stored, got %#v", resp.Insight.Content["trigger"])
+	if resp.Insight.Content[insightContentKeyTrigger] != InsightTriggerManual {
+		t.Fatalf("expected trigger metadata to be stored, got %#v", resp.Insight.Content[insightContentKeyTrigger])
 	}
 }
 
