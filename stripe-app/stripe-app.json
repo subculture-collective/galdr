@@ -1,0 +1,38 @@
+{
+  "id": "com.pulsescore.customer-health",
+  "version": "0.1.0",
+  "name": "PulseScore",
+  "icon": "./assets/pulsescore-icon-300.png",
+  "sandbox_install_compatible": true,
+  "distribution_type": "private",
+  "stripe_api_access_type": "oauth",
+  "allowed_redirect_uris": [
+    "https://pulsescore.app/api/v1/integrations/stripe/callback"
+  ],
+  "permissions": [
+    {
+      "permission": "customer_read",
+      "purpose": "Allows PulseScore to import Stripe customers and match them to customer health profiles."
+    },
+    {
+      "permission": "subscription_read",
+      "purpose": "Allows PulseScore to monitor subscription status and MRR trend signals."
+    },
+    {
+      "permission": "charge_read",
+      "purpose": "Allows PulseScore to analyze successful and failed payments for customer health scoring."
+    },
+    {
+      "permission": "invoice_read",
+      "purpose": "Allows PulseScore to reconcile invoice payment events with billing health changes."
+    }
+  ],
+  "post_install_action": {
+    "type": "external",
+    "url": "https://pulsescore.app/onboarding?source=stripe-app"
+  },
+  "constants": {
+    "API_BASE": "https://pulsescore.app/api/v1",
+    "APP_URL": "https://pulsescore.app"
+  }
+}
