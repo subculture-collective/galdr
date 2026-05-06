@@ -6,6 +6,19 @@ type SyncedResource = {
   count?: number;
 };
 
+export type { SalesforceStatus };
+
+interface SalesforceConnectionCardViewProps {
+  status: SalesforceStatus | null;
+  loading: boolean;
+  actionLoading: boolean;
+  error: string;
+  message: string;
+  onConnect: () => void;
+  onDisconnect: () => void;
+  onSync: () => void;
+}
+
 function isConnectedStatus(status?: string) {
   return status === "active" || status === "syncing";
 }
@@ -75,6 +88,30 @@ export default function SalesforceConnectionCard() {
     }
   }
 
+  return (
+    <SalesforceConnectionCardView
+      status={status}
+      loading={loading}
+      actionLoading={actionLoading}
+      error={error}
+      message={message}
+      onConnect={handleConnect}
+      onDisconnect={handleDisconnect}
+      onSync={handleSync}
+    />
+  );
+}
+
+export function SalesforceConnectionCardView({
+  status,
+  loading,
+  actionLoading,
+  error,
+  message,
+  onConnect,
+  onDisconnect,
+  onSync,
+}: SalesforceConnectionCardViewProps) {
   if (loading) {
     return (
       <div className="galdr-card p-6">
@@ -91,6 +128,7 @@ export default function SalesforceConnectionCard() {
     { label: "Contacts synced", count: status?.contact_count },
     { label: "Opportunities synced", count: status?.opportunity_count },
   ];
+  const showSyncDetails = status && (isConnected || status.last_sync_error);
 
   return (
     <div className="galdr-card p-6">
@@ -131,7 +169,7 @@ export default function SalesforceConnectionCard() {
         <div className="galdr-alert-success mt-4 p-3 text-sm">{message}</div>
       )}
 
-      {isConnected && status && (
+      {showSyncDetails && (
         <div className="galdr-panel mt-4 space-y-2 p-3 text-sm text-[var(--galdr-fg-muted)]">
           {status.external_account_id && (
             <p>
@@ -139,11 +177,24 @@ export default function SalesforceConnectionCard() {
               <span className="font-mono">{status.external_account_id}</span>
             </p>
           )}
+          {status.instance_url && (
+            <p>
+              Instance URL:{" "}
+              <a
+                className="font-mono text-[var(--galdr-accent-2)] hover:underline"
+                href={status.instance_url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                {status.instance_url}
+              </a>
+            </p>
+          )}
           {status.last_sync_at && (
             <p>Last sync: {new Date(status.last_sync_at).toLocaleString()}</p>
           )}
           {syncedResources.map((resource) => (
-            <SyncedResourceCount key={resource.label} resource={resource} />
+            <SyncedResourceCount key={resource.label} {...resource} />
           ))}
           {status.last_sync_error && (
             <p className="text-[var(--galdr-danger)]">
@@ -157,14 +208,14 @@ export default function SalesforceConnectionCard() {
         {isConnected ? (
           <>
             <button
-              onClick={handleSync}
+              onClick={onSync}
               disabled={actionLoading}
               className="galdr-button-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {actionLoading ? "..." : "Sync Now"}
             </button>
             <button
-              onClick={handleDisconnect}
+              onClick={onDisconnect}
               disabled={actionLoading}
               className="galdr-button-danger-outline px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
@@ -173,7 +224,7 @@ export default function SalesforceConnectionCard() {
           </>
         ) : (
           <button
-            onClick={handleConnect}
+            onClick={onConnect}
             disabled={actionLoading}
             className="galdr-button-primary px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
@@ -185,14 +236,14 @@ export default function SalesforceConnectionCard() {
   );
 }
 
-function SyncedResourceCount({ resource }: { resource: SyncedResource }) {
-  if (resource.count === undefined || resource.count <= 0) {
+function SyncedResourceCount({ label, count }: SyncedResource) {
+  if (count === undefined) {
     return null;
   }
 
   return (
     <p>
-      {resource.label}: {resource.count}
+      {label}: {count}
     </p>
   );
 }
