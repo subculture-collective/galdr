@@ -354,7 +354,10 @@ export default function WebhookConfig() {
                 {testing ? "Testing..." : "Test mapping"}
               </button>
               {mappedResult && (
-                <pre className="mt-3 overflow-auto rounded-xl border border-[var(--galdr-border)] bg-[color:rgb(0_0_0_/_0.22)] p-3 text-xs text-[var(--galdr-fg)]">
+                <pre
+                  aria-label="Mapped result"
+                  className="mt-3 overflow-auto rounded-xl border border-[var(--galdr-border)] bg-[color:rgb(0_0_0_/_0.22)] p-3 text-xs text-[var(--galdr-fg)]"
+                >
                   {JSON.stringify(mappedResult, null, 2)}
                 </pre>
               )}
@@ -453,6 +456,21 @@ export default function WebhookConfig() {
           <code> company_name</code>, and <code>account.mrr</code> to
           <code> mrr_cents</code>.
         </p>
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          {examplePayloads.map((example) => (
+            <div
+              key={example.name}
+              className="rounded-2xl border border-[var(--galdr-border)] bg-[color:rgb(0_0_0_/_0.14)] p-3"
+            >
+              <p className="text-xs font-semibold text-[var(--galdr-fg)]">
+                {example.name} example
+              </p>
+              <pre className="mt-2 max-h-52 overflow-auto rounded-xl bg-[color:rgb(0_0_0_/_0.2)] p-3 text-xs text-[var(--galdr-fg-muted)]">
+                {JSON.stringify(example.payload, null, 2)}
+              </pre>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

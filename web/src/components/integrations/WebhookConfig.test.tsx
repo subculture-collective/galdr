@@ -134,9 +134,9 @@ describe("WebhookConfig", () => {
         },
       });
     });
-    expect(
-      await screen.findByText(/"email": "founder@acme.test"/),
-    ).toBeInTheDocument();
+    expect(await screen.findByLabelText("Mapped result")).toHaveTextContent(
+      '"email": "founder@acme.test"',
+    );
   });
 
   it("loads common webhook example payloads for testing", async () => {
@@ -167,5 +167,21 @@ describe("WebhookConfig", () => {
         }),
       });
     });
+  });
+
+  it("documents example payloads for common webhook tools", async () => {
+    render(
+      <ToastProvider>
+        <WebhookConfig />
+      </ToastProvider>,
+    );
+
+    await screen.findByText("Zapier lifecycle events");
+
+    expect(screen.getByText("Customer.io example")).toBeInTheDocument();
+    expect(screen.getByText("Zapier example")).toBeInTheDocument();
+    expect(screen.getByText("PostHog example")).toBeInTheDocument();
+    expect(screen.getByText(/"zapier_hook_id": "hook_123"/)).toBeInTheDocument();
+    expect(screen.getByText(/"distinct_id": "user_123"/)).toBeInTheDocument();
   });
 });
