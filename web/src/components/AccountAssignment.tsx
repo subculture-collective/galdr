@@ -113,9 +113,9 @@ export default function AccountAssignment({
     }
   }
 
-  const assignedIDs = new Set(assignments.map((item) => item.user_id));
+  const assignedIds = new Set(assignments.map((item) => item.user_id));
   const availableMembers = members.filter(
-    (member) => !assignedIDs.has(member.user_id),
+    (member) => !assignedIds.has(member.user_id),
   );
 
   return (

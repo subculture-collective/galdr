@@ -131,7 +131,6 @@ export default function CustomerDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
       <nav className="flex items-center gap-1 text-sm text-[var(--galdr-fg-muted)]">
         <Link
           to="/customers"
@@ -143,7 +142,6 @@ export default function CustomerDetailPage() {
         <span className="text-[var(--galdr-fg)]">{customer.name}</span>
       </nav>
 
-      {/* Header */}
       <div className="flex flex-wrap items-start gap-6">
         <HealthScoreBadge
           score={customer.health_score}
@@ -173,7 +171,6 @@ export default function CustomerDetailPage() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="border-b border-[var(--galdr-border)]">
         <nav className="flex gap-4">
           {tabs.map((tab) => (
@@ -192,10 +189,8 @@ export default function CustomerDetailPage() {
         </nav>
       </div>
 
-      {/* Tab content */}
       {activeTab === "overview" && (
         <div className="space-y-6">
-          {/* Score factors */}
           <AccountAssignment
             customerId={customer.id}
             initialAssignments={customer.assignments}
@@ -229,7 +224,6 @@ export default function CustomerDetailPage() {
             </div>
           )}
 
-          {/* Score history chart */}
           <ScoreHistoryChart customerId={customer.id} />
         </div>
       )}

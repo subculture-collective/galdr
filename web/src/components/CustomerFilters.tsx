@@ -44,7 +44,7 @@ export default function CustomerFilters() {
       } else {
         next.delete(key);
       }
-      next.delete("page"); // reset page on filter change
+      next.delete("page");
       return next;
     });
   }
@@ -81,7 +81,6 @@ export default function CustomerFilters() {
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      {/* Search */}
       <div className="relative flex-1 sm:max-w-xs">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--galdr-fg-muted)]" />
         <input
@@ -93,7 +92,6 @@ export default function CustomerFilters() {
         />
       </div>
 
-      {/* Risk filter */}
       <div className="flex gap-1">
         {riskOptions.map((opt) => (
           <button
@@ -110,7 +108,6 @@ export default function CustomerFilters() {
         ))}
       </div>
 
-      {/* Source filter */}
       <select
         value={source}
         onChange={(e) => updateParam("source", e.target.value)}
@@ -123,7 +120,6 @@ export default function CustomerFilters() {
         ))}
       </select>
 
-      {/* Assignee filter */}
       <select
         value={assignee}
         onChange={(e) => updateParam("assignee", e.target.value)}
@@ -139,7 +135,6 @@ export default function CustomerFilters() {
         ))}
       </select>
 
-      {/* Clear all */}
       {hasFilters && (
         <button
           onClick={clearAll}
