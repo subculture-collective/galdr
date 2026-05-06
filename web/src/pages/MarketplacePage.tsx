@@ -27,6 +27,7 @@ export interface MarketplaceManifest {
   description: string;
   icon_url?: string;
   categories?: string[];
+  tags?: string[];
   auth: {
     type: string;
     oauth2?: {
@@ -69,6 +70,7 @@ export interface MarketplaceConnector {
 
 interface MarketplaceResponse {
   connectors: MarketplaceConnector[];
+  recommendations?: MarketplaceConnector[];
 }
 
 export interface MarketplacePageViewProps {
@@ -78,11 +80,14 @@ export interface MarketplacePageViewProps {
   search: string;
   category: string;
   status: string;
+  sort: string;
+  recommendations: MarketplaceConnector[];
   installingId: string | null;
   selectedInstall: MarketplaceConnector | null;
   onSearchChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
   onStatusChange: (value: string) => void;
+  onSortChange: (value: string) => void;
   onOpenInstall: (connector: MarketplaceConnector) => void;
   onCloseInstall: () => void;
   onConfirmInstall: (
@@ -90,6 +95,11 @@ export interface MarketplacePageViewProps {
     payload: ConnectorInstallPayload,
   ) => void;
   onRetry: () => void;
+}
+
+interface MarketplaceRecommendationsProps {
+  recommendations: MarketplaceConnector[];
+  onOpenInstall: (connector: MarketplaceConnector) => void;
 }
 
 interface MarketplaceResultsProps {
@@ -190,6 +200,64 @@ function filterConnectors(
       (!normalizedSearch || searchTarget.includes(normalizedSearch))
     );
   });
+}
+
+function marketplaceCategoryParam(category: string) {
+  return category === "all" ? "" : category;
+}
+
+function MarketplaceRecommendations({
+  recommendations,
+  onOpenInstall,
+}: MarketplaceRecommendationsProps) {
+  if (recommendations.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="galdr-card p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="galdr-kicker px-3 py-1">Recommended for you</div>
+          <h2 className="mt-3 text-xl font-semibold text-[var(--galdr-fg)]">
+            Based on your current integrations
+          </h2>
+        </div>
+      </div>
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        {recommendations.map((connector) => (
+          <article
+            key={`recommendation:${connector.id}:${connector.version}`}
+            className="rounded-2xl border border-[var(--galdr-border)] bg-[color:rgb(255_255_255_/_0.03)] p-4"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[color:rgb(34_211_238_/_0.26)] bg-[color:rgb(34_211_238_/_0.11)] text-[var(--galdr-accent-2)]">
+                <ConnectorIcon
+                  connector={connector}
+                  imageClassName="h-7 w-7 rounded-lg object-cover"
+                  fallbackClassName="h-5 w-5"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="truncate text-sm font-semibold text-[var(--galdr-fg)]">
+                  {connector.name}
+                </h3>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--galdr-fg-muted)]">
+                  {connector.description}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onOpenInstall(connector)}
+              className="galdr-button-secondary mt-4 w-full px-3 py-2 text-xs font-medium"
+            >
+              Install recommendation
+            </button>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function MarketplaceResults({
@@ -313,11 +381,14 @@ export function MarketplacePageView({
   search,
   category,
   status,
+  sort,
+  recommendations,
   installingId,
   selectedInstall,
   onSearchChange,
   onCategoryChange,
   onStatusChange,
+  onSortChange,
   onOpenInstall,
   onCloseInstall,
   onConfirmInstall,
@@ -358,7 +429,7 @@ export function MarketplacePageView({
       </section>
 
       <section className="galdr-card p-4 sm:p-5">
-        <div className="grid gap-3 lg:grid-cols-[1fr_180px_180px]">
+        <div className="grid gap-3 lg:grid-cols-[1fr_180px_180px_180px]">
           <label className="relative block">
             <span className="sr-only">Search connectors</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--galdr-fg-muted)]" />
@@ -400,8 +471,26 @@ export function MarketplacePageView({
               ))}
             </select>
           </label>
+          <label className="block">
+            <span className="sr-only">Sort connectors</span>
+            <select
+              value={sort}
+              onChange={(event) => onSortChange(event.target.value)}
+              className="galdr-input w-full px-3 py-2.5 text-sm"
+            >
+              <option value="relevance">Sort by relevance</option>
+              <option value="popularity">Sort by popularity</option>
+              <option value="rating">Sort by rating</option>
+              <option value="newest">Sort by newest</option>
+            </select>
+          </label>
         </div>
       </section>
+
+      <MarketplaceRecommendations
+        recommendations={recommendations}
+        onOpenInstall={onOpenInstall}
+      />
 
       <MarketplaceResults
         visibleConnectors={visibleConnectors}
@@ -432,6 +521,10 @@ export default function MarketplacePage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [status, setStatus] = useState("all");
+  const [sort, setSort] = useState("relevance");
+  const [recommendations, setRecommendations] = useState<MarketplaceConnector[]>(
+    [],
+  );
   const [selectedInstall, setSelectedInstall] =
     useState<MarketplaceConnector | null>(null);
   const [installingId, setInstallingId] = useState<string | null>(null);
@@ -442,9 +535,17 @@ export default function MarketplacePage() {
     setLoading(true);
     try {
       const { data } = await api.get<MarketplaceResponse>(
-        "/marketplace/connectors",
+        "/marketplace/search",
+        {
+          params: {
+            q: search.trim() || undefined,
+            category: marketplaceCategoryParam(category) || undefined,
+            sort,
+          },
+        },
       );
       setConnectors(data.connectors ?? []);
+      setRecommendations(data.recommendations ?? []);
       setError("");
     } catch {
       setError("Failed to load marketplace connectors.");
@@ -452,7 +553,7 @@ export default function MarketplacePage() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [category, search, sort, toast]);
 
   useEffect(() => {
     fetchConnectors();
@@ -487,11 +588,14 @@ export default function MarketplacePage() {
       search={search}
       category={category}
       status={status}
+      sort={sort}
+      recommendations={recommendations}
       installingId={installingId}
       selectedInstall={selectedInstall}
       onSearchChange={setSearch}
       onCategoryChange={setCategory}
       onStatusChange={setStatus}
+      onSortChange={setSort}
       onOpenInstall={setSelectedInstall}
       onCloseInstall={() => setSelectedInstall(null)}
       onConfirmInstall={handleConfirmInstall}

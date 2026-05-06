@@ -749,6 +749,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				marketplaceNotifier := service.NewMarketplaceEmailNotifier(userRepo, emailSvc)
 				marketplaceSvc := service.NewMarketplaceServiceWithNotifier(marketplaceRepo, marketplaceNotifier, connRepo)
 				marketplaceHandler := handler.NewMarketplaceHandler(marketplaceSvc)
+				r.Get("/marketplace/search", marketplaceHandler.Search)
 				r.Route("/marketplace/connectors", func(r chi.Router) {
 					r.Get("/", marketplaceHandler.ListPublished)
 					r.Post("/", marketplaceHandler.Register)

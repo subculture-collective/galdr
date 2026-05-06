@@ -66,6 +66,7 @@ type genericWebhookServicer interface {
 type marketplaceServicer interface {
 	Register(ctx context.Context, developerID uuid.UUID, req service.RegisterConnectorRequest) (*repository.MarketplaceConnector, error)
 	ListPublished(ctx context.Context) ([]*repository.MarketplaceConnector, error)
+	Search(ctx context.Context, orgID uuid.UUID, req service.MarketplaceSearchRequest) (*service.MarketplaceSearchResponse, error)
 	GetPublished(ctx context.Context, id string) (*repository.MarketplaceConnector, error)
 	Analytics(ctx context.Context, id string) (*repository.ConnectorAnalytics, error)
 	Install(ctx context.Context, orgID uuid.UUID, id string, req service.InstallConnectorRequest) (*repository.ConnectorInstallation, error)

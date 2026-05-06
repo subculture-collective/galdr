@@ -42,6 +42,7 @@ type ConnectorManifest struct {
 	Version     string          `json:"version"`
 	Description string          `json:"description"`
 	Categories  []string        `json:"categories,omitempty"`
+	Tags        []string        `json:"tags,omitempty"`
 	Auth        AuthConfig      `json:"auth"`
 	Sync        SyncConfig      `json:"sync"`
 	Webhooks    []WebhookConfig `json:"webhooks,omitempty"`

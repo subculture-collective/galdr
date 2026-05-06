@@ -15,7 +15,9 @@ type mockMarketplaceRepository struct {
 	createConnectorFn         func(ctx context.Context, connector *repository.MarketplaceConnector) error
 	getConnectorFn            func(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error)
 	listPublishedConnectorsFn func(ctx context.Context) ([]*repository.MarketplaceConnector, error)
-	listReviewQueueFn        func(ctx context.Context) ([]*repository.MarketplaceConnector, error)
+	listReviewQueueFn         func(ctx context.Context) ([]*repository.MarketplaceConnector, error)
+	searchConnectorsFn        func(ctx context.Context, req repository.MarketplaceSearchRequest) ([]*repository.MarketplaceConnector, error)
+	listInstalledProvidersFn  func(ctx context.Context, orgID uuid.UUID) ([]string, error)
 	createInstallationFn      func(ctx context.Context, installation *repository.ConnectorInstallation) error
 	incrementInstallMetricFn  func(ctx context.Context, connectorID string, at time.Time) error
 	getAnalyticsFn            func(ctx context.Context, connectorID string, since time.Time) (*repository.ConnectorAnalytics, error)
@@ -51,6 +53,14 @@ func (m *mockMarketplaceRepository) ListPublishedConnectors(ctx context.Context)
 
 func (m *mockMarketplaceRepository) ListConnectorReviewQueue(ctx context.Context) ([]*repository.MarketplaceConnector, error) {
 	return m.listReviewQueueFn(ctx)
+}
+
+func (m *mockMarketplaceRepository) SearchConnectors(ctx context.Context, req repository.MarketplaceSearchRequest) ([]*repository.MarketplaceConnector, error) {
+	return m.searchConnectorsFn(ctx, req)
+}
+
+func (m *mockMarketplaceRepository) ListInstalledProviders(ctx context.Context, orgID uuid.UUID) ([]string, error) {
+	return m.listInstalledProvidersFn(ctx, orgID)
 }
 
 func (m *mockMarketplaceRepository) CreateInstallation(ctx context.Context, installation *repository.ConnectorInstallation) error {
@@ -166,6 +176,48 @@ func TestMarketplaceListPublishedPrefersStableOverPrerelease(t *testing.T) {
 	}
 	if connectors[0].Version != "1.0.0" {
 		t.Fatalf("expected stable 1.0.0, got %q", connectors[0].Version)
+	}
+}
+
+func TestMarketplaceSearchFiltersSortsAndRecommends(t *testing.T) {
+	orgID := uuid.New()
+	stripe := marketplaceConnectorWithCategories("stripe-tools", "1.0.0", []string{"payments"})
+	hubspot := marketplaceConnectorWithCategories("hubspot-sync", "2.0.0", []string{"crm"})
+	support := marketplaceConnectorWithCategories("supportdesk", "1.1.0", []string{"support"})
+	salesforce := marketplaceConnectorWithCategories("salesforce", "1.4.0", []string{"crm"})
+	salesforce.InstallCount = 40
+	hubspot.InstallCount = 12
+	repo := &mockMarketplaceRepository{
+		searchConnectorsFn: func(ctx context.Context, req repository.MarketplaceSearchRequest) ([]*repository.MarketplaceConnector, error) {
+			if req.Query != "crm" || req.Category != "crm" || req.Sort != repository.MarketplaceSearchSortPopularity {
+				t.Fatalf("unexpected search request: %+v", req)
+			}
+			return []*repository.MarketplaceConnector{hubspot, salesforce}, nil
+		},
+		listPublishedConnectorsFn: func(ctx context.Context) ([]*repository.MarketplaceConnector, error) {
+			return []*repository.MarketplaceConnector{stripe, hubspot, support, salesforce}, nil
+		},
+		listInstalledProvidersFn: func(ctx context.Context, gotOrgID uuid.UUID) ([]string, error) {
+			if gotOrgID != orgID {
+				t.Fatalf("expected org id %s, got %s", orgID, gotOrgID)
+			}
+			return []string{"stripe", "hubspot"}, nil
+		},
+	}
+
+	result, err := NewMarketplaceService(repo).Search(context.Background(), orgID, MarketplaceSearchRequest{
+		Query:    " crm ",
+		Category: "crm",
+		Sort:     repository.MarketplaceSearchSortPopularity,
+	})
+	if err != nil {
+		t.Fatalf("search failed: %v", err)
+	}
+	if len(result.Connectors) != 2 || result.Connectors[0].ID != "salesforce" || result.Connectors[1].ID != "hubspot-sync" {
+		t.Fatalf("expected popularity-sorted search results, got %+v", result.Connectors)
+	}
+	if len(result.Recommendations) != 2 || result.Recommendations[0].ID != "salesforce" || result.Recommendations[1].ID != "supportdesk" {
+		t.Fatalf("expected recommendations to prefer adjacent categories and skip installed connectors, got %+v", result.Recommendations)
 	}
 }
 
@@ -404,4 +456,12 @@ func marketplaceConnector(id, version, status string) *repository.MarketplaceCon
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
+}
+
+func marketplaceConnectorWithCategories(id, version string, categories []string) *repository.MarketplaceConnector {
+	connector := marketplaceConnector(id, version, repository.MarketplaceConnectorStatusPublished)
+	connector.Manifest.Categories = categories
+	connector.Name = id
+	connector.Description = id + " connector"
+	return connector
 }
