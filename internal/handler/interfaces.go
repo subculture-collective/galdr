@@ -69,7 +69,10 @@ type marketplaceServicer interface {
 	GetPublished(ctx context.Context, id string) (*repository.MarketplaceConnector, error)
 	Analytics(ctx context.Context, id string) (*repository.ConnectorAnalytics, error)
 	Install(ctx context.Context, orgID uuid.UUID, id string, req service.InstallConnectorRequest) (*repository.ConnectorInstallation, error)
+	ListReviewQueue(ctx context.Context) ([]*repository.MarketplaceConnector, error)
 	Review(ctx context.Context, reviewerID uuid.UUID, id, version string, req service.ConnectorReviewRequest) (*repository.ConnectorReviewResult, error)
+	Reject(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error)
+	Publish(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error)
 }
 
 // memberServicer defines the methods the MemberHandler needs.

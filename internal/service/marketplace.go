@@ -18,6 +18,7 @@ type marketplaceRepository interface {
 	CreateConnector(ctx context.Context, connector *repository.MarketplaceConnector) error
 	GetConnector(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error)
 	ListPublishedConnectors(ctx context.Context) ([]*repository.MarketplaceConnector, error)
+	ListConnectorReviewQueue(ctx context.Context) ([]*repository.MarketplaceConnector, error)
 	CreateInstallation(ctx context.Context, installation *repository.ConnectorInstallation) error
 	IncrementConnectorInstallMetric(ctx context.Context, connectorID string, at time.Time) error
 	GetConnectorAnalytics(ctx context.Context, connectorID string, since time.Time) (*repository.ConnectorAnalytics, error)
@@ -27,6 +28,10 @@ type marketplaceRepository interface {
 
 type marketplaceConnectionStore interface {
 	Upsert(ctx context.Context, conn *repository.IntegrationConnection) error
+}
+
+type connectorStatusNotifier interface {
+	NotifyConnectorStatusChange(ctx context.Context, connector *repository.MarketplaceConnector, status string) error
 }
 
 type RegisterConnectorRequest struct {
@@ -50,6 +55,7 @@ type InstallConnectorAuth struct {
 type MarketplaceService struct {
 	repo      marketplaceRepository
 	connStore marketplaceConnectionStore
+	notifier  connectorStatusNotifier
 }
 
 func NewMarketplaceService(repo marketplaceRepository, connStore ...marketplaceConnectionStore) *MarketplaceService {
@@ -57,6 +63,12 @@ func NewMarketplaceService(repo marketplaceRepository, connStore ...marketplaceC
 	if len(connStore) > 0 {
 		service.connStore = connStore[0]
 	}
+	return service
+}
+
+func NewMarketplaceServiceWithNotifier(repo marketplaceRepository, notifier connectorStatusNotifier, connStore ...marketplaceConnectionStore) *MarketplaceService {
+	service := NewMarketplaceService(repo, connStore...)
+	service.notifier = notifier
 	return service
 }
 
@@ -186,8 +198,62 @@ func (s *MarketplaceService) Analytics(ctx context.Context, id string) (*reposit
 	return s.repo.GetConnectorAnalytics(ctx, id, since)
 }
 
+func (s *MarketplaceService) ListReviewQueue(ctx context.Context) ([]*repository.MarketplaceConnector, error) {
+	return s.repo.ListConnectorReviewQueue(ctx)
+}
+
 func (s *MarketplaceService) Review(ctx context.Context, reviewerID uuid.UUID, id, version string, req ConnectorReviewRequest) (*repository.ConnectorReviewResult, error) {
-	return NewConnectorReviewService(s.repo).Review(ctx, reviewerID, id, version, req)
+	return NewConnectorReviewServiceWithNotifier(s.repo, s.notifier).Review(ctx, reviewerID, id, version, req)
+}
+
+func (s *MarketplaceService) Reject(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error) {
+	connector, err := s.repo.GetConnector(ctx, id, version)
+	if err != nil {
+		return nil, err
+	}
+	if connector == nil {
+		return nil, &NotFoundError{Resource: "marketplace_connector", Message: "connector not found"}
+	}
+	if err := s.repo.UpdateConnectorStatus(ctx, id, version, repository.MarketplaceConnectorStatusRejected); err != nil {
+		return nil, err
+	}
+	connector.Status = repository.MarketplaceConnectorStatusRejected
+	if err := s.notifyStatusChange(ctx, connector, repository.MarketplaceConnectorStatusRejected); err != nil {
+		return nil, err
+	}
+	return connector, nil
+}
+
+func (s *MarketplaceService) Publish(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error) {
+	connector, err := s.repo.GetConnector(ctx, id, version)
+	if err != nil {
+		return nil, err
+	}
+	if connector == nil {
+		return nil, &NotFoundError{Resource: "marketplace_connector", Message: "connector not found"}
+	}
+	if connector.Status != repository.MarketplaceConnectorStatusApproved {
+		return nil, &ValidationError{Field: "status", Message: "connector must be approved before publishing"}
+	}
+	if err := s.repo.UpdateConnectorStatus(ctx, id, version, repository.MarketplaceConnectorStatusPublished); err != nil {
+		return nil, err
+	}
+	connector.Status = repository.MarketplaceConnectorStatusPublished
+	if connector.PublishedAt == nil {
+		now := time.Now().UTC()
+		connector.PublishedAt = &now
+	}
+	if err := s.notifyStatusChange(ctx, connector, repository.MarketplaceConnectorStatusPublished); err != nil {
+		return nil, err
+	}
+	return connector, nil
+}
+
+func (s *MarketplaceService) notifyStatusChange(ctx context.Context, connector *repository.MarketplaceConnector, status string) error {
+	if s.notifier == nil {
+		return nil
+	}
+	return s.notifier.NotifyConnectorStatusChange(ctx, connector, status)
 }
 
 func latestConnectorVersions(connectors []*repository.MarketplaceConnector) []*repository.MarketplaceConnector {
@@ -301,7 +367,9 @@ func isValidMarketplaceStatus(status string) bool {
 	switch status {
 	case repository.MarketplaceConnectorStatusDraft,
 		repository.MarketplaceConnectorStatusSubmitted,
+		repository.MarketplaceConnectorStatusUnderReview,
 		repository.MarketplaceConnectorStatusApproved,
+		repository.MarketplaceConnectorStatusRejected,
 		repository.MarketplaceConnectorStatusPublished,
 		repository.MarketplaceConnectorStatusDeprecated:
 		return true

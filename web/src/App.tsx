@@ -23,6 +23,10 @@ const IntegrationHealthPage = lazy(() => import("@/pages/IntegrationHealthPage")
 const CustomerDetailPage = lazy(() => import("@/pages/CustomerDetailPage"));
 const MarketplacePage = lazy(() => import("@/pages/MarketplacePage"));
 const ConnectorDetailPage = lazy(() => import("@/pages/ConnectorDetailPage"));
+const SubmitConnectorPage = lazy(
+  () => import("@/pages/developer/SubmitConnectorPage"),
+);
+const ReviewQueuePage = lazy(() => import("@/pages/admin/ReviewQueuePage"));
 const SettingsPage = lazy(() => import("@/pages/settings/SettingsPage"));
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
 const PrivacyPage = lazy(() => import("@/pages/PrivacyPage"));
@@ -145,6 +149,14 @@ function App() {
                       <Route
                         path="/marketplace/connectors/:id"
                         element={<ConnectorDetailPage />}
+                      />
+                      <Route
+                        path="/developer/connectors/submit"
+                        element={<SubmitConnectorPage />}
+                      />
+                      <Route
+                        path="/admin/connectors/review-queue"
+                        element={<ReviewQueuePage />}
                       />
                       <Route path="/settings/*" element={<SettingsPage />} />
                     </Route>

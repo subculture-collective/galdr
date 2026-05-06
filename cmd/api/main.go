@@ -746,18 +746,23 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				})
 
 				// Connector marketplace routes
-				marketplaceSvc := service.NewMarketplaceService(marketplaceRepo, connRepo)
+				marketplaceNotifier := service.NewMarketplaceEmailNotifier(userRepo, emailSvc)
+				marketplaceSvc := service.NewMarketplaceServiceWithNotifier(marketplaceRepo, marketplaceNotifier, connRepo)
 				marketplaceHandler := handler.NewMarketplaceHandler(marketplaceSvc)
 				r.Route("/marketplace/connectors", func(r chi.Router) {
 					r.Get("/", marketplaceHandler.ListPublished)
-					r.Get("/{id}", marketplaceHandler.GetPublished)
+					r.Post("/", marketplaceHandler.Register)
 					r.Group(func(r chi.Router) {
 						r.Use(middleware.RequireRole("admin"))
 						r.Post("/", marketplaceHandler.Register)
+						r.Get("/review-queue", marketplaceHandler.ListReviewQueue)
 						r.Get("/{id}/analytics", marketplaceHandler.Analytics)
 						r.Post("/{id}/versions/{version}/review", marketplaceHandler.Review)
+						r.Post("/{id}/versions/{version}/reject", marketplaceHandler.Reject)
+						r.Post("/{id}/versions/{version}/publish", marketplaceHandler.Publish)
 						r.With(middleware.RequireIntegrationLimitParam(billingLimitsSvc, "id")).Post("/{id}/install", marketplaceHandler.Install)
 					})
+					r.Get("/{id}", marketplaceHandler.GetPublished)
 				})
 
 				// Member management routes (admin+ required)

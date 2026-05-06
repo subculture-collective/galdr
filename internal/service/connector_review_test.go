@@ -47,8 +47,8 @@ func TestConnectorReviewRejectsInsecureOAuthURLAndRecordsResult(t *testing.T) {
 			return nil
 		},
 		updateConnectorStatusFn: func(ctx context.Context, id, version, status string) error {
-			if status != repository.MarketplaceConnectorStatusSubmitted {
-				t.Fatalf("expected connector to remain submitted, got %q", status)
+			if status != repository.MarketplaceConnectorStatusRejected {
+				t.Fatalf("expected connector to be rejected, got %q", status)
 			}
 			return nil
 		},
@@ -111,8 +111,8 @@ func TestConnectorReviewApprovesCompleteSecureSubmission(t *testing.T) {
 func TestConnectorReviewBlocksIncompleteSecurityChecklist(t *testing.T) {
 	connector := marketplaceConnector("mock-crm", "1.0.0", repository.MarketplaceConnectorStatusSubmitted)
 	repo := reviewRepoForConnector(connector, func(ctx context.Context, id, version, status string) error {
-		if status != repository.MarketplaceConnectorStatusSubmitted {
-			t.Fatalf("expected connector to remain submitted, got %q", status)
+		if status != repository.MarketplaceConnectorStatusRejected {
+			t.Fatalf("expected connector to be rejected, got %q", status)
 		}
 		return nil
 	})

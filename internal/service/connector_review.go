@@ -41,11 +41,16 @@ type ConnectorReviewRequest struct {
 
 // ConnectorReviewService reviews submitted marketplace connectors.
 type ConnectorReviewService struct {
-	repo connectorReviewRepository
+	repo     connectorReviewRepository
+	notifier connectorStatusNotifier
 }
 
 func NewConnectorReviewService(repo connectorReviewRepository) *ConnectorReviewService {
 	return &ConnectorReviewService{repo: repo}
+}
+
+func NewConnectorReviewServiceWithNotifier(repo connectorReviewRepository, notifier connectorStatusNotifier) *ConnectorReviewService {
+	return &ConnectorReviewService{repo: repo, notifier: notifier}
 }
 
 func (s *ConnectorReviewService) Review(ctx context.Context, reviewerID uuid.UUID, id, version string, req ConnectorReviewRequest) (*repository.ConnectorReviewResult, error) {
@@ -63,7 +68,7 @@ func (s *ConnectorReviewService) Review(ctx context.Context, reviewerID uuid.UUI
 	connectorStatus := repository.MarketplaceConnectorStatusApproved
 	if hasBlockingReviewCheck(automatedChecks) || !req.Checklist.complete() || hasBlockingReviewCheck(sandboxChecks) {
 		status = repository.ConnectorReviewStatusBlocked
-		connectorStatus = repository.MarketplaceConnectorStatusSubmitted
+		connectorStatus = repository.MarketplaceConnectorStatusRejected
 	}
 
 	result := &repository.ConnectorReviewResult{
@@ -81,7 +86,18 @@ func (s *ConnectorReviewService) Review(ctx context.Context, reviewerID uuid.UUI
 	if err := s.repo.UpdateConnectorStatus(ctx, connector.ID, connector.Version, connectorStatus); err != nil {
 		return nil, err
 	}
+	connector.Status = connectorStatus
+	if err := s.notifyStatusChange(ctx, connector, connectorStatus); err != nil {
+		return nil, err
+	}
 	return result, nil
+}
+
+func (s *ConnectorReviewService) notifyStatusChange(ctx context.Context, connector *repository.MarketplaceConnector, status string) error {
+	if s.notifier == nil {
+		return nil
+	}
+	return s.notifier.NotifyConnectorStatusChange(ctx, connector, status)
 }
 
 func runAutomatedConnectorChecks(manifest connectorsdk.ConnectorManifest) []repository.ConnectorReviewCheck {

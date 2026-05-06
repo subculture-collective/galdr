@@ -21,7 +21,9 @@ type marketplaceConnectorScanner interface {
 const (
 	MarketplaceConnectorStatusDraft      = "draft"
 	MarketplaceConnectorStatusSubmitted  = "submitted"
+	MarketplaceConnectorStatusUnderReview = "under_review"
 	MarketplaceConnectorStatusApproved   = "approved"
+	MarketplaceConnectorStatusRejected   = "rejected"
 	MarketplaceConnectorStatusPublished  = "published"
 	MarketplaceConnectorStatusDeprecated = "deprecated"
 
@@ -181,6 +183,33 @@ func (r *MarketplaceRepository) ListPublishedConnectors(ctx context.Context) ([]
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate marketplace connectors: %w", err)
+	}
+	return connectors, nil
+}
+
+// ListConnectorReviewQueue returns connectors awaiting admin review.
+func (r *MarketplaceRepository) ListConnectorReviewQueue(ctx context.Context) ([]*MarketplaceConnector, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, version, developer_id, name, description, manifest, status, published_at, created_at, updated_at
+		FROM marketplace_connectors
+		WHERE status IN ('submitted', 'under_review')
+		ORDER BY updated_at ASC, id ASC, version DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query marketplace connector review queue: %w", err)
+	}
+	defer rows.Close()
+
+	var connectors []*MarketplaceConnector
+	for rows.Next() {
+		connector, err := scanMarketplaceConnector(rows)
+		if err != nil {
+			return nil, err
+		}
+		connectors = append(connectors, connector)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate marketplace connector review queue: %w", err)
 	}
 	return connectors, nil
 }
@@ -351,7 +380,9 @@ func (r *MarketplaceRepository) CreateReviewResult(ctx context.Context, result *
 func (r *MarketplaceRepository) UpdateConnectorStatus(ctx context.Context, id, version, status string) error {
 	_, err := r.pool.Exec(ctx, `
 		UPDATE marketplace_connectors
-		SET status = $3, updated_at = NOW()
+		SET status = $3,
+			published_at = CASE WHEN $3 = 'published' THEN COALESCE(published_at, NOW()) ELSE published_at END,
+			updated_at = NOW()
 		WHERE id = $1 AND version = $2
 	`, id, version, status)
 	if err != nil {
