@@ -23,7 +23,7 @@ const navItems = [
     to: "/benchmarks",
     label: "Benchmarks",
     icon: BarChart3,
-    feature: FEATURE_BENCHMARKS,
+    requiredFeature: FEATURE_BENCHMARKS,
   },
   { to: "/settings/integrations", label: "Integrations", icon: Plug },
   { to: "/settings", label: "Settings", icon: Settings, end: true },
@@ -45,7 +45,7 @@ export default function Sidebar({
   const location = useLocation();
   const benchmarkAccess = useFeatureFlag(FEATURE_BENCHMARKS);
   const visibleNavItems = navItems.filter(
-    (item) => item.feature !== FEATURE_BENCHMARKS || benchmarkAccess.allowed,
+    (item) => !item.requiredFeature || benchmarkAccess.allowed,
   );
 
   function isActive(to: string, end?: boolean) {

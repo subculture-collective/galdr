@@ -19,7 +19,10 @@ import { ORGANIZATION_INDUSTRIES } from "@/lib/industries";
 
 const COMPANY_SIZES = ["1-10", "11-50", "51-200", "201-1000", "1000+"];
 
-const METRIC_LABELS: Record<string, { label: string; unit: BenchmarkMetric["unit"] }> = {
+const METRIC_LABELS: Record<
+  string,
+  { label: string; unit: BenchmarkMetric["unit"] }
+> = {
   health_score: { label: "Avg health score", unit: "score" },
   mrr_per_customer: { label: "MRR/customer", unit: "currency" },
   churn_rate: { label: "Churn rate", unit: "percent" },
@@ -82,6 +85,62 @@ export function BenchmarkAccessPrompt({
   );
 }
 
+function BenchmarkContent({
+  loading,
+  error,
+  metrics,
+  onRetry,
+}: {
+  loading: boolean;
+  error: boolean;
+  metrics: BenchmarkMetric[];
+  onRetry: () => void;
+}) {
+  if (loading) {
+    return (
+      <div className="grid gap-4 lg:grid-cols-2">
+        {[...Array(4)].map((_, index) => (
+          <ChartSkeleton key={index} />
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div role="alert" className="galdr-alert-danger p-6 text-center">
+        <p className="text-sm">Failed to load benchmark data.</p>
+        <button
+          onClick={onRetry}
+          className="galdr-link mt-2 inline-flex items-center gap-2 text-sm font-medium"
+        >
+          <RefreshCw className="h-4 w-4" /> Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (metrics.length === 0) {
+    return (
+      <div className="galdr-card p-6">
+        <EmptyState
+          icon={<BarChart3 className="h-12 w-12" />}
+          title="No benchmark data yet"
+          description="Choose another peer segment or wait for enough opted-in organizations to produce a safe aggregate."
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      {metrics.map((metric) => (
+        <BenchmarkChart key={metric.key} metric={metric} />
+      ))}
+    </div>
+  );
+}
+
 export default function BenchmarkPage() {
   const benchmarkAccess = useFeatureFlag(FEATURE_BENCHMARKS);
   const [industry, setIndustry] = useState("SaaS");
@@ -119,7 +178,10 @@ export default function BenchmarkPage() {
     setLoading(true);
     setError(false);
     try {
-      const { data: response } = await benchmarksApi.compare({ industry, size });
+      const { data: response } = await benchmarksApi.compare({
+        industry,
+        size,
+      });
       setData(response);
       setParticipating(response.participating);
     } catch {
@@ -138,7 +200,11 @@ export default function BenchmarkPage() {
   const calloutPercentile = data?.percentile ?? highestPercentile(metrics);
 
   if (!benchmarkAccess.allowed) {
-    return <BenchmarkAccessPrompt recommendedTier={benchmarkAccess.recommendedTier} />;
+    return (
+      <BenchmarkAccessPrompt
+        recommendedTier={benchmarkAccess.recommendedTier}
+      />
+    );
   }
 
   return (
@@ -198,8 +264,8 @@ export default function BenchmarkPage() {
             <div>
               <h2 className="text-sm font-semibold">Opt in to benchmarking</h2>
               <p className="mt-1 text-sm">
-                Enable anonymized benchmarking in organization settings to unlock
-                peer comparisons and contribute privacy-safe aggregates.
+                Enable anonymized benchmarking in organization settings to
+                unlock peer comparisons and contribute privacy-safe aggregates.
               </p>
             </div>
           </div>
@@ -221,37 +287,12 @@ export default function BenchmarkPage() {
         </section>
       )}
 
-      {loading ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {[...Array(4)].map((_, index) => (
-            <ChartSkeleton key={index} />
-          ))}
-        </div>
-      ) : error ? (
-        <div role="alert" className="galdr-alert-danger p-6 text-center">
-          <p className="text-sm">Failed to load benchmark data.</p>
-          <button
-            onClick={fetchBenchmarks}
-            className="galdr-link mt-2 inline-flex items-center gap-2 text-sm font-medium"
-          >
-            <RefreshCw className="h-4 w-4" /> Retry
-          </button>
-        </div>
-      ) : metrics.length === 0 ? (
-        <div className="galdr-card p-6">
-          <EmptyState
-            icon={<BarChart3 className="h-12 w-12" />}
-            title="No benchmark data yet"
-            description="Choose another peer segment or wait for enough opted-in organizations to produce a safe aggregate."
-          />
-        </div>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {metrics.map((metric) => (
-            <BenchmarkChart key={metric.key} metric={metric} />
-          ))}
-        </div>
-      )}
+      <BenchmarkContent
+        loading={loading}
+        error={error}
+        metrics={metrics}
+        onRetry={fetchBenchmarks}
+      />
     </div>
   );
 }
