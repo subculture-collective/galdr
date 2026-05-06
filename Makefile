@@ -3,6 +3,7 @@
        dev-db dev-db-down dev dev-stop \
        web-install web-dev web-build web-lint web-format web-format-check web-preview \
 	docker-build docker-up deploy-prod docker-down docker-logs \
+       sandcastle-refresh \
        check help
 
 # ---------------------------------------------------------------------------
@@ -64,25 +65,25 @@ seed: ## Seed the database with sample data
 # Frontend (web/)
 # ---------------------------------------------------------------------------
 web-install: ## Install frontend dependencies
-	cd web && npm install
+	pnpm install --filter web
 
 web-dev: ## Start Vite dev server
-	cd web && npm run dev
+	pnpm --dir web run dev
 
 web-build: ## Build frontend for production
-	cd web && npm run build
+	pnpm --dir web run build
 
 web-lint: ## Lint frontend code
-	cd web && npm run lint
+	pnpm --dir web run lint
 
 web-format: ## Format frontend code with Prettier
-	cd web && npm run format
+	pnpm --dir web run format
 
 web-format-check: ## Check frontend formatting
-	cd web && npm run format:check
+	pnpm --dir web run format:check
 
 web-preview: ## Preview production build locally
-	cd web && npm run preview
+	pnpm --dir web run preview
 
 # ---------------------------------------------------------------------------
 # Full-stack dev
@@ -96,6 +97,12 @@ dev: dev-db ## Start DB, API, and frontend dev server
 
 dev-stop: dev-db-down ## Stop all dev services
 	@-pkill -f "$(BINARY_NAME)" 2>/dev/null || true
+
+# ---------------------------------------------------------------------------
+# Sandcastle
+# ---------------------------------------------------------------------------
+sandcastle-refresh: ## Rebuild the Sandcastle Docker image
+	pnpm exec sandcastle docker build-image
 
 # ---------------------------------------------------------------------------
 # Docker (production)

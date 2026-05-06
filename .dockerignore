@@ -4,7 +4,8 @@
 .env.*
 !.env.example
 opencode/auth.json
-web
+web/dist
+web/node_modules
 node_modules
 bin
 *.md

@@ -137,7 +137,7 @@ const modelEnvByRole: Record<Role, string> = {
   merger: "SANDCASTLE_OPENCODE_MERGER_MODEL",
 };
 
-const usage = `Usage: npx tsx .sandcastle/opencode-service-agent.mts --role <planner|implementer|reviewer|merger> [--title <title>] [--healthcheck-only] [--jsonl]
+const usage = `Usage: pnpm exec tsx .sandcastle/opencode-service-agent.mts --role <planner|implementer|reviewer|merger> [--title <title>] [--healthcheck-only] [--jsonl]
 
 Reads prompt from stdin, starts/reuses a sandbox-local OpenCode service, and prints final assistant text to stdout.
 Use --jsonl to emit heartbeat/result events for Sandcastle stream parsing.

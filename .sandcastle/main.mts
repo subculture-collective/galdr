@@ -17,9 +17,9 @@
 // issues are picked up after each round of merges.
 //
 // Usage:
-//   npx tsx .sandcastle/main.mts
+//   pnpm exec tsx .sandcastle/main.mts
 // Or add to package.json:
-//   "scripts": { "sandcastle": "npx tsx .sandcastle/main.mts" }
+//   "scripts": { "sandcastle": "pnpm exec tsx .sandcastle/main.mts" }
 
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
@@ -33,13 +33,17 @@ import { spawnSync } from "node:child_process";
 // Raise this if your backlog is large; lower it for a quick smoke-test run.
 const MAX_ITERATIONS = 100;
 
+// Bound concurrent issue pipelines. Each pipeline can start an implementer and
+// then a reviewer, so keep this low enough for OpenCode service stability.
+const MAX_PARALLEL_IMPLEMENTERS = 4;
+
 // Hooks run inside the sandbox before the agent starts each iteration.
-// npm ci installs from the lockfile without mutating package-lock.json, which
+// pnpm install --frozen-lockfile installs from pnpm-lock.yaml without mutating it, which
 // keeps reusable Sandcastle worktrees clean between runs.
 const hooks = {
   sandbox: {
     onSandboxReady: [
-      { command: "npm ci" },
+      { command: "CI=true pnpm install --frozen-lockfile" },
       {
         command:
           "mkdir -p ~/.config/opencode ~/.local/share/opencode && cp -a opencode/. ~/.config/opencode/ && rm -f ~/.config/opencode/auth.json && if [ -f opencode/auth.json ]; then cp opencode/auth.json ~/.local/share/opencode/auth.json && chmod 600 ~/.local/share/opencode/auth.json; fi && opencode plugin @tarquinen/opencode-dcp@latest --global --force --pure",
@@ -73,9 +77,7 @@ function opencodeService(opts: {
     captureSessions: false,
     buildPrintCommand({ prompt }) {
       const args = [
-        "npx",
-        "--yes",
-        "tsx",
+        "./node_modules/.bin/tsx",
         ".sandcastle/opencode-service-agent.mts",
         "--role",
         opts.role,
@@ -250,58 +252,76 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // and reviewer share the same sandbox instance per branch. The implementer
   // runs first; if it produces commits, the reviewer runs in the same sandbox.
   //
-  // Promise.allSettled means one failing pipeline doesn't cancel the others.
+  // Issues run in bounded batches. Promise.allSettled means one failing
+  // pipeline doesn't cancel the other pipelines in its batch.
   // -------------------------------------------------------------------------
 
-  const settled = await Promise.allSettled(
-    issues.map(async (issue) => {
-      const sandbox = await sandcastle.createSandbox({
-        branch: issue.branch,
-        sandbox: docker(),
-        hooks,
-        copyToWorktree,
-      });
+  const settled: PromiseSettledResult<sandcastle.SandboxRunResult>[] = [];
 
-      try {
-        // Run the implementer
-        const implement = await sandbox.run({
-          name: "implementer",
-          maxIterations: 100,
-          agent: opencodeService({ role: "implementer", title: issue.title }),
-          promptFile: "./.sandcastle/implement-prompt.md",
-          promptArgs: {
-            TASK_ID: issue.id,
-            ISSUE_TITLE: issue.title,
-            BRANCH: issue.branch,
-          },
+  for (let start = 0; start < issues.length; start += MAX_PARALLEL_IMPLEMENTERS) {
+    const batch = issues.slice(start, start + MAX_PARALLEL_IMPLEMENTERS);
+    const batchNumber = Math.floor(start / MAX_PARALLEL_IMPLEMENTERS) + 1;
+    const batchCount = Math.ceil(issues.length / MAX_PARALLEL_IMPLEMENTERS);
+
+    console.log(
+      `\nStarting batch ${batchNumber}/${batchCount} (${batch.length} issue(s), max ${MAX_PARALLEL_IMPLEMENTERS} implementers):`,
+    );
+    for (const issue of batch) {
+      console.log(`  ${issue.id}: ${issue.title} → ${issue.branch}`);
+    }
+
+    const batchSettled = await Promise.allSettled(
+      batch.map(async (issue) => {
+        const sandbox = await sandcastle.createSandbox({
+          branch: issue.branch,
+          sandbox: docker(),
+          hooks,
+          copyToWorktree,
         });
 
-        // Only review if the implementer produced commits
-        if (implement.commits.length > 0) {
-          const review = await sandbox.run({
-            name: "reviewer",
-            maxIterations: 1,
-            agent: opencodeService({ role: "reviewer", title: issue.title }),
-            promptFile: "./.sandcastle/review-prompt.md",
+        try {
+          // Run the implementer
+          const implement = await sandbox.run({
+            name: "implementer",
+            maxIterations: 100,
+            agent: opencodeService({ role: "implementer", title: issue.title }),
+            promptFile: "./.sandcastle/implement-prompt.md",
             promptArgs: {
+              TASK_ID: issue.id,
+              ISSUE_TITLE: issue.title,
               BRANCH: issue.branch,
             },
           });
 
-          // Merge commits from both runs so the merge phase sees all of them.
-          // Each sandbox.run() only returns commits from its own run.
-          return {
-            ...review,
-            commits: [...implement.commits, ...review.commits],
-          };
-        }
+          // Only review if the implementer produced commits
+          if (implement.commits.length > 0) {
+            const review = await sandbox.run({
+              name: "reviewer",
+              maxIterations: 1,
+              agent: opencodeService({ role: "reviewer", title: issue.title }),
+              promptFile: "./.sandcastle/review-prompt.md",
+              promptArgs: {
+                BRANCH: issue.branch,
+              },
+            });
 
-        return implement;
-      } finally {
-        await sandbox.close();
-      }
-    }),
-  );
+            // Merge commits from both runs so the merge phase sees all of them.
+            // Each sandbox.run() only returns commits from its own run.
+            return {
+              ...review,
+              commits: [...implement.commits, ...review.commits],
+            };
+          }
+
+          return implement;
+        } finally {
+          await sandbox.close();
+        }
+      }),
+    );
+
+    settled.push(...batchSettled);
+  }
 
   // Log any agents that threw (network error, sandbox crash, etc.).
   for (const [i, outcome] of settled.entries()) {

@@ -54,8 +54,8 @@ services:
 
     web:
         build:
-            context: ./web
-            dockerfile: Dockerfile
+            context: .
+            dockerfile: web/Dockerfile
         container_name: pulsescore-web
         restart: unless-stopped
         depends_on:

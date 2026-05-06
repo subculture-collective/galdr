@@ -66,8 +66,8 @@ The API starts on http://localhost:8080. Health check: `GET /healthz`
 
 ```bash
 cd web
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 The frontend starts on http://localhost:5173.
@@ -128,14 +128,14 @@ If needed, you can run the same deploy logic directly on the server:
 
 | Command           | Description              |
 | ----------------- | ------------------------ |
-| `npm run dev`     | Start Vite dev server    |
-| `npm run seo:validate` | Validate SEO catalog integrity (families/slugs/keywords) |
-| `npm run seo:artifacts` | Generate sitemap artifacts in `web/public/sitemaps/` |
-| `npm run seo:prerender` | Pre-render SEO routes into `web/dist/` |
-| `npm run build`   | Production build + SEO validate/artifacts/prerender |
-| `npm run lint`    | ESLint check             |
-| `npm run format`  | Format with Prettier     |
-| `npm run preview` | Preview production build |
+| `pnpm run dev`     | Start Vite dev server    |
+| `pnpm run seo:validate` | Validate SEO catalog integrity (families/slugs/keywords) |
+| `pnpm run seo:artifacts` | Generate sitemap artifacts in `web/public/sitemaps/` |
+| `pnpm run seo:prerender` | Pre-render SEO routes into `web/dist/` |
+| `pnpm run build`   | Production build + SEO validate/artifacts/prerender |
+| `pnpm run lint`    | ESLint check             |
+| `pnpm run format`  | Format with Prettier     |
+| `pnpm run preview` | Preview production build |
 
 ## Billing & Subscription (Epic 12)
 

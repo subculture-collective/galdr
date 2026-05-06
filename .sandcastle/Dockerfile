@@ -23,9 +23,13 @@ RUN usermod -d /home/agent -m -l agent node
 # Install OpenCode CLI (run as root before USER agent)
 RUN npm install -g opencode-ai@latest
 
+# Install pnpm for sandbox setup and agent commands. Use the real binary instead
+# of a Corepack shim so non-interactive sandbox hooks do not prompt/download.
+RUN npm install -g pnpm@10.33.3
+
 # Install RTK for the OpenCode rtk plugin.
 # The binary is a local development artifact copied from the host by setup.
-COPY .sandcastle/bin/rtk /usr/local/bin/rtk
+COPY bin/rtk /usr/local/bin/rtk
 RUN chmod 0755 /usr/local/bin/rtk
 
 USER agent
