@@ -37,6 +37,11 @@ type BenchmarkContribution struct {
 	ContributedAt          time.Time `json:"contributed_at"`
 }
 
+type BenchmarkContributionPair struct {
+	Previous BenchmarkContribution `json:"previous"`
+	Current  BenchmarkContribution `json:"current"`
+}
+
 type BenchmarkAggregate struct {
 	ID                uuid.UUID `json:"id"`
 	Industry          string    `json:"industry"`
@@ -136,6 +141,68 @@ func (r *BenchmarkRepository) ListLatestContributions(ctx context.Context) ([]Be
 	return contributions, nil
 }
 
+func (r *BenchmarkRepository) ListLatestContributionPairs(ctx context.Context) ([]BenchmarkContributionPair, error) {
+	query := `
+		WITH ranked AS (
+			SELECT
+				id, org_id, industry, company_size_bucket, avg_health_score,
+				avg_mrr, avg_churn_rate, active_integration_count,
+				customer_count_bucket, contributed_at,
+				ROW_NUMBER() OVER (PARTITION BY org_id ORDER BY contributed_at DESC) AS rn
+			FROM benchmark_contributions
+		)
+		SELECT
+			prev.id, prev.org_id, prev.industry, prev.company_size_bucket, prev.avg_health_score,
+			prev.avg_mrr, prev.avg_churn_rate, prev.active_integration_count,
+			prev.customer_count_bucket, prev.contributed_at,
+			curr.id, curr.org_id, curr.industry, curr.company_size_bucket, curr.avg_health_score,
+			curr.avg_mrr, curr.avg_churn_rate, curr.active_integration_count,
+			curr.customer_count_bucket, curr.contributed_at
+		FROM ranked curr
+		JOIN ranked prev ON prev.org_id = curr.org_id AND prev.rn = 2
+		WHERE curr.rn = 1`
+
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list latest benchmark contribution pairs: %w", err)
+	}
+	defer rows.Close()
+
+	pairs := []BenchmarkContributionPair{}
+	for rows.Next() {
+		var pair BenchmarkContributionPair
+		if err := rows.Scan(
+			&pair.Previous.ID,
+			&pair.Previous.OrgID,
+			&pair.Previous.Industry,
+			&pair.Previous.CompanySizeBucket,
+			&pair.Previous.AvgHealthScore,
+			&pair.Previous.AvgMRR,
+			&pair.Previous.AvgChurnRate,
+			&pair.Previous.ActiveIntegrationCount,
+			&pair.Previous.CustomerCountBucket,
+			&pair.Previous.ContributedAt,
+			&pair.Current.ID,
+			&pair.Current.OrgID,
+			&pair.Current.Industry,
+			&pair.Current.CompanySizeBucket,
+			&pair.Current.AvgHealthScore,
+			&pair.Current.AvgMRR,
+			&pair.Current.AvgChurnRate,
+			&pair.Current.ActiveIntegrationCount,
+			&pair.Current.CustomerCountBucket,
+			&pair.Current.ContributedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan benchmark contribution pair: %w", err)
+		}
+		pairs = append(pairs, pair)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate benchmark contribution pairs: %w", err)
+	}
+	return pairs, nil
+}
+
 func (r *BenchmarkRepository) DeleteContributionsByOrg(ctx context.Context, orgID uuid.UUID) error {
 	query := `DELETE FROM benchmark_contributions WHERE org_id = $1`
 	if _, err := r.pool.Exec(ctx, query, orgID); err != nil {
@@ -178,6 +245,47 @@ func (r *BenchmarkRepository) CreateAggregate(ctx context.Context, aggregate *Be
 	}
 
 	return nil
+}
+
+func (r *BenchmarkRepository) ListLatestAggregates(ctx context.Context) ([]BenchmarkAggregate, error) {
+	query := `
+		SELECT DISTINCT ON (industry, company_size_bucket, metric_name)
+			id, industry, company_size_bucket, metric_name, p25, p50,
+			p75, p90, sample_count, quality_score, quality_level, calculated_at
+		FROM benchmark_aggregates
+		ORDER BY industry, company_size_bucket, metric_name, calculated_at DESC`
+
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list latest benchmark aggregates: %w", err)
+	}
+	defer rows.Close()
+
+	aggregates := []BenchmarkAggregate{}
+	for rows.Next() {
+		var aggregate BenchmarkAggregate
+		if err := rows.Scan(
+			&aggregate.ID,
+			&aggregate.Industry,
+			&aggregate.CompanySizeBucket,
+			&aggregate.MetricName,
+			&aggregate.P25,
+			&aggregate.P50,
+			&aggregate.P75,
+			&aggregate.P90,
+			&aggregate.SampleCount,
+			&aggregate.QualityScore,
+			&aggregate.QualityLevel,
+			&aggregate.CalculatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan latest benchmark aggregate: %w", err)
+		}
+		aggregates = append(aggregates, aggregate)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate latest benchmark aggregates: %w", err)
+	}
+	return aggregates, nil
 }
 
 type BenchmarkMetricsRepository struct {

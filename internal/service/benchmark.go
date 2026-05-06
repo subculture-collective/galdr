@@ -437,6 +437,346 @@ func benchmarkQualityLevel(score float64) string {
 	}
 }
 
+const benchmarkInsightNotificationType = "benchmark_insight"
+
+type BenchmarkContributionPairReader interface {
+	ListLatestContributionPairs(ctx context.Context) ([]repository.BenchmarkContributionPair, error)
+}
+
+type BenchmarkAggregateReader interface {
+	ListLatestAggregates(ctx context.Context) ([]repository.BenchmarkAggregate, error)
+}
+
+type BenchmarkMemberReader interface {
+	ListMembers(ctx context.Context, orgID uuid.UUID) ([]repository.OrgMember, error)
+}
+
+type BenchmarkNotificationWriter interface {
+	Create(ctx context.Context, notification *repository.Notification) error
+}
+
+type BenchmarkPreferenceReader interface {
+	Get(ctx context.Context, userID, orgID uuid.UUID) (*repository.NotificationPreference, error)
+}
+
+type BenchmarkEmailSender interface {
+	SendEmail(ctx context.Context, params SendEmailParams) (string, error)
+}
+
+type BenchmarkInsightNotificationDeps struct {
+	Contributions BenchmarkContributionPairReader
+	Aggregates     BenchmarkAggregateReader
+	Members        BenchmarkMemberReader
+	Notifications  BenchmarkNotificationWriter
+	Preferences    BenchmarkPreferenceReader
+	Emails         BenchmarkEmailSender
+	FrontendURL    string
+}
+
+type BenchmarkInsightNotificationService struct {
+	contributions BenchmarkContributionPairReader
+	aggregates     BenchmarkAggregateReader
+	members        BenchmarkMemberReader
+	notifications  BenchmarkNotificationWriter
+	preferences    BenchmarkPreferenceReader
+	emails         BenchmarkEmailSender
+	frontendURL    string
+}
+
+type BenchmarkWeeklyDigestSummary struct {
+	OrgID              uuid.UUID
+	OrgName            string
+	MetricName         string
+	PreviousPercentile float64
+	CurrentPercentile  float64
+}
+
+type benchmarkInsight struct {
+	orgID              uuid.UUID
+	metricName         string
+	message            string
+	previousValue      float64
+	currentValue       float64
+	previousPercentile float64
+	currentPercentile  float64
+}
+
+func NewBenchmarkInsightNotificationService(deps BenchmarkInsightNotificationDeps) *BenchmarkInsightNotificationService {
+	return &BenchmarkInsightNotificationService{
+		contributions: deps.Contributions,
+		aggregates:     deps.Aggregates,
+		members:        deps.Members,
+		notifications:  deps.Notifications,
+		preferences:    deps.Preferences,
+		emails:         deps.Emails,
+		frontendURL:    deps.FrontendURL,
+	}
+}
+
+func (s *BenchmarkInsightNotificationService) RunOnce(ctx context.Context) error {
+	if s.contributions == nil || s.aggregates == nil || s.members == nil || s.notifications == nil {
+		return nil
+	}
+	pairs, err := s.contributions.ListLatestContributionPairs(ctx)
+	if err != nil {
+		return fmt.Errorf("list benchmark contribution pairs: %w", err)
+	}
+	aggregates, err := s.aggregates.ListLatestAggregates(ctx)
+	if err != nil {
+		return fmt.Errorf("list benchmark aggregates: %w", err)
+	}
+	aggregateByKey := benchmarkAggregateByKey(aggregates)
+
+	for _, pair := range pairs {
+		for _, metric := range benchmarkContributionMetrics(pair.Previous, pair.Current) {
+			aggregate, ok := aggregateByKey[benchmarkAggregateKey{
+				industry:          pair.Current.Industry,
+				companySizeBucket: pair.Current.CompanySizeBucket,
+				metricName:        metric.name,
+			}]
+			if !ok {
+				continue
+			}
+			insight, ok := benchmarkInsightFromMetric(pair.Current.OrgID, metric, aggregate)
+			if !ok {
+				continue
+			}
+			if err := s.notifyMembers(ctx, insight); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *BenchmarkInsightNotificationService) SendWeeklyDigest(ctx context.Context, summaries []BenchmarkWeeklyDigestSummary) error {
+	if s.members == nil || s.emails == nil {
+		return nil
+	}
+	for _, summary := range summaries {
+		members, err := s.members.ListMembers(ctx, summary.OrgID)
+		if err != nil {
+			return fmt.Errorf("list benchmark digest members: %w", err)
+		}
+		for _, member := range members {
+			if !s.shouldSendDigest(ctx, member.UserID, summary.OrgID) || strings.TrimSpace(member.Email) == "" {
+				continue
+			}
+			if _, err := s.emails.SendEmail(ctx, SendEmailParams{
+				To:       member.Email,
+				Subject:  "Your weekly benchmark summary",
+				TextBody: benchmarkDigestText(summary),
+				HTMLBody: benchmarkDigestHTML(summary),
+			}); err != nil {
+				return fmt.Errorf("send benchmark digest email: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+func (s *BenchmarkInsightNotificationService) SendWeeklyDigestFromLatest(ctx context.Context) error {
+	if s.contributions == nil || s.aggregates == nil {
+		return nil
+	}
+	pairs, err := s.contributions.ListLatestContributionPairs(ctx)
+	if err != nil {
+		return fmt.Errorf("list benchmark digest contribution pairs: %w", err)
+	}
+	aggregates, err := s.aggregates.ListLatestAggregates(ctx)
+	if err != nil {
+		return fmt.Errorf("list benchmark digest aggregates: %w", err)
+	}
+	aggregateByKey := benchmarkAggregateByKey(aggregates)
+
+	summaries := make([]BenchmarkWeeklyDigestSummary, 0, len(pairs))
+	for _, pair := range pairs {
+		aggregate, ok := aggregateByKey[benchmarkAggregateKey{
+			industry:          pair.Current.Industry,
+			companySizeBucket: pair.Current.CompanySizeBucket,
+			metricName:        repository.BenchmarkMetricHealthScore,
+		}]
+		if !ok {
+			continue
+		}
+		summaries = append(summaries, BenchmarkWeeklyDigestSummary{
+			OrgID:              pair.Current.OrgID,
+			MetricName:         repository.BenchmarkMetricHealthScore,
+			PreviousPercentile: benchmarkPosition(pair.Previous.AvgHealthScore, aggregate),
+			CurrentPercentile:  benchmarkPosition(pair.Current.AvgHealthScore, aggregate),
+		})
+	}
+	return s.SendWeeklyDigest(ctx, summaries)
+}
+
+func (s *BenchmarkInsightNotificationService) notifyMembers(ctx context.Context, insight benchmarkInsight) error {
+	members, err := s.members.ListMembers(ctx, insight.orgID)
+	if err != nil {
+		return fmt.Errorf("list benchmark notification members: %w", err)
+	}
+	for _, member := range members {
+		pref := s.preference(ctx, member.UserID, insight.orgID)
+		if pref.InAppEnabled {
+			notification := &repository.Notification{
+				UserID:  member.UserID,
+				OrgID:   insight.orgID,
+				Type:    benchmarkInsightNotificationType,
+				Title:   "Benchmark insight",
+				Message: insight.message,
+				Data: map[string]any{
+					"metric_name":         insight.metricName,
+					"previous_value":      insight.previousValue,
+					"current_value":       insight.currentValue,
+					"previous_percentile": insight.previousPercentile,
+					"current_percentile":  insight.currentPercentile,
+				},
+			}
+			if err := s.notifications.Create(ctx, notification); err != nil {
+				return fmt.Errorf("create benchmark insight notification: %w", err)
+			}
+		}
+		if pref.EmailEnabled && s.emails != nil && strings.TrimSpace(member.Email) != "" {
+			if _, err := s.emails.SendEmail(ctx, SendEmailParams{
+				To:       member.Email,
+				Subject:  "Benchmark insight",
+				TextBody: insight.message,
+				HTMLBody: "<p>" + insight.message + "</p>",
+			}); err != nil {
+				return fmt.Errorf("send benchmark insight email: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+func (s *BenchmarkInsightNotificationService) preference(ctx context.Context, userID, orgID uuid.UUID) *repository.NotificationPreference {
+	if s.preferences == nil {
+		return defaultBenchmarkNotificationPreference(userID, orgID)
+	}
+	pref, err := s.preferences.Get(ctx, userID, orgID)
+	if err != nil || pref == nil {
+		return defaultBenchmarkNotificationPreference(userID, orgID)
+	}
+	return pref
+}
+
+func (s *BenchmarkInsightNotificationService) shouldSendDigest(ctx context.Context, userID, orgID uuid.UUID) bool {
+	pref := s.preference(ctx, userID, orgID)
+	return pref.EmailEnabled && pref.DigestEnabled && pref.DigestFrequency == "weekly"
+}
+
+func defaultBenchmarkNotificationPreference(userID, orgID uuid.UUID) *repository.NotificationPreference {
+	return &repository.NotificationPreference{
+		UserID:          userID,
+		OrgID:           orgID,
+		EmailEnabled:    true,
+		InAppEnabled:    true,
+		DigestFrequency: "weekly",
+	}
+}
+
+type benchmarkAggregateKey struct {
+	industry          string
+	companySizeBucket string
+	metricName        string
+}
+
+func benchmarkAggregateByKey(aggregates []repository.BenchmarkAggregate) map[benchmarkAggregateKey]repository.BenchmarkAggregate {
+	byKey := make(map[benchmarkAggregateKey]repository.BenchmarkAggregate, len(aggregates))
+	for _, aggregate := range aggregates {
+		byKey[benchmarkAggregateKey{industry: aggregate.Industry, companySizeBucket: aggregate.CompanySizeBucket, metricName: aggregate.MetricName}] = aggregate
+	}
+	return byKey
+}
+
+type benchmarkContributionMetric struct {
+	name     string
+	previous float64
+	current  float64
+}
+
+func benchmarkContributionMetrics(previous, current repository.BenchmarkContribution) []benchmarkContributionMetric {
+	return []benchmarkContributionMetric{
+		{name: repository.BenchmarkMetricHealthScore, previous: previous.AvgHealthScore, current: current.AvgHealthScore},
+		{name: repository.BenchmarkMetricMRRPerCustomer, previous: float64(previous.AvgMRR), current: float64(current.AvgMRR)},
+		{name: repository.BenchmarkMetricChurnRate, previous: previous.AvgChurnRate, current: current.AvgChurnRate},
+		{name: repository.BenchmarkMetricIntegrationUsage, previous: float64(previous.ActiveIntegrationCount), current: float64(current.ActiveIntegrationCount)},
+	}
+}
+
+func benchmarkInsightFromMetric(orgID uuid.UUID, metric benchmarkContributionMetric, aggregate repository.BenchmarkAggregate) (benchmarkInsight, bool) {
+	previousPercentile := benchmarkPosition(metric.previous, aggregate)
+	currentPercentile := benchmarkPosition(metric.current, aggregate)
+	switch {
+	case metric.previous >= aggregate.P50 && metric.current < aggregate.P50:
+		return benchmarkInsight{
+			orgID:              orgID,
+			metricName:         metric.name,
+			message:            fmt.Sprintf("Your %s dropped below the industry median (P50).", benchmarkMetricLabel(metric.name)),
+			previousValue:      metric.previous,
+			currentValue:       metric.current,
+			previousPercentile: previousPercentile,
+			currentPercentile:  currentPercentile,
+		}, true
+	case metric.previous < aggregate.P75 && metric.current >= aggregate.P75:
+		return benchmarkInsight{
+			orgID:              orgID,
+			metricName:         metric.name,
+			message:            fmt.Sprintf("Your %s rose above the industry P75 benchmark.", benchmarkMetricLabel(metric.name)),
+			previousValue:      metric.previous,
+			currentValue:       metric.current,
+			previousPercentile: previousPercentile,
+			currentPercentile:  currentPercentile,
+		}, true
+	default:
+		return benchmarkInsight{}, false
+	}
+}
+
+func benchmarkPosition(value float64, aggregate repository.BenchmarkAggregate) float64 {
+	switch {
+	case value < aggregate.P25:
+		return 10
+	case value < aggregate.P50:
+		return 25
+	case value < aggregate.P75:
+		return 50
+	case value < aggregate.P90:
+		return 75
+	default:
+		return 90
+	}
+}
+
+func benchmarkMetricLabel(metricName string) string {
+	switch metricName {
+	case repository.BenchmarkMetricHealthScore:
+		return "health score"
+	case repository.BenchmarkMetricMRRPerCustomer:
+		return "MRR per customer"
+	case repository.BenchmarkMetricChurnRate:
+		return "churn rate"
+	case repository.BenchmarkMetricIntegrationUsage:
+		return "integration usage"
+	default:
+		return strings.ReplaceAll(metricName, "_", " ")
+	}
+}
+
+func benchmarkDigestText(summary BenchmarkWeeklyDigestSummary) string {
+	direction := "unchanged from"
+	if summary.CurrentPercentile > summary.PreviousPercentile {
+		direction = "up from"
+	} else if summary.CurrentPercentile < summary.PreviousPercentile {
+		direction = "down from"
+	}
+	return fmt.Sprintf("This week your %s ranked at P%.0f - %s P%.0f.", benchmarkMetricLabel(summary.MetricName), summary.CurrentPercentile, direction, summary.PreviousPercentile)
+}
+
+func benchmarkDigestHTML(summary BenchmarkWeeklyDigestSummary) string {
+	return "<p>" + benchmarkDigestText(summary) + "</p>"
+}
+
 func percentile(sortedValues []float64, quantile float64) float64 {
 	if len(sortedValues) == 0 {
 		return 0
@@ -544,13 +884,43 @@ func (p *BenchmarkPipeline) contributeOrg(ctx context.Context, org repository.Or
 	return nil
 }
 
+type BenchmarkRunner interface {
+	RunOnce(ctx context.Context) error
+}
+
+type BenchmarkRunnerFunc func(ctx context.Context) error
+
+func (f BenchmarkRunnerFunc) RunOnce(ctx context.Context) error {
+	return f(ctx)
+}
+
+type BenchmarkWorkflow struct {
+	runners []BenchmarkRunner
+}
+
+func NewBenchmarkWorkflow(runners ...BenchmarkRunner) *BenchmarkWorkflow {
+	return &BenchmarkWorkflow{runners: runners}
+}
+
+func (w *BenchmarkWorkflow) RunOnce(ctx context.Context) error {
+	for _, runner := range w.runners {
+		if runner == nil {
+			continue
+		}
+		if err := runner.RunOnce(ctx); err != nil {
+			return fmt.Errorf("run benchmark workflow: %w", err)
+		}
+	}
+	return nil
+}
+
 type BenchmarkScheduler struct {
-	pipeline *BenchmarkPipeline
+	runner   BenchmarkRunner
 	interval time.Duration
 }
 
-func NewBenchmarkScheduler(pipeline *BenchmarkPipeline, interval time.Duration) *BenchmarkScheduler {
-	return &BenchmarkScheduler{pipeline: pipeline, interval: interval}
+func NewBenchmarkScheduler(runner BenchmarkRunner, interval time.Duration) *BenchmarkScheduler {
+	return &BenchmarkScheduler{runner: runner, interval: interval}
 }
 
 func (s *BenchmarkScheduler) Start(ctx context.Context) {
@@ -564,8 +934,11 @@ func (s *BenchmarkScheduler) Start(ctx context.Context) {
 			slog.Info("benchmark scheduler stopped")
 			return
 		case <-ticker.C:
-			if err := s.pipeline.RunOnce(ctx); err != nil {
-				slog.Error("benchmark contribution run failed", "error", err)
+			if s.runner == nil {
+				continue
+			}
+			if err := s.runner.RunOnce(ctx); err != nil {
+				slog.Error("benchmark scheduler run failed", "error", err)
 			}
 		}
 	}

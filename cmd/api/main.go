@@ -566,8 +566,25 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 
 			if cfg.Benchmark.ContributionIntervalHr > 0 {
 				benchmarkPipeline := service.NewBenchmarkPipeline(orgRepo, benchmarkMetricsRepo, benchmarkRepo, service.NewBenchmarkAnonymizer())
-				benchmarkScheduler := service.NewBenchmarkScheduler(benchmarkPipeline, time.Duration(cfg.Benchmark.ContributionIntervalHr)*time.Hour)
+				benchmarkAggregation := service.NewBenchmarkAggregationService(benchmarkRepo, benchmarkRepo)
+				benchmarkNotifications := service.NewBenchmarkInsightNotificationService(service.BenchmarkInsightNotificationDeps{
+					Contributions: benchmarkRepo,
+					Aggregates:     benchmarkRepo,
+					Members:        orgRepo,
+					Notifications:  notifRepo,
+					Preferences:    notifPrefSvc,
+					Emails:         emailSvc,
+					FrontendURL:    cfg.SendGrid.FrontendURL,
+				})
+				benchmarkWorkflow := service.NewBenchmarkWorkflow(benchmarkPipeline, benchmarkAggregation, benchmarkNotifications)
+				benchmarkScheduler := service.NewBenchmarkScheduler(benchmarkWorkflow, time.Duration(cfg.Benchmark.ContributionIntervalHr)*time.Hour)
 				go benchmarkScheduler.Start(bgCtx)
+
+				benchmarkDigestScheduler := service.NewBenchmarkScheduler(
+					service.BenchmarkRunnerFunc(benchmarkNotifications.SendWeeklyDigestFromLatest),
+					7*24*time.Hour,
+				)
+				go benchmarkDigestScheduler.Start(bgCtx)
 			}
 
 			usageScheduler := billingsvc.NewUsageScheduler(orgRepo, usageAnalyticsSvc, 24*time.Hour)

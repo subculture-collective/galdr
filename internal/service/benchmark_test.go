@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +35,154 @@ func TestBenchmarkBucketCompanySize(t *testing.T) {
 				t.Errorf("expected %q, got %q", tc.expected, got)
 			}
 		})
+	}
+}
+
+func TestBenchmarkInsightNotificationsDetectBelowMedianDrop(t *testing.T) {
+	orgID := uuid.New()
+	userID := uuid.New()
+	repo := &fakeBenchmarkInsightRepo{
+		pairs: []repository.BenchmarkContributionPair{
+			{
+				Previous: benchmarkContributionForOrg(orgID, "saas", repository.BenchmarkBucket11To50, 72, 1000, 0.10, 2),
+				Current:  benchmarkContributionForOrg(orgID, "saas", repository.BenchmarkBucket11To50, 48, 1000, 0.10, 2),
+			},
+		},
+		aggregates: []repository.BenchmarkAggregate{
+			{Industry: "saas", CompanySizeBucket: repository.BenchmarkBucket11To50, MetricName: repository.BenchmarkMetricHealthScore, P25: 40, P50: 60, P75: 80, P90: 90},
+		},
+		members: map[uuid.UUID][]repository.OrgMember{
+			orgID: {{UserID: userID, Email: "owner@example.com", Role: "owner"}},
+		},
+		prefs: map[uuid.UUID]*repository.NotificationPreference{
+			userID: {UserID: userID, OrgID: orgID, InAppEnabled: true, EmailEnabled: true},
+		},
+	}
+	notifier := NewBenchmarkInsightNotificationService(BenchmarkInsightNotificationDeps{
+		Contributions: repo,
+		Aggregates:     repo,
+		Members:        repo,
+		Notifications:  repo,
+		Preferences:    repo,
+	})
+
+	if err := notifier.RunOnce(context.Background()); err != nil {
+		t.Fatalf("run notifier: %v", err)
+	}
+
+	if len(repo.notifications) != 1 {
+		t.Fatalf("expected 1 notification, got %d", len(repo.notifications))
+	}
+	notification := repo.notifications[0]
+	if notification.Type != "benchmark_insight" {
+		t.Fatalf("expected benchmark_insight type, got %q", notification.Type)
+	}
+	if !strings.Contains(notification.Message, "dropped below the industry median") {
+		t.Fatalf("expected below-median message, got %q", notification.Message)
+	}
+	if notification.Data["metric_name"] != repository.BenchmarkMetricHealthScore {
+		t.Fatalf("expected metric data, got %#v", notification.Data)
+	}
+}
+
+func TestBenchmarkInsightWeeklyDigestEmailsOptedInMembers(t *testing.T) {
+	orgID := uuid.New()
+	weeklyUserID := uuid.New()
+	disabledUserID := uuid.New()
+	repo := &fakeBenchmarkInsightRepo{
+		members: map[uuid.UUID][]repository.OrgMember{
+			orgID: {
+				{UserID: weeklyUserID, Email: "weekly@example.com", Role: "owner"},
+				{UserID: disabledUserID, Email: "disabled@example.com", Role: "admin"},
+			},
+		},
+		prefs: map[uuid.UUID]*repository.NotificationPreference{
+			weeklyUserID:   {UserID: weeklyUserID, OrgID: orgID, EmailEnabled: true, DigestEnabled: true, DigestFrequency: "weekly"},
+			disabledUserID: {UserID: disabledUserID, OrgID: orgID, EmailEnabled: true, DigestEnabled: false, DigestFrequency: "weekly"},
+		},
+	}
+	emails := &fakeBenchmarkEmailSender{}
+	notifier := NewBenchmarkInsightNotificationService(BenchmarkInsightNotificationDeps{
+		Members:     repo,
+		Preferences: repo,
+		Emails:      emails,
+		FrontendURL: "https://app.example.com",
+	})
+
+	err := notifier.SendWeeklyDigest(context.Background(), []BenchmarkWeeklyDigestSummary{
+		{OrgID: orgID, OrgName: "Acme", MetricName: repository.BenchmarkMetricHealthScore, PreviousPercentile: 58, CurrentPercentile: 65},
+	})
+	if err != nil {
+		t.Fatalf("send digest: %v", err)
+	}
+
+	if len(emails.sent) != 1 {
+		t.Fatalf("expected 1 digest email, got %d", len(emails.sent))
+	}
+	if emails.sent[0].To != "weekly@example.com" {
+		t.Fatalf("expected weekly recipient, got %q", emails.sent[0].To)
+	}
+	if !strings.Contains(emails.sent[0].TextBody, "ranked at P65 - up from P58") {
+		t.Fatalf("expected benchmark percentile copy, got %q", emails.sent[0].TextBody)
+	}
+}
+
+func TestBenchmarkInsightWeeklyDigestBuildsLatestSummaries(t *testing.T) {
+	orgID := uuid.New()
+	userID := uuid.New()
+	repo := &fakeBenchmarkInsightRepo{
+		pairs: []repository.BenchmarkContributionPair{
+			{
+				Previous: benchmarkContributionForOrg(orgID, "saas", repository.BenchmarkBucket11To50, 58, 1000, 0.10, 2),
+				Current:  benchmarkContributionForOrg(orgID, "saas", repository.BenchmarkBucket11To50, 65, 1000, 0.10, 2),
+			},
+		},
+		aggregates: []repository.BenchmarkAggregate{
+			{Industry: "saas", CompanySizeBucket: repository.BenchmarkBucket11To50, MetricName: repository.BenchmarkMetricHealthScore, P25: 25, P50: 50, P75: 75, P90: 90},
+		},
+		members: map[uuid.UUID][]repository.OrgMember{
+			orgID: {{UserID: userID, Email: "weekly@example.com", Role: "owner"}},
+		},
+		prefs: map[uuid.UUID]*repository.NotificationPreference{
+			userID: {UserID: userID, OrgID: orgID, EmailEnabled: true, DigestEnabled: true, DigestFrequency: "weekly"},
+		},
+	}
+	emails := &fakeBenchmarkEmailSender{}
+	notifier := NewBenchmarkInsightNotificationService(BenchmarkInsightNotificationDeps{
+		Contributions: repo,
+		Aggregates:     repo,
+		Members:        repo,
+		Preferences:    repo,
+		Emails:         emails,
+	})
+
+	if err := notifier.SendWeeklyDigestFromLatest(context.Background()); err != nil {
+		t.Fatalf("send latest digest: %v", err)
+	}
+
+	if len(emails.sent) != 1 {
+		t.Fatalf("expected 1 digest email, got %d", len(emails.sent))
+	}
+	if !strings.Contains(emails.sent[0].TextBody, "This week your health score ranked at P50 - unchanged from P50") {
+		t.Fatalf("expected generated digest copy, got %q", emails.sent[0].TextBody)
+	}
+}
+
+func TestBenchmarkWorkflowRunsContributionAggregationAndInsightsInOrder(t *testing.T) {
+	var calls []string
+	workflow := NewBenchmarkWorkflow(
+		&fakeBenchmarkRunner{name: "contributions", calls: &calls},
+		&fakeBenchmarkRunner{name: "aggregates", calls: &calls},
+		&fakeBenchmarkRunner{name: "insights", calls: &calls},
+	)
+
+	if err := workflow.RunOnce(context.Background()); err != nil {
+		t.Fatalf("run workflow: %v", err)
+	}
+
+	got := strings.Join(calls, ",")
+	if got != "contributions,aggregates,insights" {
+		t.Fatalf("expected workflow order, got %q", got)
 	}
 }
 
@@ -397,6 +546,13 @@ func benchmarkContribution(industry, bucket string, score float64, mrr int64, ch
 	return benchmarkContributionAt(industry, bucket, score, mrr, churnRate, integrationCount, time.Now().UTC())
 }
 
+func benchmarkContributionForOrg(orgID uuid.UUID, industry, bucket string, score float64, mrr int64, churnRate float64, integrationCount int) repository.BenchmarkContribution {
+	contribution := benchmarkContribution(industry, bucket, score, mrr, churnRate, integrationCount)
+	contribution.OrgID = orgID
+	contribution.ID = uuid.New()
+	return contribution
+}
+
 func benchmarkContributionAt(industry, bucket string, score float64, mrr int64, churnRate float64, integrationCount int, contributedAt time.Time) repository.BenchmarkContribution {
 	return repository.BenchmarkContribution{
 		OrgID:                  uuid.New(),
@@ -488,5 +644,56 @@ func (f *fakeBenchmarkAggregateRepo) aggregateByMetric(metric string) *repositor
 			return aggregate
 		}
 	}
+	return nil
+}
+
+type fakeBenchmarkInsightRepo struct {
+	pairs         []repository.BenchmarkContributionPair
+	aggregates    []repository.BenchmarkAggregate
+	members       map[uuid.UUID][]repository.OrgMember
+	prefs         map[uuid.UUID]*repository.NotificationPreference
+	notifications []*repository.Notification
+}
+
+func (f *fakeBenchmarkInsightRepo) ListLatestContributionPairs(ctx context.Context) ([]repository.BenchmarkContributionPair, error) {
+	return f.pairs, nil
+}
+
+func (f *fakeBenchmarkInsightRepo) ListLatestAggregates(ctx context.Context) ([]repository.BenchmarkAggregate, error) {
+	return f.aggregates, nil
+}
+
+func (f *fakeBenchmarkInsightRepo) ListMembers(ctx context.Context, orgID uuid.UUID) ([]repository.OrgMember, error) {
+	return f.members[orgID], nil
+}
+
+func (f *fakeBenchmarkInsightRepo) Get(ctx context.Context, userID, orgID uuid.UUID) (*repository.NotificationPreference, error) {
+	if pref, ok := f.prefs[userID]; ok {
+		return pref, nil
+	}
+	return &repository.NotificationPreference{UserID: userID, OrgID: orgID, EmailEnabled: true, InAppEnabled: true, DigestFrequency: "weekly"}, nil
+}
+
+func (f *fakeBenchmarkInsightRepo) Create(ctx context.Context, notification *repository.Notification) error {
+	f.notifications = append(f.notifications, notification)
+	return nil
+}
+
+type fakeBenchmarkEmailSender struct {
+	sent []SendEmailParams
+}
+
+func (f *fakeBenchmarkEmailSender) SendEmail(ctx context.Context, params SendEmailParams) (string, error) {
+	f.sent = append(f.sent, params)
+	return "message-id", nil
+}
+
+type fakeBenchmarkRunner struct {
+	name  string
+	calls *[]string
+}
+
+func (f *fakeBenchmarkRunner) RunOnce(ctx context.Context) error {
+	*f.calls = append(*f.calls, f.name)
 	return nil
 }
