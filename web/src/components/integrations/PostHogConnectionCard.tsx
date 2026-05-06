@@ -35,7 +35,7 @@ export default function PostHogConnectionCard() {
     try {
       const { data } = await postHogApi.getStatus();
       setStatus(data);
-      setProjectId(data.project_id ?? "");
+      setProjectId(data.project_id ?? data.external_account_id ?? "");
       setError("");
     } catch {
       setStatus(null);
@@ -63,7 +63,12 @@ export default function PostHogConnectionCard() {
         api_key: apiKey.trim(),
         project_id: projectId.trim(),
       });
-      setStatus(data);
+      setStatus({
+        status: "active",
+        project_id:
+          data.metadata?.project_id ?? data.external_account_id ?? projectId.trim(),
+        external_account_id: data.external_account_id,
+      });
       setApiKey("");
       setMessage("PostHog connected and API key validated.");
     } catch {

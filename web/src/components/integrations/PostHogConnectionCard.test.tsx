@@ -65,6 +65,16 @@ assertMatch(connected, /Last sync: May 5, 2026, 12:30 PM/);
 assertMatch(connected, /Sync Now/);
 assertMatch(connected, /Disconnect/);
 
+const genericStatus = render({
+  status: "active",
+  external_account_id: "67890",
+  customer_count: 52,
+  last_sync_at: "2026-05-05T12:30:00Z",
+});
+assertMatch(genericStatus, /Connected/);
+assertMatch(genericStatus, /Project ID: 67890/);
+assertMatch(genericStatus, /Customers synced: 52/);
+
 const errored = render({
   status: "error",
   last_sync_error: "invalid project",

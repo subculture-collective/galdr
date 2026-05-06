@@ -45,4 +45,20 @@ describe("PostHog connection view", () => {
       },
     );
   });
+
+  it("uses generic integration status fields for PostHog metrics", () => {
+    assert.deepEqual(
+      getPostHogConnectionView({
+        status: "active",
+        external_account_id: "67890",
+        customer_count: 52,
+      }),
+      {
+        badge: "Connected",
+        isConnected: true,
+        canSync: true,
+        metrics: ["Project ID: 67890", "Customers synced: 52"],
+      },
+    );
+  });
 });

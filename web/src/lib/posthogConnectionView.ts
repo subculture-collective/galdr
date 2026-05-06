@@ -13,9 +13,11 @@ export interface PostHogConnectionView {
 export interface PostHogConnectionStatus {
   status: string;
   project_id?: string;
+  external_account_id?: string;
   last_sync_at?: string;
   event_count?: number;
   user_count?: number;
+  customer_count?: number;
 }
 
 export function validatePostHogCredentials(
@@ -70,7 +72,11 @@ function badgeLabel(status: string): string {
 function connectionMetrics(status: PostHogConnectionStatus): string[] {
   const metrics: string[] = [];
 
-  if (status.project_id) metrics.push(`Project ID: ${status.project_id}`);
+  const projectID = status.project_id ?? status.external_account_id;
+  if (projectID) metrics.push(`Project ID: ${projectID}`);
+  if (status.customer_count !== undefined) {
+    metrics.push(`Customers synced: ${formatCount(status.customer_count)}`);
+  }
   if (status.event_count !== undefined) {
     metrics.push(`Events synced: ${formatCount(status.event_count)}`);
   }
