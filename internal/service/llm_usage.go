@@ -74,7 +74,8 @@ func (s *LLMUsageService) CheckLLMUsage(ctx context.Context, orgID uuid.UUID, es
 	if limits.DailyRequests >= 0 && summary.RequestsToday >= limits.DailyRequests {
 		return ErrLLMRateLimited
 	}
-	if limits.BudgetUSD >= 0 && summary.MonthlyCostUSD+estimatedCostUSD >= limits.BudgetUSD {
+	projectedMonthlyCostUSD := summary.MonthlyCostUSD + estimatedCostUSD
+	if limits.BudgetUSD >= 0 && projectedMonthlyCostUSD >= limits.BudgetUSD {
 		if manualRegeneration {
 			return ErrLLMBudgetConfirmationRequired
 		}
@@ -129,7 +130,7 @@ func (s *LLMUsageService) currentUsage(ctx context.Context, orgID uuid.UUID) (ll
 	if err != nil {
 		return limits, nil, fmt.Errorf("count monthly llm requests: %w", err)
 	}
-	inputTokensMonth, outputTokensMonth, err := s.usage.SumLLMUsageTokens(ctx, orgID, monthStart, nextMonth)
+	monthlyInputTokens, monthlyOutputTokens, err := s.usage.SumLLMUsageTokens(ctx, orgID, monthStart, nextMonth)
 	if err != nil {
 		return limits, nil, fmt.Errorf("sum monthly llm tokens: %w", err)
 	}
@@ -149,8 +150,8 @@ func (s *LLMUsageService) currentUsage(ctx context.Context, orgID uuid.UUID) (ll
 		DailyRequestLimit:  limits.DailyRequests,
 		RequestsThisMonth:  requestsMonth,
 		RemainingBudgetUSD: remaining,
-		InputTokensMonth:   inputTokensMonth,
-		OutputTokensMonth:  outputTokensMonth,
+		InputTokensMonth:   monthlyInputTokens,
+		OutputTokensMonth:  monthlyOutputTokens,
 	}, nil
 }
 

@@ -98,7 +98,14 @@ func TestLLMUsageServiceReportsBudgetWarningAtEightyPercent(t *testing.T) {
 }
 
 func TestLLMUsageServiceReportsMonthlyTokenUsage(t *testing.T) {
-	svc := NewLLMUsageService(&fakeLLMUsageRepo{cost: 1.25, dayCount: 2, monCount: 3, inputTokens: 1200, outputTokens: 450}, fakeLLMPlanResolver{tier: "growth"}, nil)
+	repo := &fakeLLMUsageRepo{
+		cost:         1.25,
+		dayCount:     2,
+		monCount:     3,
+		inputTokens:  1200,
+		outputTokens: 450,
+	}
+	svc := NewLLMUsageService(repo, fakeLLMPlanResolver{tier: "growth"}, nil)
 
 	summary, err := svc.GetLLMUsageSummary(context.Background(), uuid.New())
 	if err != nil {
