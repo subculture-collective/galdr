@@ -11,7 +11,7 @@ import {
 import api from "@/lib/api";
 import EmptyState from "@/components/EmptyState";
 import { useToast } from "@/contexts/ToastContext";
-import type { MarketplaceConnector } from "./MarketplacePage";
+import { ConnectorIcon, type MarketplaceConnector } from "./MarketplacePage";
 
 export interface ConnectorDetailPageViewProps {
   connector: MarketplaceConnector | null;
@@ -172,15 +172,11 @@ export function ConnectorDetailPageView({
 
           <aside className="rounded-2xl border border-[var(--galdr-border)] bg-[color:rgb(11_11_18_/_0.44)] p-5">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[color:rgb(34_211_238_/_0.26)] bg-[color:rgb(34_211_238_/_0.11)] text-[var(--galdr-accent-2)]">
-              {connector.manifest.icon_url ? (
-                <img
-                  src={connector.manifest.icon_url}
-                  alt={`${connector.name} icon`}
-                  className="h-9 w-9 rounded-xl object-cover"
-                />
-              ) : (
-                <PlugZap className="h-7 w-7" />
-              )}
+              <ConnectorIcon
+                connector={connector}
+                imageClassName="h-9 w-9 rounded-xl object-cover"
+                fallbackClassName="h-7 w-7"
+              />
             </div>
             <dl className="mt-5 grid gap-3 text-sm">
               <div>

@@ -82,6 +82,30 @@ interface MarketplaceResultsProps {
   onOpenInstall: (connector: MarketplaceConnector) => void;
 }
 
+interface ConnectorIconProps {
+  connector: MarketplaceConnector;
+  imageClassName: string;
+  fallbackClassName: string;
+}
+
+export function ConnectorIcon({
+  connector,
+  imageClassName,
+  fallbackClassName,
+}: ConnectorIconProps) {
+  if (connector.manifest.icon_url) {
+    return (
+      <img
+        src={connector.manifest.icon_url}
+        alt={`${connector.name} icon`}
+        className={imageClassName}
+      />
+    );
+  }
+
+  return <PlugZap className={fallbackClassName} />;
+}
+
 function authLabel(type: string) {
   switch (type) {
     case "oauth2":
@@ -202,15 +226,11 @@ function MarketplaceResults({
         >
           <div className="flex items-start justify-between gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[color:rgb(34_211_238_/_0.26)] bg-[color:rgb(34_211_238_/_0.11)] text-[var(--galdr-accent-2)]">
-              {connector.manifest.icon_url ? (
-                <img
-                  src={connector.manifest.icon_url}
-                  alt={`${connector.name} icon`}
-                  className="h-8 w-8 rounded-xl object-cover"
-                />
-              ) : (
-                <PlugZap className="h-6 w-6" />
-              )}
+              <ConnectorIcon
+                connector={connector}
+                imageClassName="h-8 w-8 rounded-xl object-cover"
+                fallbackClassName="h-6 w-6"
+              />
             </div>
             <span className="galdr-pill px-2.5 py-1 text-xs font-medium">
               v{connector.version}
