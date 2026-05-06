@@ -10,6 +10,9 @@ import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import EmptyState from "@/components/EmptyState";
 import { useToast } from "@/contexts/ToastContext";
+import ConnectorInstaller, {
+  type ConnectorInstallPayload,
+} from "@/components/marketplace/ConnectorInstaller";
 
 export interface MarketplaceManifestResource {
   name: string;
@@ -24,11 +27,23 @@ export interface MarketplaceManifest {
   description: string;
   icon_url?: string;
   categories?: string[];
-  auth: { type: string };
+  auth: {
+    type: string;
+    oauth2?: {
+      authorize_url?: string;
+      token_url?: string;
+      scopes?: string[];
+    };
+    api_key?: {
+      header_name?: string;
+      prefix?: string;
+    };
+  };
   sync: {
     supported_modes: string[];
     default_mode: string;
     resources: MarketplaceManifestResource[];
+    options?: Record<string, string>;
   };
   screenshots?: string[];
   developer?: {
@@ -70,7 +85,10 @@ export interface MarketplacePageViewProps {
   onStatusChange: (value: string) => void;
   onOpenInstall: (connector: MarketplaceConnector) => void;
   onCloseInstall: () => void;
-  onConfirmInstall: (connector: MarketplaceConnector) => void;
+  onConfirmInstall: (
+    connector: MarketplaceConnector,
+    payload: ConnectorInstallPayload,
+  ) => void;
   onRetry: () => void;
 }
 
@@ -395,35 +413,12 @@ export function MarketplacePageView({
 
       {selectedInstall && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="galdr-card w-full max-w-lg p-6 shadow-2xl">
-            <div className="galdr-kicker px-3 py-1">Install connector</div>
-            <h2 className="mt-4 text-2xl font-semibold text-[var(--galdr-fg)]">
-              Install {selectedInstall.name}
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-[var(--galdr-fg-muted)]">
-              PulseScore will install this connector for your organization and
-              redirect you to connector configuration.
-            </p>
-            <div className="mt-5 rounded-xl border border-[var(--galdr-border)] bg-[color:rgb(11_11_18_/_0.44)] p-4 text-sm text-[var(--galdr-fg-muted)]">
-              Auth: {authLabel(selectedInstall.manifest.auth.type)} · Default
-              sync: {selectedInstall.manifest.sync.default_mode}
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={onCloseInstall}
-                className="galdr-button-secondary px-4 py-2 text-sm font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => onConfirmInstall(selectedInstall)}
-                disabled={installingId === selectedInstall.id}
-                className="galdr-button-primary px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {installingId === selectedInstall.id ? "Installing" : "Install"}
-              </button>
-            </div>
-          </div>
+          <ConnectorInstaller
+            connector={selectedInstall}
+            installing={installingId === selectedInstall.id}
+            onCancel={onCloseInstall}
+            onInstall={(payload) => onConfirmInstall(selectedInstall, payload)}
+          />
         </div>
       )}
     </div>
@@ -463,12 +458,15 @@ export default function MarketplacePage() {
     fetchConnectors();
   }, [fetchConnectors]);
 
-  async function handleConfirmInstall(connector: MarketplaceConnector) {
+  async function handleConfirmInstall(
+    connector: MarketplaceConnector,
+    payload: ConnectorInstallPayload,
+  ) {
     setInstallingId(connector.id);
     try {
       await api.post(
         `/marketplace/connectors/${encodeURIComponent(connector.id)}/install`,
-        {},
+        payload,
       );
       toast.success(`${connector.name} installed`);
       navigate(

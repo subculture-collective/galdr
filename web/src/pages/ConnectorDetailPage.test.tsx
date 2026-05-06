@@ -97,6 +97,7 @@ assertMatch(detail, /Install connector/);
 
 const confirm = render({ showInstallConfirm: true, installing: true });
 assertMatch(confirm, /Install Mock CRM/);
+assertMatch(confirm, /Connection test/);
 assertMatch(confirm, /Installing/);
 
 console.log("ConnectorDetailPage states render correctly");
