@@ -4,6 +4,7 @@ import {
   Users,
   BarChart3,
   Plug,
+  Activity,
   Store,
   Settings,
   ChevronLeft,
@@ -16,6 +17,7 @@ const navItems = [
   { to: "/customers", label: "Customers", icon: Users },
   { to: "/marketplace", label: "Marketplace", icon: Store },
   { to: "/benchmarks", label: "Benchmarks", icon: BarChart3 },
+  { to: "/integration-health", label: "Integration Health", icon: Activity },
   { to: "/settings/integrations", label: "Integrations", icon: Plug },
   { to: "/settings", label: "Settings", icon: Settings, end: true },
 ];

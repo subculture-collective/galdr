@@ -40,6 +40,7 @@ type dashboardServicer interface {
 // integrationServicer defines the methods the IntegrationHandler needs.
 type integrationServicer interface {
 	List(ctx context.Context, orgID uuid.UUID) ([]service.IntegrationSummary, error)
+	GetHealth(ctx context.Context, orgID uuid.UUID) (*service.IntegrationHealthResponse, error)
 	Connect(ctx context.Context, orgID uuid.UUID, provider string, req service.ConnectIntegrationRequest) (*connectorsdk.AuthResult, error)
 	GetStatus(ctx context.Context, orgID uuid.UUID, provider string) (*service.IntegrationStatus, error)
 	TriggerSync(ctx context.Context, orgID uuid.UUID, provider string) error

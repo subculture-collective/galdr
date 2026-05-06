@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +13,8 @@ import (
 )
 
 const connectorProjectIDMetadataKey = "project_id"
+
+const integrationHealthStaleAfter = 24 * time.Hour
 
 // IntegrationService handles integration management business logic.
 type IntegrationService struct {
@@ -55,6 +58,45 @@ type IntegrationStatus struct {
 	IntegrationSummary
 	ExternalAccountID string   `json:"external_account_id"`
 	Scopes            []string `json:"scopes"`
+}
+
+// IntegrationHealthResponse reports sync health across all known integrations.
+type IntegrationHealthResponse struct {
+	GeneratedAt      time.Time                  `json:"generated_at"`
+	StaleAfterHours int                        `json:"stale_after_hours"`
+	Integrations     []IntegrationHealthSummary `json:"integrations"`
+}
+
+// IntegrationHealthSummary holds dashboard-level sync health for one provider.
+type IntegrationHealthSummary struct {
+	Provider       string                         `json:"provider"`
+	Status         string                         `json:"status"`
+	HealthStatus   string                         `json:"health_status"`
+	LastSyncAt     *time.Time                     `json:"last_sync_at"`
+	ConnectedAt    *time.Time                     `json:"connected_at"`
+	RecordsSynced  int                            `json:"records_synced"`
+	ErrorCount     int                            `json:"error_count"`
+	SyncDurationMS int                            `json:"sync_duration_ms"`
+	ErrorRate      float64                        `json:"error_rate"`
+	CustomerCount  int                            `json:"customer_count"`
+	LastSyncError  string                         `json:"last_sync_error,omitempty"`
+	Alerts         []IntegrationHealthAlert       `json:"alerts"`
+	SyncHistory    []IntegrationSyncHistoryPoint  `json:"sync_history"`
+}
+
+// IntegrationHealthAlert describes an actionable integration health warning.
+type IntegrationHealthAlert struct {
+	Type     string `json:"type"`
+	Severity string `json:"severity"`
+	Message  string `json:"message"`
+}
+
+// IntegrationSyncHistoryPoint is one sync metric point for dashboard charts.
+type IntegrationSyncHistoryPoint struct {
+	Date          string `json:"date"`
+	Status        string `json:"status"`
+	RecordsSynced int    `json:"records_synced"`
+	DurationMS    int    `json:"duration_ms"`
 }
 
 // ConnectIntegrationRequest holds generic connector credentials.
@@ -133,6 +175,221 @@ func (s *IntegrationService) List(ctx context.Context, orgID uuid.UUID) ([]Integ
 	}
 
 	return summaries, nil
+}
+
+// GetHealth returns integration health metrics for the monitoring dashboard.
+func (s *IntegrationService) GetHealth(ctx context.Context, orgID uuid.UUID) (*IntegrationHealthResponse, error) {
+	conns, err := s.connStore.ListByOrg(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("list integrations: %w", err)
+	}
+
+	connectionsByProvider := make(map[string]*repository.IntegrationConnection, len(conns))
+	for _, conn := range conns {
+		connectionsByProvider[conn.Provider] = conn
+	}
+
+	seen := make(map[string]bool, len(conns))
+	integrations := make([]IntegrationHealthSummary, 0, len(conns))
+	if s.registry != nil {
+		for _, registered := range s.registry.List() {
+			provider := registered.Manifest.ID
+			seen[provider] = true
+			integration, err := s.integrationHealth(ctx, orgID, provider, connectionsByProvider[provider])
+			if err != nil {
+				return nil, err
+			}
+			integrations = append(integrations, integration)
+		}
+	}
+
+	for _, conn := range conns {
+		if seen[conn.Provider] {
+			continue
+		}
+		integration, err := s.integrationHealth(ctx, orgID, conn.Provider, conn)
+		if err != nil {
+			return nil, err
+		}
+		integrations = append(integrations, integration)
+	}
+
+	return &IntegrationHealthResponse{
+		GeneratedAt:      time.Now().UTC(),
+		StaleAfterHours: int(integrationHealthStaleAfter / time.Hour),
+		Integrations:     integrations,
+	}, nil
+}
+
+func (s *IntegrationService) integrationHealth(ctx context.Context, orgID uuid.UUID, provider string, conn *repository.IntegrationConnection) (IntegrationHealthSummary, error) {
+	if conn == nil {
+		return IntegrationHealthSummary{
+			Provider:     provider,
+			Status:       "disconnected",
+			HealthStatus: "disconnected",
+			Alerts:       []IntegrationHealthAlert{},
+			SyncHistory:  []IntegrationSyncHistoryPoint{},
+		}, nil
+	}
+
+	count, err := s.connStore.GetCustomerCountBySource(ctx, orgID, conn.Provider)
+	if err != nil {
+		return IntegrationHealthSummary{}, fmt.Errorf("get customer count: %w", err)
+	}
+
+	metadata := conn.Metadata
+	recordsSynced := metadataInt(metadata, "records_synced", "last_records_synced")
+	if recordsSynced == 0 {
+		recordsSynced = count
+	}
+	errorCount := metadataInt(metadata, "error_count", "consecutive_errors")
+	successCount := metadataInt(metadata, "success_count", "successful_sync_count")
+	syncDurationMS := metadataInt(metadata, "sync_duration_ms", "last_sync_duration_ms")
+	alerts := integrationHealthAlerts(conn, errorCount)
+	healthStatus := integrationHealthStatus(conn, errorCount, len(alerts) > 0)
+
+	return IntegrationHealthSummary{
+		Provider:       conn.Provider,
+		Status:         conn.Status,
+		HealthStatus:   healthStatus,
+		LastSyncAt:     conn.LastSyncAt,
+		ConnectedAt:    &conn.CreatedAt,
+		RecordsSynced:  recordsSynced,
+		ErrorCount:     errorCount,
+		SyncDurationMS: syncDurationMS,
+		ErrorRate:      integrationErrorRate(errorCount, successCount),
+		CustomerCount:  count,
+		LastSyncError:  conn.LastSyncError,
+		Alerts:         alerts,
+		SyncHistory:    integrationSyncHistory(conn, recordsSynced, syncDurationMS),
+	}, nil
+}
+
+func integrationHealthStatus(conn *repository.IntegrationConnection, errorCount int, hasAlerts bool) string {
+	if conn.Status == "disconnected" {
+		return "disconnected"
+	}
+	if conn.Status == "error" || errorCount >= 5 {
+		return "down"
+	}
+	if hasAlerts || conn.LastSyncError != "" || errorCount > 0 {
+		return "warning"
+	}
+	return "healthy"
+}
+
+func integrationHealthAlerts(conn *repository.IntegrationConnection, errorCount int) []IntegrationHealthAlert {
+	alerts := make([]IntegrationHealthAlert, 0, 3)
+	provider := providerDisplayName(conn.Provider)
+	if conn.Status == "error" || errorCount >= 5 {
+		alerts = append(alerts, IntegrationHealthAlert{Type: "integration_down", Severity: "critical", Message: fmt.Sprintf("%s sync is down.", provider)})
+	}
+	if errorCount >= 3 {
+		alerts = append(alerts, IntegrationHealthAlert{Type: "consecutive_errors", Severity: "warning", Message: fmt.Sprintf("%s has %d consecutive sync errors.", provider, errorCount)})
+	}
+	if conn.Status == "active" && (conn.LastSyncAt == nil || time.Since(*conn.LastSyncAt) > integrationHealthStaleAfter) {
+		alerts = append(alerts, IntegrationHealthAlert{Type: "sync_stale", Severity: "warning", Message: "Last successful sync is stale."})
+	}
+	return alerts
+}
+
+func integrationSyncHistory(conn *repository.IntegrationConnection, recordsSynced, durationMS int) []IntegrationSyncHistoryPoint {
+	if history, ok := parseSyncHistory(conn.Metadata); ok {
+		return history
+	}
+	if conn.LastSyncAt == nil {
+		return []IntegrationSyncHistoryPoint{}
+	}
+	status := "success"
+	if conn.LastSyncError != "" || conn.Status == "error" {
+		status = "error"
+	}
+	return []IntegrationSyncHistoryPoint{{
+		Date:          conn.LastSyncAt.UTC().Format("2006-01-02"),
+		Status:        status,
+		RecordsSynced: recordsSynced,
+		DurationMS:    durationMS,
+	}}
+}
+
+func parseSyncHistory(metadata map[string]any) ([]IntegrationSyncHistoryPoint, bool) {
+	raw, ok := metadata["sync_history"].([]any)
+	if !ok || len(raw) == 0 {
+		return nil, false
+	}
+	history := make([]IntegrationSyncHistoryPoint, 0, len(raw))
+	for _, item := range raw {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		date, _ := entry["date"].(string)
+		status, _ := entry["status"].(string)
+		if date == "" || status == "" {
+			continue
+		}
+		history = append(history, IntegrationSyncHistoryPoint{
+			Date:          date,
+			Status:        status,
+			RecordsSynced: metadataInt(entry, "records_synced"),
+			DurationMS:    metadataInt(entry, "duration_ms"),
+		})
+	}
+	return history, len(history) > 0
+}
+
+func integrationErrorRate(errorCount, successCount int) float64 {
+	total := errorCount + successCount
+	if total == 0 {
+		return 0
+	}
+	return float64(errorCount) / float64(total)
+}
+
+func metadataInt(metadata map[string]any, keys ...string) int {
+	for _, key := range keys {
+		if value, ok := metadata[key]; ok {
+			return anyToInt(value)
+		}
+	}
+	return 0
+}
+
+func anyToInt(value any) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case string:
+		parsed, _ := strconv.Atoi(v)
+		return parsed
+	default:
+		return 0
+	}
+}
+
+func providerDisplayName(provider string) string {
+	switch provider {
+	case "stripe":
+		return "Stripe"
+	case "hubspot":
+		return "HubSpot"
+	case "intercom":
+		return "Intercom"
+	case "zendesk":
+		return "Zendesk"
+	case "salesforce":
+		return "Salesforce"
+	case "posthog":
+		return "PostHog"
+	case "":
+		return "Integration"
+	default:
+		return provider
+	}
 }
 
 func (s *IntegrationService) integrationSummary(ctx context.Context, orgID uuid.UUID, conn *repository.IntegrationConnection) (IntegrationSummary, error) {

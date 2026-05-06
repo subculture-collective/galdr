@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import api from "@/lib/api";
 import { useToast } from "@/contexts/ToastContext";
 import {
@@ -14,7 +15,7 @@ import PostHogConnectionCard from "@/components/integrations/PostHogConnectionCa
 import WebhookConfig from "@/components/integrations/WebhookConfig";
 import IntegrationCard from "@/components/IntegrationCard";
 import UpgradePrompt from "@/components/UpgradePrompt";
-import { Loader2 } from "lucide-react";
+import { Activity, Loader2 } from "lucide-react";
 
 interface IntegrationConnection {
   id: string;
@@ -70,6 +71,24 @@ export default function IntegrationsTab() {
 
   return (
     <div className="space-y-6">
+      <div className="galdr-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="flex items-center gap-2 text-sm font-medium text-[var(--galdr-fg)]">
+            <Activity className="h-4 w-4 text-cyan-300" />
+            Integration health monitoring
+          </h3>
+          <p className="mt-1 text-sm text-[var(--galdr-fg-muted)]">
+            Review sync status, stale warnings, error rates, and sync history.
+          </p>
+        </div>
+        <Link
+          to="/integration-health"
+          className="galdr-button galdr-button-secondary justify-center px-4 py-2 text-sm"
+        >
+          Open dashboard
+        </Link>
+      </div>
+
       {!integrationLimit.allowed && integrationLimit.limit !== null && (
         <UpgradePrompt
           featureName="More integrations"

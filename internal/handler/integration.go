@@ -37,6 +37,23 @@ func (h *IntegrationHandler) List(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"integrations": summaries})
 }
 
+// Health handles GET /api/v1/integrations/health.
+func (h *IntegrationHandler) Health(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := auth.GetOrgID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+
+	health, err := h.integrationService.GetHealth(r.Context(), orgID)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, health)
+}
+
 // Connect handles POST /api/v1/integrations/{provider}/connect.
 func (h *IntegrationHandler) Connect(w http.ResponseWriter, r *http.Request) {
 	orgID, ok := auth.GetOrgID(r.Context())

@@ -17,6 +17,7 @@ import (
 
 type mockIntegrationService struct {
 	listFn       func(ctx context.Context, orgID uuid.UUID) ([]service.IntegrationSummary, error)
+	healthFn     func(ctx context.Context, orgID uuid.UUID) (*service.IntegrationHealthResponse, error)
 	connectFn    func(ctx context.Context, orgID uuid.UUID, provider string, req service.ConnectIntegrationRequest) (*connectorsdk.AuthResult, error)
 	getStatusFn  func(ctx context.Context, orgID uuid.UUID, provider string) (*service.IntegrationStatus, error)
 	triggerSyncFn func(ctx context.Context, orgID uuid.UUID, provider string) error
@@ -25,6 +26,10 @@ type mockIntegrationService struct {
 
 func (m *mockIntegrationService) List(ctx context.Context, orgID uuid.UUID) ([]service.IntegrationSummary, error) {
 	return m.listFn(ctx, orgID)
+}
+
+func (m *mockIntegrationService) GetHealth(ctx context.Context, orgID uuid.UUID) (*service.IntegrationHealthResponse, error) {
+	return m.healthFn(ctx, orgID)
 }
 
 func (m *mockIntegrationService) Connect(ctx context.Context, orgID uuid.UUID, provider string, req service.ConnectIntegrationRequest) (*connectorsdk.AuthResult, error) {
@@ -94,6 +99,34 @@ func TestIntegrationList_ServiceError(t *testing.T) {
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestIntegrationHealth_Success(t *testing.T) {
+	orgID := uuid.New()
+	mock := &mockIntegrationService{
+		healthFn: func(ctx context.Context, oID uuid.UUID) (*service.IntegrationHealthResponse, error) {
+			if oID != orgID {
+				t.Errorf("expected org %s, got %s", orgID, oID)
+			}
+			return &service.IntegrationHealthResponse{
+				StaleAfterHours: 24,
+				Integrations: []service.IntegrationHealthSummary{
+					{Provider: "stripe", Status: "active", HealthStatus: "healthy"},
+				},
+			}, nil
+		},
+	}
+
+	h := NewIntegrationHandler(mock)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/integrations/health", nil)
+	req = req.WithContext(auth.WithOrgID(req.Context(), orgID))
+	rr := httptest.NewRecorder()
+
+	h.Health(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 }
 
