@@ -246,6 +246,7 @@ function MarketplaceResults({
               {authLabel(connector.manifest.auth.type)} ·{" "}
               {connector.manifest.sync.resources.length} resources
             </span>
+            <span>Status: {formatCategory(connector.status)}</span>
           </div>
           <div className="mt-5 flex gap-2">
             <a

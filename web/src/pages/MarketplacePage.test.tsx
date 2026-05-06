@@ -131,6 +131,7 @@ assertMatch(browse, /SupportDesk/);
 assertMatch(browse, /Mock CRM icon/);
 assertMatch(browse, /1\.2\.0/);
 assertMatch(browse, /OAuth 2/);
+assertMatch(browse, /Status: Published/);
 assertMatch(browse, /Install/);
 
 const filtered = render({ category: "support" });
