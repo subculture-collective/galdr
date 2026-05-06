@@ -52,6 +52,14 @@ function apiResponse<T>(data: T) {
   return { data } as AxiosResponse<T>;
 }
 
+function renderWebhookConfig() {
+  return render(
+    <ToastProvider>
+      <WebhookConfig />
+    </ToastProvider>,
+  );
+}
+
 describe("WebhookConfig", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -77,16 +85,15 @@ describe("WebhookConfig", () => {
 
   it("creates a webhook, builds mappings, tests a sample payload, and lists status", async () => {
     const user = userEvent.setup();
-    render(
-      <ToastProvider>
-        <WebhookConfig />
-      </ToastProvider>,
-    );
+    renderWebhookConfig();
 
     expect(
       await screen.findByText("Zapier lifecycle events"),
     ).toBeInTheDocument();
     expect(screen.getByText("42 events")).toBeInTheDocument();
+    expect(
+      screen.getByText("company.name -> company_name"),
+    ).toBeInTheDocument();
 
     await user.type(
       screen.getByLabelText("Webhook name"),
@@ -133,18 +140,14 @@ describe("WebhookConfig", () => {
         },
       });
     });
-    expect(
-      await screen.findByText(/"email": "founder@acme.test"/),
-    ).toBeInTheDocument();
+    expect(await screen.findByLabelText("Mapped result")).toHaveTextContent(
+      '"email": "founder@acme.test"',
+    );
   });
 
   it("loads common webhook example payloads for testing", async () => {
     const user = userEvent.setup();
-    render(
-      <ToastProvider>
-        <WebhookConfig />
-      </ToastProvider>,
-    );
+    renderWebhookConfig();
 
     await screen.findByText("Zapier lifecycle events");
 
@@ -166,5 +169,19 @@ describe("WebhookConfig", () => {
         }),
       });
     });
+  });
+
+  it("documents example payloads for common webhook tools", async () => {
+    renderWebhookConfig();
+
+    await screen.findByText("Zapier lifecycle events");
+
+    expect(screen.getByText("Customer.io example")).toBeInTheDocument();
+    expect(screen.getByText("Zapier example")).toBeInTheDocument();
+    expect(screen.getByText("PostHog example")).toBeInTheDocument();
+    expect(
+      screen.getByText(/"zapier_hook_id": "hook_123"/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/"distinct_id": "user_123"/)).toBeInTheDocument();
   });
 });

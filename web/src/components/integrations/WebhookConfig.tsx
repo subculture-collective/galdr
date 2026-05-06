@@ -23,7 +23,12 @@ const defaultPayload = JSON.stringify(
   2,
 );
 
-const examplePayloads = [
+type ExamplePayload = {
+  name: string;
+  payload: Record<string, unknown>;
+};
+
+const examplePayloads: ExamplePayload[] = [
   {
     name: "Customer.io",
     payload: {
@@ -90,6 +95,10 @@ function parseSamplePayload(value: string) {
     throw new Error("payload must be an object");
   }
   return parsed as Record<string, unknown>;
+}
+
+function formatMapping(mapping: WebhookFieldMapping) {
+  return `${mapping.source_path} -> ${mapping.target_field}`;
 }
 
 export default function WebhookConfig() {
@@ -350,7 +359,10 @@ export default function WebhookConfig() {
                 {testing ? "Testing..." : "Test mapping"}
               </button>
               {mappedResult && (
-                <pre className="mt-3 overflow-auto rounded-xl border border-[var(--galdr-border)] bg-[color:rgb(0_0_0_/_0.22)] p-3 text-xs text-[var(--galdr-fg)]">
+                <pre
+                  aria-label="Mapped result"
+                  className="mt-3 overflow-auto rounded-xl border border-[var(--galdr-border)] bg-[color:rgb(0_0_0_/_0.22)] p-3 text-xs text-[var(--galdr-fg)]"
+                >
                   {JSON.stringify(mappedResult, null, 2)}
                 </pre>
               )}
@@ -434,21 +446,14 @@ export default function WebhookConfig() {
                     {webhook.mappings.length} mappings
                   </span>
                 </div>
+                <WebhookMappingList mappings={webhook.mappings} />
               </article>
             ))}
           </div>
         )}
       </div>
 
-      <div className="galdr-alert-info p-4 text-sm">
-        <p className="font-semibold">Example payloads</p>
-        <p className="mt-1">
-          Customer.io and Zapier payloads usually map <code>user.email</code> to
-          <code> email</code>, <code>company.name</code> to
-          <code> company_name</code>, and <code>account.mrr</code> to
-          <code> mrr_cents</code>.
-        </p>
-      </div>
+      <ExamplePayloadReference examples={examplePayloads} />
     </section>
   );
 }
@@ -488,6 +493,56 @@ function StatusBadge({ status }: { status: WebhookConfiguration["status"] }) {
     >
       {label}
     </span>
+  );
+}
+
+function WebhookMappingList({ mappings }: { mappings: WebhookFieldMapping[] }) {
+  if (mappings.length === 0) return null;
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {mappings.map((mapping, index) => {
+        const label = formatMapping(mapping);
+
+        return (
+          <span
+            key={`${label}:${index}`}
+            className="rounded-full border border-[var(--galdr-border)] bg-[color:rgb(0_0_0_/_0.18)] px-2.5 py-1 font-mono text-xs text-[var(--galdr-fg-muted)]"
+          >
+            {label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function ExamplePayloadReference({ examples }: { examples: ExamplePayload[] }) {
+  return (
+    <div className="galdr-alert-info p-4 text-sm">
+      <p className="font-semibold">Example payloads</p>
+      <p className="mt-1">
+        Customer.io and Zapier payloads usually map <code>user.email</code> to
+        <code> email</code>, <code>company.name</code> to
+        <code> company_name</code>, and <code>account.mrr</code> to
+        <code> mrr_cents</code>.
+      </p>
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {examples.map((example) => (
+          <div
+            key={example.name}
+            className="rounded-2xl border border-[var(--galdr-border)] bg-[color:rgb(0_0_0_/_0.14)] p-3"
+          >
+            <p className="text-xs font-semibold text-[var(--galdr-fg)]">
+              {example.name} example
+            </p>
+            <pre className="mt-2 max-h-52 overflow-auto rounded-xl bg-[color:rgb(0_0_0_/_0.2)] p-3 text-xs text-[var(--galdr-fg-muted)]">
+              {JSON.stringify(example.payload, null, 2)}
+            </pre>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
