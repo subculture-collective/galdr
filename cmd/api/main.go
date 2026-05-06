@@ -717,6 +717,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				// Connector marketplace routes
 				marketplaceSvc := service.NewMarketplaceService(marketplaceRepo)
 				marketplaceHandler := handler.NewMarketplaceHandler(marketplaceSvc)
+				r.Get("/marketplace/search", marketplaceHandler.Search)
 				r.Route("/marketplace/connectors", func(r chi.Router) {
 					r.Get("/", marketplaceHandler.ListPublished)
 					r.Get("/{id}", marketplaceHandler.GetPublished)

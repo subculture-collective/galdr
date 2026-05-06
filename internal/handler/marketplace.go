@@ -51,6 +51,26 @@ func (h *MarketplaceHandler) ListPublished(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]any{"connectors": connectors})
 }
 
+func (h *MarketplaceHandler) Search(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := auth.GetOrgID(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
+		return
+	}
+	query := r.URL.Query()
+	result, err := h.service.Search(r.Context(), orgID, service.MarketplaceSearchRequest{
+		Query:    query.Get("q"),
+		Category: query.Get("category"),
+		Tag:      query.Get("tag"),
+		Sort:     query.Get("sort"),
+	})
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (h *MarketplaceHandler) GetPublished(w http.ResponseWriter, r *http.Request) {
 	id := connectorIDParam(r)
 	if id == "" {

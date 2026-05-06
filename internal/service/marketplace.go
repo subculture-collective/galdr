@@ -18,6 +18,8 @@ type marketplaceRepository interface {
 	CreateConnector(ctx context.Context, connector *repository.MarketplaceConnector) error
 	GetConnector(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error)
 	ListPublishedConnectors(ctx context.Context) ([]*repository.MarketplaceConnector, error)
+	SearchConnectors(ctx context.Context, req repository.MarketplaceSearchRequest) ([]*repository.MarketplaceConnector, error)
+	ListInstalledProviders(ctx context.Context, orgID uuid.UUID) ([]string, error)
 	CreateInstallation(ctx context.Context, installation *repository.ConnectorInstallation) error
 	IncrementConnectorInstallMetric(ctx context.Context, connectorID string, at time.Time) error
 	GetConnectorAnalytics(ctx context.Context, connectorID string, since time.Time) (*repository.ConnectorAnalytics, error)
@@ -32,6 +34,22 @@ type RegisterConnectorRequest struct {
 
 type InstallConnectorRequest struct {
 	Config map[string]any `json:"config,omitempty"`
+}
+
+type MarketplaceSearchRequest struct {
+	Query    string `json:"query,omitempty"`
+	Category string `json:"category,omitempty"`
+	Tag      string `json:"tag,omitempty"`
+	Sort     string `json:"sort,omitempty"`
+}
+
+type MarketplaceSearchResponse struct {
+	Connectors       []*repository.MarketplaceConnector `json:"connectors"`
+	Recommendations  []*repository.MarketplaceConnector `json:"recommendations"`
+	Query            string                             `json:"query,omitempty"`
+	Category         string                             `json:"category,omitempty"`
+	Tag              string                             `json:"tag,omitempty"`
+	Sort             string                             `json:"sort"`
 }
 
 // MarketplaceService handles connector registration and discovery.
@@ -118,6 +136,40 @@ func (s *MarketplaceService) GetPublished(ctx context.Context, id string) (*repo
 	return nil, &NotFoundError{Resource: "marketplace_connector", Message: "connector not found"}
 }
 
+func (s *MarketplaceService) Search(ctx context.Context, orgID uuid.UUID, req MarketplaceSearchRequest) (*MarketplaceSearchResponse, error) {
+	searchReq := repository.MarketplaceSearchRequest{
+		Query:    strings.TrimSpace(req.Query),
+		Category: strings.ToLower(strings.TrimSpace(req.Category)),
+		Tag:      strings.ToLower(strings.TrimSpace(req.Tag)),
+		Sort:     marketplaceSearchSortOrDefault(req.Sort),
+	}
+
+	connectors, err := s.repo.SearchConnectors(ctx, searchReq)
+	if err != nil {
+		return nil, err
+	}
+	connectors = latestConnectorVersions(connectors)
+	applyMarketplaceSearchSort(connectors, searchReq.Sort)
+
+	installedProviders, err := s.repo.ListInstalledProviders(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	recommendations, err := s.recommendConnectors(ctx, installedProviders)
+	if err != nil {
+		return nil, err
+	}
+
+	return &MarketplaceSearchResponse{
+		Connectors:      connectors,
+		Recommendations: recommendations,
+		Query:           searchReq.Query,
+		Category:        searchReq.Category,
+		Tag:             searchReq.Tag,
+		Sort:            searchReq.Sort,
+	}, nil
+}
+
 func (s *MarketplaceService) Install(ctx context.Context, orgID uuid.UUID, id string, req InstallConnectorRequest) (*repository.ConnectorInstallation, error) {
 	connector, err := s.GetPublished(ctx, id)
 	if err != nil {
@@ -146,6 +198,69 @@ func (s *MarketplaceService) Analytics(ctx context.Context, id string) (*reposit
 	}
 	since := time.Now().UTC().AddDate(0, 0, -30)
 	return s.repo.GetConnectorAnalytics(ctx, id, since)
+}
+
+func (s *MarketplaceService) recommendConnectors(ctx context.Context, installedProviders []string) ([]*repository.MarketplaceConnector, error) {
+	connectors, err := s.repo.ListPublishedConnectors(ctx)
+	if err != nil {
+		return nil, err
+	}
+	connectors = latestConnectorVersions(connectors)
+
+	installed := make(map[string]struct{}, len(installedProviders))
+	wantedCategories := make(map[string]struct{})
+	for _, provider := range installedProviders {
+		provider = strings.ToLower(strings.TrimSpace(provider))
+		if provider == "" {
+			continue
+		}
+		installed[provider] = struct{}{}
+		for _, category := range recommendedCategoriesForProvider(provider) {
+			wantedCategories[category] = struct{}{}
+		}
+	}
+	if len(wantedCategories) == 0 {
+		wantedCategories["crm"] = struct{}{}
+		wantedCategories["support"] = struct{}{}
+		wantedCategories["analytics"] = struct{}{}
+	}
+
+	type scoredConnector struct {
+		connector *repository.MarketplaceConnector
+		score     int
+	}
+	scored := make([]scoredConnector, 0, len(connectors))
+	for _, connector := range connectors {
+		if connector == nil || connectorMatchesInstalled(connector, installed) {
+			continue
+		}
+		score := connector.InstallCount
+		for _, category := range connector.Manifest.Categories {
+			if _, ok := wantedCategories[strings.ToLower(strings.TrimSpace(category))]; ok {
+				score += 1000
+			}
+		}
+		if score > 0 {
+			scored = append(scored, scoredConnector{connector: connector, score: score})
+		}
+	}
+
+	slices.SortFunc(scored, func(a, b scoredConnector) int {
+		if a.score != b.score {
+			return compareInts(b.score, a.score)
+		}
+		return strings.Compare(a.connector.ID, b.connector.ID)
+	})
+
+	limit := 3
+	recommendations := make([]*repository.MarketplaceConnector, 0, limit)
+	for _, item := range scored {
+		if len(recommendations) == limit {
+			break
+		}
+		recommendations = append(recommendations, item.connector)
+	}
+	return recommendations, nil
 }
 
 func (s *MarketplaceService) Review(ctx context.Context, reviewerID uuid.UUID, id, version string, req ConnectorReviewRequest) (*repository.ConnectorReviewResult, error) {
@@ -257,6 +372,91 @@ func compareInts(a, b int) int {
 		return -1
 	}
 	return 0
+}
+
+func marketplaceSearchSortOrDefault(sort string) string {
+	switch strings.ToLower(strings.TrimSpace(sort)) {
+	case repository.MarketplaceSearchSortPopularity:
+		return repository.MarketplaceSearchSortPopularity
+	case repository.MarketplaceSearchSortRating:
+		return repository.MarketplaceSearchSortRating
+	case repository.MarketplaceSearchSortNewest:
+		return repository.MarketplaceSearchSortNewest
+	default:
+		return repository.MarketplaceSearchSortRelevance
+	}
+}
+
+func applyMarketplaceSearchSort(connectors []*repository.MarketplaceConnector, sort string) {
+	slices.SortFunc(connectors, func(a, b *repository.MarketplaceConnector) int {
+		switch sort {
+		case repository.MarketplaceSearchSortPopularity:
+			if a.InstallCount != b.InstallCount {
+				return compareInts(b.InstallCount, a.InstallCount)
+			}
+		case repository.MarketplaceSearchSortRating:
+			if a.Rating != b.Rating {
+				if a.Rating > b.Rating {
+					return -1
+				}
+				return 1
+			}
+		case repository.MarketplaceSearchSortNewest:
+			return compareConnectorNewest(a, b)
+		default:
+			if a.Relevance != b.Relevance {
+				if a.Relevance > b.Relevance {
+					return -1
+				}
+				return 1
+			}
+		}
+		return strings.Compare(a.ID, b.ID)
+	})
+}
+
+func compareConnectorNewest(a, b *repository.MarketplaceConnector) int {
+	aTime := a.CreatedAt
+	if a.PublishedAt != nil {
+		aTime = *a.PublishedAt
+	}
+	bTime := b.CreatedAt
+	if b.PublishedAt != nil {
+		bTime = *b.PublishedAt
+	}
+	if !aTime.Equal(bTime) {
+		if aTime.After(bTime) {
+			return -1
+		}
+		return 1
+	}
+	return strings.Compare(a.ID, b.ID)
+}
+
+func recommendedCategoriesForProvider(provider string) []string {
+	switch provider {
+	case "stripe":
+		return []string{"payments", "crm", "analytics"}
+	case "hubspot", "salesforce":
+		return []string{"crm", "support", "analytics"}
+	case "intercom", "zendesk":
+		return []string{"support", "communication", "analytics"}
+	case "posthog":
+		return []string{"analytics", "devops", "crm"}
+	default:
+		return []string{"crm", "support", "analytics"}
+	}
+}
+
+func connectorMatchesInstalled(connector *repository.MarketplaceConnector, installed map[string]struct{}) bool {
+	connectorID := strings.ToLower(connector.ID)
+	connectorName := strings.ToLower(connector.Name)
+	for provider := range installed {
+		if strings.Contains(connectorID, provider) || strings.Contains(connectorName, provider) {
+			return true
+		}
+	}
+	return false
 }
 
 func isValidMarketplaceStatus(status string) bool {

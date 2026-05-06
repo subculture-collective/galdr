@@ -14,6 +14,8 @@ CREATE TABLE marketplace_connectors (
 
 CREATE INDEX idx_marketplace_connectors_status_name ON marketplace_connectors(status, name);
 CREATE INDEX idx_marketplace_connectors_developer_id ON marketplace_connectors(developer_id);
+CREATE INDEX idx_marketplace_connectors_manifest_categories ON marketplace_connectors USING GIN ((manifest->'categories'));
+CREATE INDEX idx_marketplace_connectors_manifest_tags ON marketplace_connectors USING GIN ((manifest->'tags'));
 
 CREATE TABLE connector_installations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

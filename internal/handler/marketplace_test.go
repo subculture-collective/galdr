@@ -20,6 +20,7 @@ import (
 type mockMarketplaceService struct {
 	registerFn      func(ctx context.Context, developerID uuid.UUID, req service.RegisterConnectorRequest) (*repository.MarketplaceConnector, error)
 	listPublishedFn func(ctx context.Context) ([]*repository.MarketplaceConnector, error)
+	searchFn        func(ctx context.Context, orgID uuid.UUID, req service.MarketplaceSearchRequest) (*service.MarketplaceSearchResponse, error)
 	getPublishedFn  func(ctx context.Context, id string) (*repository.MarketplaceConnector, error)
 	analyticsFn     func(ctx context.Context, id string) (*repository.ConnectorAnalytics, error)
 	installFn       func(ctx context.Context, orgID uuid.UUID, id string, req service.InstallConnectorRequest) (*repository.ConnectorInstallation, error)
@@ -32,6 +33,10 @@ func (m *mockMarketplaceService) Register(ctx context.Context, developerID uuid.
 
 func (m *mockMarketplaceService) ListPublished(ctx context.Context) ([]*repository.MarketplaceConnector, error) {
 	return m.listPublishedFn(ctx)
+}
+
+func (m *mockMarketplaceService) Search(ctx context.Context, orgID uuid.UUID, req service.MarketplaceSearchRequest) (*service.MarketplaceSearchResponse, error) {
+	return m.searchFn(ctx, orgID, req)
 }
 
 func (m *mockMarketplaceService) GetPublished(ctx context.Context, id string) (*repository.MarketplaceConnector, error) {
@@ -117,6 +122,42 @@ func TestMarketplaceListPublished_Success(t *testing.T) {
 	}
 	if len(res.Connectors) != 1 || res.Connectors[0].ID != "mock-crm" {
 		t.Fatalf("unexpected connectors response: %+v", res.Connectors)
+	}
+}
+
+func TestMarketplaceSearch_Success(t *testing.T) {
+	orgID := uuid.New()
+	mock := &mockMarketplaceService{
+		searchFn: func(ctx context.Context, gotOrgID uuid.UUID, req service.MarketplaceSearchRequest) (*service.MarketplaceSearchResponse, error) {
+			if gotOrgID != orgID {
+				t.Fatalf("expected org id %s, got %s", orgID, gotOrgID)
+			}
+			if req.Query != "crm" || req.Category != "support" || req.Sort != repository.MarketplaceSearchSortPopularity {
+				t.Fatalf("unexpected search request: %+v", req)
+			}
+			return &service.MarketplaceSearchResponse{
+				Connectors: []*repository.MarketplaceConnector{marketplaceConnector("mock-crm", "1.0.0", repository.MarketplaceConnectorStatusPublished)},
+				Sort:       repository.MarketplaceSearchSortPopularity,
+			}, nil
+		},
+	}
+
+	h := NewMarketplaceHandler(mock)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/marketplace/search?q=crm&category=support&sort=popularity", nil)
+	req = req.WithContext(auth.WithOrgID(req.Context(), orgID))
+	rr := httptest.NewRecorder()
+
+	h.Search(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var res service.MarketplaceSearchResponse
+	if err := json.NewDecoder(rr.Body).Decode(&res); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(res.Connectors) != 1 || res.Connectors[0].ID != "mock-crm" {
+		t.Fatalf("unexpected search response: %+v", res.Connectors)
 	}
 }
 

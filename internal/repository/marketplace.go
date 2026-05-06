@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,6 +37,11 @@ const (
 	ConnectorReviewCheckPassed = "passed"
 	ConnectorReviewCheckFailed = "failed"
 
+	MarketplaceSearchSortRelevance  = "relevance"
+	MarketplaceSearchSortPopularity = "popularity"
+	MarketplaceSearchSortRating     = "rating"
+	MarketplaceSearchSortNewest     = "newest"
+
 	connectorErrorRateAlertThreshold = 20.0
 )
 
@@ -48,9 +54,19 @@ type MarketplaceConnector struct {
 	Description string                         `json:"description"`
 	Manifest    connectorsdk.ConnectorManifest `json:"manifest"`
 	Status      string                         `json:"status"`
+	InstallCount int                           `json:"install_count,omitempty"`
+	Rating      float64                        `json:"rating,omitempty"`
+	Relevance   float64                        `json:"relevance,omitempty"`
 	PublishedAt *time.Time                     `json:"published_at,omitempty"`
 	CreatedAt   time.Time                      `json:"created_at"`
 	UpdatedAt   time.Time                      `json:"updated_at"`
+}
+
+type MarketplaceSearchRequest struct {
+	Query    string
+	Category string
+	Tag      string
+	Sort     string
 }
 
 // ConnectorInstallation represents a connector installation for an org.
@@ -183,6 +199,96 @@ func (r *MarketplaceRepository) ListPublishedConnectors(ctx context.Context) ([]
 		return nil, fmt.Errorf("iterate marketplace connectors: %w", err)
 	}
 	return connectors, nil
+}
+
+// SearchConnectors searches published connectors by text, category, tag, and sort.
+func (r *MarketplaceRepository) SearchConnectors(ctx context.Context, req MarketplaceSearchRequest) ([]*MarketplaceConnector, error) {
+	query := strings.TrimSpace(req.Query)
+	category := strings.ToLower(strings.TrimSpace(req.Category))
+	tag := strings.ToLower(strings.TrimSpace(req.Tag))
+	sort := marketplaceSearchSortOrDefault(req.Sort)
+
+	orderBy := "relevance DESC, id ASC, version DESC"
+	switch sort {
+	case MarketplaceSearchSortPopularity:
+		orderBy = "install_count DESC, relevance DESC, id ASC, version DESC"
+	case MarketplaceSearchSortRating:
+		orderBy = "rating DESC, relevance DESC, id ASC, version DESC"
+	case MarketplaceSearchSortNewest:
+		orderBy = "published_at DESC NULLS LAST, created_at DESC, id ASC, version DESC"
+	}
+
+	rows, err := r.pool.Query(ctx, fmt.Sprintf(`
+		WITH searchable AS (
+			SELECT c.id, c.version, c.developer_id, c.name, c.description, c.manifest, c.status,
+				c.published_at, c.created_at, c.updated_at,
+				COALESCE(SUM(m.install_count), 0)::int AS install_count,
+				0::float8 AS rating,
+				setweight(to_tsvector('english', COALESCE(c.name, '')), 'A') ||
+				setweight(to_tsvector('english', COALESCE(c.description, '')), 'B') ||
+				setweight(to_tsvector('english', COALESCE(c.manifest->>'description', '')), 'B') ||
+				setweight(to_tsvector('english', COALESCE((SELECT string_agg(value, ' ') FROM jsonb_array_elements_text(COALESCE(c.manifest->'categories', '[]'::jsonb))), '')), 'C') ||
+				setweight(to_tsvector('english', COALESCE((SELECT string_agg(value, ' ') FROM jsonb_array_elements_text(COALESCE(c.manifest->'tags', '[]'::jsonb))), '')), 'C') AS document
+			FROM marketplace_connectors c
+			LEFT JOIN connector_metrics m ON m.connector_id = c.id
+			WHERE c.status = 'published'
+			GROUP BY c.id, c.version, c.developer_id, c.name, c.description, c.manifest, c.status, c.published_at, c.created_at, c.updated_at
+		), ranked AS (
+			SELECT *, CASE WHEN $1 = '' THEN 0 ELSE ts_rank_cd(document, plainto_tsquery('english', $1)) END AS relevance
+			FROM searchable
+			WHERE ($1 = '' OR document @@ plainto_tsquery('english', $1))
+				AND ($2 = '' OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(manifest->'categories', '[]'::jsonb)) AS category(value) WHERE lower(category.value) = $2))
+				AND ($3 = '' OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(manifest->'tags', '[]'::jsonb)) AS tag(value) WHERE lower(tag.value) = $3))
+		)
+		SELECT id, version, developer_id, name, description, manifest, status, published_at, created_at, updated_at,
+			install_count, rating, relevance
+		FROM ranked
+		ORDER BY %s
+	`, orderBy), query, category, tag)
+	if err != nil {
+		return nil, fmt.Errorf("search marketplace connectors: %w", err)
+	}
+	defer rows.Close()
+
+	var connectors []*MarketplaceConnector
+	for rows.Next() {
+		connector, err := scanMarketplaceConnectorWithStats(rows)
+		if err != nil {
+			return nil, err
+		}
+		connectors = append(connectors, connector)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate marketplace search results: %w", err)
+	}
+	return connectors, nil
+}
+
+// ListInstalledProviders returns active first-party integration providers for recommendations.
+func (r *MarketplaceRepository) ListInstalledProviders(ctx context.Context, orgID uuid.UUID) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT provider
+		FROM integration_connections
+		WHERE org_id = $1 AND status = 'active'
+		ORDER BY provider ASC
+	`, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("query installed integration providers: %w", err)
+	}
+	defer rows.Close()
+
+	var providers []string
+	for rows.Next() {
+		var provider string
+		if err := rows.Scan(&provider); err != nil {
+			return nil, fmt.Errorf("scan installed integration provider: %w", err)
+		}
+		providers = append(providers, provider)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate installed integration providers: %w", err)
+	}
+	return providers, nil
 }
 
 // CreateInstallation creates an org connector installation.
@@ -373,6 +479,31 @@ func scanMarketplaceConnector(scanner marketplaceConnectorScanner) (*Marketplace
 		return nil, fmt.Errorf("unmarshal connector manifest: %w", err)
 	}
 	return connector, nil
+}
+
+func scanMarketplaceConnectorWithStats(scanner marketplaceConnectorScanner) (*MarketplaceConnector, error) {
+	connector := &MarketplaceConnector{}
+	var manifest []byte
+	if err := scanner.Scan(
+		&connector.ID, &connector.Version, &connector.DeveloperID, &connector.Name, &connector.Description,
+		&manifest, &connector.Status, &connector.PublishedAt, &connector.CreatedAt, &connector.UpdatedAt,
+		&connector.InstallCount, &connector.Rating, &connector.Relevance,
+	); err != nil {
+		return nil, fmt.Errorf("scan marketplace connector: %w", err)
+	}
+	if err := json.Unmarshal(manifest, &connector.Manifest); err != nil {
+		return nil, fmt.Errorf("unmarshal connector manifest: %w", err)
+	}
+	return connector, nil
+}
+
+func marketplaceSearchSortOrDefault(sort string) string {
+	switch sort {
+	case MarketplaceSearchSortPopularity, MarketplaceSearchSortRating, MarketplaceSearchSortNewest, MarketplaceSearchSortRelevance:
+		return sort
+	default:
+		return MarketplaceSearchSortRelevance
+	}
 }
 
 func metricDate(at time.Time) time.Time {

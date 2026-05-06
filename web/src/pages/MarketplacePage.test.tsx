@@ -97,11 +97,14 @@ function render(
       search: "",
       category: "all",
       status: "all",
+      sort: "relevance",
+      recommendations: [],
       installingId: null,
       selectedInstall: null,
       onSearchChange: noop,
       onCategoryChange: noop,
       onStatusChange: noop,
+      onSortChange: noop,
       onOpenInstall: noop,
       onCloseInstall: noop,
       onConfirmInstall: noop,
@@ -126,6 +129,7 @@ function assertNoMatch(input: string, pattern: RegExp) {
 const browse = render();
 assertMatch(browse, /Integration Marketplace/);
 assertMatch(browse, /Search connectors/);
+assertMatch(browse, /Sort by relevance/);
 assertMatch(browse, /Mock CRM/);
 assertMatch(browse, /SupportDesk/);
 assertMatch(browse, /Mock CRM icon/);
@@ -149,6 +153,11 @@ assertNoMatch(statusFiltered, /Mock CRM/);
 const empty = render({ search: "warehouse" });
 assertMatch(empty, /No connectors found/);
 assertMatch(empty, /Try a different search or category filter/);
+
+const recommended = render({ recommendations: [connectors[1]] });
+assertMatch(recommended, /Recommended for you/);
+assertMatch(recommended, /Based on your current integrations/);
+assertMatch(recommended, /Install recommendation/);
 
 const installing = render({
   selectedInstall: connectors[0],

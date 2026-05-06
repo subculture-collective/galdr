@@ -963,6 +963,39 @@ HTTP/1.1 204 No Content
 
 ## Integration Marketplace
 
+### GET `/marketplace/search`
+- **Auth required:** Yes (JWT)
+- **Description:** Search published marketplace connectors, filter by category/tag, sort results, and return basic recommendations for the current organization.
+- **Query params:** `q`, `category`, `tag`, `sort` (`relevance`, `popularity`, `rating`, `newest`)
+
+**Response (200)**
+
+```json
+{
+  "connectors": [
+    {
+      "id": "mock-crm",
+      "version": "1.0.0",
+      "name": "Mock CRM",
+      "description": "Example CRM connector.",
+      "install_count": 128,
+      "rating": 0,
+      "relevance": 0.74
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "supportdesk",
+      "version": "1.1.0",
+      "name": "SupportDesk"
+    }
+  ],
+  "query": "crm",
+  "category": "crm",
+  "sort": "relevance"
+}
+```
+
 ### GET `/marketplace/connectors/{id}/analytics`
 - **Auth required:** Yes (JWT + admin)
 - **Description:** Connector usage and health analytics for developer dashboards and marketplace monitoring.
