@@ -55,6 +55,31 @@ func TestInsightPipelineGeneratesStoresAndCachesCustomerInsight(t *testing.T) {
 	}
 }
 
+func TestInsightPipelinePassesManualRegenerationMetadata(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+	orgID := uuid.New()
+	customerID := uuid.New()
+	llm := &fakeInsightLLM{text: validInsightJSON("customer_analysis")}
+	insights := &fakeInsightStore{}
+	p := newTestInsightPipeline(now, llm, insights, orgID, customerID)
+
+	resp, err := p.GenerateCustomerInsight(ctx, orgID, customerID, InsightGenerationOptions{Force: true, Trigger: InsightTriggerManual})
+	if err != nil {
+		t.Fatalf("generate insight: %v", err)
+	}
+
+	if llm.lastReq.RequestType != InsightRequestTypeCustomerInsight {
+		t.Fatalf("expected customer insight request type, got %q", llm.lastReq.RequestType)
+	}
+	if !llm.lastReq.ManualRegeneration {
+		t.Fatal("expected manual regeneration to be passed to LLM usage gate")
+	}
+	if resp.Insight.Content["trigger"] != InsightTriggerManual {
+		t.Fatalf("expected trigger metadata to be stored, got %#v", resp.Insight.Content["trigger"])
+	}
+}
+
 func TestInsightPipelineProcessesBatchAtRiskCustomersFirst(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
@@ -154,12 +179,14 @@ type testInsightPipeline struct {
 }
 
 type fakeInsightLLM struct {
-	text  string
-	calls int
+	text    string
+	calls   int
+	lastReq LLMCompletionRequest
 }
 
 func (f *fakeInsightLLM) Complete(ctx context.Context, req LLMCompletionRequest) (*LLMCompletionResponse, error) {
 	f.calls++
+	f.lastReq = req
 	return &LLMCompletionResponse{Text: f.text, Provider: "gpt-4o-mini", InputTokens: 100, OutputTokens: 50, CostUSD: 0.001}, nil
 }
 
