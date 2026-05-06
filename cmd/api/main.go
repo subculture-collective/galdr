@@ -153,6 +153,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 			paymentRepo := repository.NewStripePaymentRepository(pool.P)
 			eventRepo := repository.NewCustomerEventRepository(pool.P)
 			playbookRepo := repository.NewPlaybookRepository(pool.P)
+			playbookExecutionRepo := repository.NewPlaybookExecutionRepository(pool.P)
 			savedViewRepo := repository.NewSavedViewRepository(pool.P)
 			genericWebhookConfigRepo := repository.NewGenericWebhookConfigRepository(pool.P)
 
@@ -472,6 +473,10 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				Insights:     customerInsightRepo,
 				LLM:          llmSvc,
 			})
+			thresholdTriggerSvc := service.NewPlaybookThresholdTriggerService(service.PlaybookThresholdTriggerConfig{
+				Playbooks:  playbookRepo,
+				Executions: playbookExecutionRepo,
+			})
 
 			// Alert engine + scheduler
 			alertRuleRepo := repository.NewAlertRuleRepository(pool.P)
@@ -521,8 +526,11 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				}
 			})
 
-			// Generate per-customer AI insights for meaningful score changes.
+			// Trigger playbooks and AI insights for meaningful score changes.
 			scoreScheduler.SetInsightCallback(func(ctx context.Context, previous, current *repository.HealthScore) {
+				if err := thresholdTriggerSvc.EvaluateScoreChange(ctx, previous, current); err != nil {
+					slog.Error("score-threshold playbook trigger error", "customer_id", current.CustomerID, "error", err)
+				}
 				if _, triggered, err := insightPipeline.GenerateForScoreChange(ctx, previous, current); err != nil {
 					slog.Error("score-triggered insight generation error", "customer_id", current.CustomerID, "error", err)
 				} else if triggered {
