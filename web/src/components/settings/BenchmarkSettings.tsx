@@ -116,8 +116,15 @@ export default function BenchmarkSettings({
         </p>
         <p className="mt-2">
           Customer PII, customer IDs, names, emails, external IDs, and metadata
-          are never shared. Opting out deletes your organization&apos;s stored
-          benchmark contributions and excludes future aggregation runs.
+          are never shared.
+        </p>
+        <p className="mt-3 font-medium text-[var(--galdr-fg)]">
+          Data retention
+        </p>
+        <p className="mt-1">
+          Your organization is opted out by default. Opting out deletes your
+          organization&apos;s stored benchmark contributions and excludes future
+          aggregation runs.
         </p>
         <a
           href="/legal/benchmark-data-usage"
