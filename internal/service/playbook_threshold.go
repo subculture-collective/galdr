@@ -15,6 +15,10 @@ const (
 	playbookThresholdDirectionDropsBelow = "drops_below"
 	playbookThresholdDirectionRisesAbove = "rises_above"
 	playbookThresholdDefaultCooldown     = 7 * 24 * time.Hour
+
+	playbookThresholdConfigThreshold     = "threshold"
+	playbookThresholdConfigDirection     = "direction"
+	playbookThresholdConfigCooldownHours = "cooldown_hours"
 )
 
 type thresholdPlaybookStore interface {
@@ -64,12 +68,12 @@ func (s *PlaybookThresholdTriggerService) EvaluateScoreChange(ctx context.Contex
 	}
 
 	for _, playbook := range playbooks {
-		cfg, ok := parsePlaybookThresholdConfig(playbook.TriggerConfig)
-		if !ok || !thresholdCrossed(previous.OverallScore, current.OverallScore, cfg) {
+		triggerConfig, ok := parsePlaybookThresholdConfig(playbook.TriggerConfig)
+		if !ok || !thresholdCrossed(previous.OverallScore, current.OverallScore, triggerConfig) {
 			continue
 		}
 
-		recent, err := s.executions.HasRecentCustomerExecution(ctx, playbook.ID, current.CustomerID, s.now().Add(-cfg.cooldown))
+		recent, err := s.executions.HasRecentCustomerExecution(ctx, playbook.ID, current.CustomerID, s.now().Add(-triggerConfig.cooldown))
 		if err != nil {
 			return fmt.Errorf("check playbook threshold cooldown: %w", err)
 		}
@@ -77,25 +81,29 @@ func (s *PlaybookThresholdTriggerService) EvaluateScoreChange(ctx context.Contex
 			continue
 		}
 
-		customerID := current.CustomerID
-		execution := &repository.PlaybookExecution{
-			PlaybookID: playbook.ID,
-			CustomerID: &customerID,
-			Status:     repository.PlaybookExecutionPending,
-			Result: map[string]any{
-				"trigger":        repository.PlaybookTriggerScoreThreshold,
-				"direction":      cfg.direction,
-				"threshold":      cfg.threshold,
-				"previous_score": previous.OverallScore,
-				"current_score":  current.OverallScore,
-			},
-		}
+		execution := newThresholdExecution(playbook.ID, previous, current, triggerConfig)
 		if err := s.executions.Create(ctx, execution); err != nil {
 			return fmt.Errorf("create playbook threshold execution: %w", err)
 		}
 	}
 
 	return nil
+}
+
+func newThresholdExecution(playbookID uuid.UUID, previous, current *repository.HealthScore, cfg playbookThresholdConfig) *repository.PlaybookExecution {
+	customerID := current.CustomerID
+	return &repository.PlaybookExecution{
+		PlaybookID: playbookID,
+		CustomerID: &customerID,
+		Status:     repository.PlaybookExecutionPending,
+		Result: map[string]any{
+			"trigger":        repository.PlaybookTriggerScoreThreshold,
+			"direction":      cfg.direction,
+			"threshold":      cfg.threshold,
+			"previous_score": previous.OverallScore,
+			"current_score":  current.OverallScore,
+		},
+	}
 }
 
 type playbookThresholdConfig struct {
@@ -105,16 +113,16 @@ type playbookThresholdConfig struct {
 }
 
 func parsePlaybookThresholdConfig(values map[string]any) (playbookThresholdConfig, bool) {
-	threshold, ok := intConfigValue(values, "threshold")
+	threshold, ok := intConfigValue(values, playbookThresholdConfigThreshold)
 	if !ok || threshold < 0 || threshold > 100 {
 		return playbookThresholdConfig{}, false
 	}
-	direction := stringConfigValue(values, "direction")
+	direction := stringConfigValue(values, playbookThresholdConfigDirection)
 	if direction != playbookThresholdDirectionDropsBelow && direction != playbookThresholdDirectionRisesAbove {
 		return playbookThresholdConfig{}, false
 	}
 	cfg := playbookThresholdConfig{threshold: threshold, direction: direction, cooldown: playbookThresholdDefaultCooldown}
-	if hours, ok := intConfigValue(values, "cooldown_hours"); ok && hours > 0 {
+	if hours, ok := intConfigValue(values, playbookThresholdConfigCooldownHours); ok && hours > 0 {
 		cfg.cooldown = time.Duration(hours) * time.Hour
 	}
 	return cfg, true
