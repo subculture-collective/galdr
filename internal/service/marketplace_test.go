@@ -15,6 +15,7 @@ type mockMarketplaceRepository struct {
 	createConnectorFn         func(ctx context.Context, connector *repository.MarketplaceConnector) error
 	getConnectorFn            func(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error)
 	listPublishedConnectorsFn func(ctx context.Context) ([]*repository.MarketplaceConnector, error)
+	listReviewQueueFn        func(ctx context.Context) ([]*repository.MarketplaceConnector, error)
 	createInstallationFn      func(ctx context.Context, installation *repository.ConnectorInstallation) error
 	createReviewResultFn      func(ctx context.Context, result *repository.ConnectorReviewResult) error
 	updateConnectorStatusFn   func(ctx context.Context, id, version, status string) error
@@ -30,6 +31,10 @@ func (m *mockMarketplaceRepository) GetConnector(ctx context.Context, id, versio
 
 func (m *mockMarketplaceRepository) ListPublishedConnectors(ctx context.Context) ([]*repository.MarketplaceConnector, error) {
 	return m.listPublishedConnectorsFn(ctx)
+}
+
+func (m *mockMarketplaceRepository) ListConnectorReviewQueue(ctx context.Context) ([]*repository.MarketplaceConnector, error) {
+	return m.listReviewQueueFn(ctx)
 }
 
 func (m *mockMarketplaceRepository) CreateInstallation(ctx context.Context, installation *repository.ConnectorInstallation) error {
@@ -167,6 +172,75 @@ func TestMarketplaceInstallUsesLatestPublishedVersion(t *testing.T) {
 	}
 	if installation.ConnectorVersion != latest.Version {
 		t.Fatalf("expected connector version %s, got %s", latest.Version, installation.ConnectorVersion)
+	}
+}
+
+func TestMarketplaceListReviewQueueReturnsSubmittedAndUnderReviewConnectors(t *testing.T) {
+	submitted := marketplaceConnector("mock-crm", "1.0.0", repository.MarketplaceConnectorStatusSubmitted)
+	underReview := marketplaceConnector("supportdesk", "1.0.0", repository.MarketplaceConnectorStatusUnderReview)
+	repo := &mockMarketplaceRepository{
+		listReviewQueueFn: func(ctx context.Context) ([]*repository.MarketplaceConnector, error) {
+			return []*repository.MarketplaceConnector{submitted, underReview}, nil
+		},
+	}
+
+	connectors, err := NewMarketplaceService(repo).ListReviewQueue(context.Background())
+	if err != nil {
+		t.Fatalf("list review queue failed: %v", err)
+	}
+	if len(connectors) != 2 || connectors[0].Status != repository.MarketplaceConnectorStatusSubmitted || connectors[1].Status != repository.MarketplaceConnectorStatusUnderReview {
+		t.Fatalf("unexpected queue connectors: %+v", connectors)
+	}
+}
+
+func TestMarketplacePublishApprovedConnectorMakesItDiscoverable(t *testing.T) {
+	connector := marketplaceConnector("mock-crm", "1.0.0", repository.MarketplaceConnectorStatusApproved)
+	var updatedStatus string
+	repo := &mockMarketplaceRepository{
+		getConnectorFn: func(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error) {
+			return connector, nil
+		},
+		updateConnectorStatusFn: func(ctx context.Context, id, version, status string) error {
+			updatedStatus = status
+			connector.Status = status
+			publishedAt := time.Now().UTC()
+			connector.PublishedAt = &publishedAt
+			return nil
+		},
+	}
+
+	published, err := NewMarketplaceService(repo).Publish(context.Background(), connector.ID, connector.Version)
+	if err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+	if updatedStatus != repository.MarketplaceConnectorStatusPublished || published.Status != repository.MarketplaceConnectorStatusPublished || published.PublishedAt == nil {
+		t.Fatalf("expected published connector, status=%q published_at=%v", published.Status, published.PublishedAt)
+	}
+}
+
+func TestMarketplaceRejectConnectorNotifiesDeveloper(t *testing.T) {
+	connector := marketplaceConnector("mock-crm", "1.0.0", repository.MarketplaceConnectorStatusUnderReview)
+	var notifiedStatus string
+	repo := &mockMarketplaceRepository{
+		getConnectorFn: func(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error) {
+			return connector, nil
+		},
+		updateConnectorStatusFn: func(ctx context.Context, id, version, status string) error {
+			connector.Status = status
+			return nil
+		},
+	}
+	notifier := connectorStatusNotifierFunc(func(ctx context.Context, c *repository.MarketplaceConnector, status string) error {
+		notifiedStatus = status
+		return nil
+	})
+
+	rejected, err := NewMarketplaceServiceWithNotifier(repo, notifier).Reject(context.Background(), connector.ID, connector.Version)
+	if err != nil {
+		t.Fatalf("reject failed: %v", err)
+	}
+	if rejected.Status != repository.MarketplaceConnectorStatusRejected || notifiedStatus != repository.MarketplaceConnectorStatusRejected {
+		t.Fatalf("expected rejected notification, connector=%q notified=%q", rejected.Status, notifiedStatus)
 	}
 }
 

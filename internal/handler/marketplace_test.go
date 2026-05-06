@@ -22,7 +22,10 @@ type mockMarketplaceService struct {
 	listPublishedFn func(ctx context.Context) ([]*repository.MarketplaceConnector, error)
 	getPublishedFn  func(ctx context.Context, id string) (*repository.MarketplaceConnector, error)
 	installFn       func(ctx context.Context, orgID uuid.UUID, id string, req service.InstallConnectorRequest) (*repository.ConnectorInstallation, error)
+	listReviewQueueFn func(ctx context.Context) ([]*repository.MarketplaceConnector, error)
 	reviewFn        func(ctx context.Context, reviewerID uuid.UUID, id, version string, req service.ConnectorReviewRequest) (*repository.ConnectorReviewResult, error)
+	rejectFn        func(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error)
+	publishFn       func(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error)
 }
 
 func (m *mockMarketplaceService) Register(ctx context.Context, developerID uuid.UUID, req service.RegisterConnectorRequest) (*repository.MarketplaceConnector, error) {
@@ -41,8 +44,20 @@ func (m *mockMarketplaceService) Install(ctx context.Context, orgID uuid.UUID, i
 	return m.installFn(ctx, orgID, id, req)
 }
 
+func (m *mockMarketplaceService) ListReviewQueue(ctx context.Context) ([]*repository.MarketplaceConnector, error) {
+	return m.listReviewQueueFn(ctx)
+}
+
 func (m *mockMarketplaceService) Review(ctx context.Context, reviewerID uuid.UUID, id, version string, req service.ConnectorReviewRequest) (*repository.ConnectorReviewResult, error) {
 	return m.reviewFn(ctx, reviewerID, id, version, req)
+}
+
+func (m *mockMarketplaceService) Reject(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error) {
+	return m.rejectFn(ctx, id, version)
+}
+
+func (m *mockMarketplaceService) Publish(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error) {
+	return m.publishFn(ctx, id, version)
 }
 
 func TestMarketplaceRegister_Unauthorized(t *testing.T) {
@@ -238,6 +253,79 @@ func TestMarketplaceReview_Unauthorized(t *testing.T) {
 
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestMarketplaceListReviewQueue_Success(t *testing.T) {
+	mock := &mockMarketplaceService{
+		listReviewQueueFn: func(ctx context.Context) ([]*repository.MarketplaceConnector, error) {
+			return []*repository.MarketplaceConnector{marketplaceConnector("mock-crm", "1.0.0", repository.MarketplaceConnectorStatusSubmitted)}, nil
+		},
+	}
+
+	h := NewMarketplaceHandler(mock)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/marketplace/connectors/review-queue", nil)
+	rr := httptest.NewRecorder()
+
+	h.ListReviewQueue(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var res struct {
+		Connectors []repository.MarketplaceConnector `json:"connectors"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&res); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(res.Connectors) != 1 || res.Connectors[0].Status != repository.MarketplaceConnectorStatusSubmitted {
+		t.Fatalf("unexpected queue response: %+v", res.Connectors)
+	}
+}
+
+func TestMarketplaceReject_Success(t *testing.T) {
+	mock := &mockMarketplaceService{
+		rejectFn: func(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error) {
+			if id != "mock-crm" || version != "1.0.0" {
+				t.Fatalf("unexpected reject target %s %s", id, version)
+			}
+			return marketplaceConnector(id, version, repository.MarketplaceConnectorStatusRejected), nil
+		},
+	}
+
+	h := NewMarketplaceHandler(mock)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/marketplace/connectors/mock-crm/versions/1.0.0/reject", nil)
+	req = withChiParam(req, "id", "mock-crm")
+	req = withChiParam(req, "version", "1.0.0")
+	rr := httptest.NewRecorder()
+
+	h.Reject(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestMarketplacePublish_Success(t *testing.T) {
+	mock := &mockMarketplaceService{
+		publishFn: func(ctx context.Context, id, version string) (*repository.MarketplaceConnector, error) {
+			if id != "mock-crm" || version != "1.0.0" {
+				t.Fatalf("unexpected publish target %s %s", id, version)
+			}
+			return marketplaceConnector(id, version, repository.MarketplaceConnectorStatusPublished), nil
+		},
+	}
+
+	h := NewMarketplaceHandler(mock)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/marketplace/connectors/mock-crm/versions/1.0.0/publish", nil)
+	req = withChiParam(req, "id", "mock-crm")
+	req = withChiParam(req, "version", "1.0.0")
+	rr := httptest.NewRecorder()
+
+	h.Publish(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 }
 

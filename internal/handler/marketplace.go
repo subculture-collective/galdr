@@ -94,6 +94,15 @@ func (h *MarketplaceHandler) Install(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, installation)
 }
 
+func (h *MarketplaceHandler) ListReviewQueue(w http.ResponseWriter, r *http.Request) {
+	connectors, err := h.service.ListReviewQueue(r.Context())
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"connectors": connectors})
+}
+
 func (h *MarketplaceHandler) Review(w http.ResponseWriter, r *http.Request) {
 	reviewerID, ok := auth.GetUserID(r.Context())
 	if !ok {
@@ -125,6 +134,46 @@ func (h *MarketplaceHandler) Review(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, result)
 }
 
+func (h *MarketplaceHandler) Reject(w http.ResponseWriter, r *http.Request) {
+	id, version, ok := connectorVersionParams(w, r)
+	if !ok {
+		return
+	}
+	connector, err := h.service.Reject(r.Context(), id, version)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, connector)
+}
+
+func (h *MarketplaceHandler) Publish(w http.ResponseWriter, r *http.Request) {
+	id, version, ok := connectorVersionParams(w, r)
+	if !ok {
+		return
+	}
+	connector, err := h.service.Publish(r.Context(), id, version)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, connector)
+}
+
 func connectorIDParam(r *http.Request) string {
 	return strings.TrimSpace(chi.URLParam(r, "id"))
+}
+
+func connectorVersionParams(w http.ResponseWriter, r *http.Request) (string, string, bool) {
+	id := connectorIDParam(r)
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse("connector id is required"))
+		return "", "", false
+	}
+	version := strings.TrimSpace(chi.URLParam(r, "version"))
+	if version == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse("connector version is required"))
+		return "", "", false
+	}
+	return id, version, true
 }
