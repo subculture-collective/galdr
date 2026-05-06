@@ -22,6 +22,14 @@ type mockMarketplaceRepository struct {
 	updateConnectorStatusFn   func(ctx context.Context, id, version, status string) error
 }
 
+type mockMarketplaceConnectionStore struct {
+	upsertFn func(ctx context.Context, conn *repository.IntegrationConnection) error
+}
+
+func (m *mockMarketplaceConnectionStore) Upsert(ctx context.Context, conn *repository.IntegrationConnection) error {
+	return m.upsertFn(ctx, conn)
+}
+
 func (m *mockMarketplaceRepository) CreateConnector(ctx context.Context, connector *repository.MarketplaceConnector) error {
 	return m.createConnectorFn(ctx, connector)
 }
@@ -191,6 +199,62 @@ func TestMarketplaceInstallUsesLatestPublishedVersion(t *testing.T) {
 	}
 	if !metricRecorded {
 		t.Fatal("expected install metric to be recorded")
+	}
+}
+
+func TestMarketplaceInstallRequiresConnectionTestBeforeAuthActivation(t *testing.T) {
+	repo := &mockMarketplaceRepository{
+		listPublishedConnectorsFn: func(ctx context.Context) ([]*repository.MarketplaceConnector, error) {
+			return []*repository.MarketplaceConnector{marketplaceConnector("mock-crm", "1.0.0", repository.MarketplaceConnectorStatusPublished)}, nil
+		},
+	}
+
+	_, err := NewMarketplaceService(repo).Install(context.Background(), uuid.New(), "mock-crm", InstallConnectorRequest{
+		Auth: InstallConnectorAuth{Type: "api_key", APIKey: "secret"},
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if _, ok := err.(*ValidationError); !ok {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+}
+
+func TestMarketplaceInstallCreatesIntegrationConnection(t *testing.T) {
+	orgID := uuid.New()
+	repo := &mockMarketplaceRepository{
+		listPublishedConnectorsFn: func(ctx context.Context) ([]*repository.MarketplaceConnector, error) {
+			return []*repository.MarketplaceConnector{marketplaceConnector("mock-crm", "1.0.0", repository.MarketplaceConnectorStatusPublished)}, nil
+		},
+		createInstallationFn: func(ctx context.Context, installation *repository.ConnectorInstallation) error {
+			return nil
+		},
+		incrementInstallMetricFn: func(ctx context.Context, connectorID string, at time.Time) error {
+			return nil
+		},
+	}
+	connStore := &mockMarketplaceConnectionStore{
+		upsertFn: func(ctx context.Context, conn *repository.IntegrationConnection) error {
+			if conn.OrgID != orgID || conn.Provider != "mock-crm" {
+				t.Fatalf("unexpected integration connection target: %+v", conn)
+			}
+			if conn.Status != integrationStatusActive {
+				t.Fatalf("expected active integration connection, got %q", conn.Status)
+			}
+			if conn.Metadata["connector_version"] != "1.0.0" || conn.Metadata["marketplace"] != true || conn.Metadata["auth_type"] != "api_key" {
+				t.Fatalf("unexpected integration connection metadata: %+v", conn.Metadata)
+			}
+			return nil
+		},
+	}
+
+	_, err := NewMarketplaceService(repo, connStore).Install(context.Background(), orgID, "mock-crm", InstallConnectorRequest{
+		Auth:           InstallConnectorAuth{Type: "api_key", APIKey: "secret"},
+		Config:         map[string]any{"region": "us"},
+		TestConnection: true,
+	})
+	if err != nil {
+		t.Fatalf("install failed: %v", err)
 	}
 }
 

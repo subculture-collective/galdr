@@ -155,7 +155,8 @@ const installing = render({
   installingId: "mock-crm",
 });
 assertMatch(installing, /Install Mock CRM/);
-assertMatch(installing, /redirect you to connector configuration/);
+assertMatch(installing, /Configure authentication/);
+assertMatch(installing, /Connection test/);
 assertMatch(installing, /Installing/);
 
 console.log("MarketplacePage browse states render correctly");

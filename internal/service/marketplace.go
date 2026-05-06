@@ -25,22 +25,39 @@ type marketplaceRepository interface {
 	UpdateConnectorStatus(ctx context.Context, id, version, status string) error
 }
 
+type marketplaceConnectionStore interface {
+	Upsert(ctx context.Context, conn *repository.IntegrationConnection) error
+}
+
 type RegisterConnectorRequest struct {
 	Manifest connectorsdk.ConnectorManifest `json:"manifest"`
 	Status   string                         `json:"status,omitempty"`
 }
 
 type InstallConnectorRequest struct {
-	Config map[string]any `json:"config,omitempty"`
+	Auth           InstallConnectorAuth `json:"auth,omitempty"`
+	Config         map[string]any       `json:"config,omitempty"`
+	TestConnection bool                 `json:"test_connection,omitempty"`
+}
+
+type InstallConnectorAuth struct {
+	Type              string `json:"type,omitempty"`
+	APIKey            string `json:"api_key,omitempty"`
+	OAuthAuthorizeURL string `json:"oauth_authorize_url,omitempty"`
 }
 
 // MarketplaceService handles connector registration and discovery.
 type MarketplaceService struct {
-	repo marketplaceRepository
+	repo      marketplaceRepository
+	connStore marketplaceConnectionStore
 }
 
-func NewMarketplaceService(repo marketplaceRepository) *MarketplaceService {
-	return &MarketplaceService{repo: repo}
+func NewMarketplaceService(repo marketplaceRepository, connStore ...marketplaceConnectionStore) *MarketplaceService {
+	service := &MarketplaceService{repo: repo}
+	if len(connStore) > 0 {
+		service.connStore = connStore[0]
+	}
+	return service
 }
 
 func (s *MarketplaceService) Register(ctx context.Context, developerID uuid.UUID, req RegisterConnectorRequest) (*repository.MarketplaceConnector, error) {
@@ -123,6 +140,9 @@ func (s *MarketplaceService) Install(ctx context.Context, orgID uuid.UUID, id st
 	if err != nil {
 		return nil, err
 	}
+	if req.Auth.Type != "" && !req.TestConnection {
+		return nil, &ValidationError{Field: "test_connection", Message: "connection test is required before activation"}
+	}
 	installation := &repository.ConnectorInstallation{
 		ConnectorID:      connector.ID,
 		ConnectorVersion: connector.Version,
@@ -132,6 +152,24 @@ func (s *MarketplaceService) Install(ctx context.Context, orgID uuid.UUID, id st
 	}
 	if err := s.repo.CreateInstallation(ctx, installation); err != nil {
 		return nil, err
+	}
+	if s.connStore != nil {
+		metadata := map[string]any{
+			"connector_version": connector.Version,
+			"marketplace":       true,
+		}
+		if req.Auth.Type != "" {
+			metadata["auth_type"] = req.Auth.Type
+		}
+		if err := s.connStore.Upsert(ctx, &repository.IntegrationConnection{
+			OrgID:             orgID,
+			Provider:          connector.ID,
+			Status:            integrationStatusActive,
+			ExternalAccountID: connector.ID,
+			Metadata:          metadata,
+		}); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.repo.IncrementConnectorInstallMetric(ctx, connector.ID, time.Now().UTC()); err != nil {
 		slog.Warn("failed to record connector install metric", "connector", connector.ID, "error", err)

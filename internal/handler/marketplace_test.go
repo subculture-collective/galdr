@@ -175,12 +175,19 @@ func TestMarketplaceInstall_Success(t *testing.T) {
 			if oID != orgID || id != "mock-crm" {
 				t.Fatalf("unexpected install target %s %s", oID, id)
 			}
+			if req.Auth.Type != "api_key" || req.Auth.APIKey != "secret" || !req.TestConnection {
+				t.Fatalf("install auth/test payload not decoded: %+v", req)
+			}
+			if req.Config["region"] != "us" {
+				t.Fatalf("install config not decoded: %+v", req.Config)
+			}
 			return &repository.ConnectorInstallation{ID: uuid.New(), OrgID: orgID, ConnectorID: id, ConnectorVersion: "1.0.0", Status: repository.ConnectorInstallationStatusActive}, nil
 		},
 	}
 
 	h := NewMarketplaceHandler(mock)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/marketplace/connectors/mock-crm/install", bytes.NewReader([]byte(`{"config":{"api_key":"secret"}}`)))
+	body := []byte(`{"auth":{"type":"api_key","api_key":"secret"},"config":{"region":"us"},"test_connection":true}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/marketplace/connectors/mock-crm/install", bytes.NewReader(body))
 	req = req.WithContext(auth.WithOrgID(req.Context(), orgID))
 	req = withChiParam(req, "id", "mock-crm")
 	rr := httptest.NewRecorder()

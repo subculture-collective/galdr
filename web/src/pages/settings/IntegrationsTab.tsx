@@ -34,6 +34,20 @@ const DEDICATED_INTEGRATION_PROVIDERS = new Set([
   "posthog",
 ]);
 
+function integrationStatus(status: string) {
+  switch (status) {
+    case "active":
+    case "connected":
+      return "connected";
+    case "syncing":
+      return "syncing";
+    case "error":
+      return "error";
+    default:
+      return "disconnected";
+  }
+}
+
 export default function IntegrationsTab() {
   const [integrations, setIntegrations] = useState<IntegrationConnection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +70,26 @@ export default function IntegrationsTab() {
   useEffect(() => {
     fetchIntegrations();
   }, [fetchIntegrations]);
+
+  async function handleSync(provider: string) {
+    try {
+      await api.post(`/integrations/${encodeURIComponent(provider)}/sync`, {});
+      toast.success(`${provider} sync started`);
+      await fetchIntegrations();
+    } catch {
+      toast.error(`Failed to sync ${provider}`);
+    }
+  }
+
+  async function handleDisconnect(provider: string) {
+    try {
+      await api.delete(`/integrations/${encodeURIComponent(provider)}`);
+      toast.success(`${provider} disconnected`);
+      await fetchIntegrations();
+    } catch {
+      toast.error(`Failed to disconnect ${provider}`);
+    }
+  }
 
   if (loading) {
     return (
@@ -151,17 +185,13 @@ export default function IntegrationsTab() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {otherIntegrations.map((integration) => (
               <IntegrationCard
-                key={integration.id}
+                key={integration.provider}
                 provider={integration.provider}
-                status={
-                  integration.status as
-                    | "connected"
-                    | "syncing"
-                    | "error"
-                    | "disconnected"
-                }
+                status={integrationStatus(integration.status)}
                 lastSyncAt={integration.last_sync_at}
                 customerCount={integration.customer_count}
+                onSync={() => handleSync(integration.provider)}
+                onDisconnect={() => handleDisconnect(integration.provider)}
               />
             ))}
           </div>
