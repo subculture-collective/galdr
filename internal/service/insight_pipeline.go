@@ -18,6 +18,8 @@ const (
 	InsightTriggerManual             = "manual"
 	InsightTriggerScoreDrop          = "score_drop"
 	InsightTriggerRiskLevelChanged   = "risk_level_changed"
+	InsightRequestTypeCustomerInsight = "customer_insight"
+	insightContentKeyTrigger         = "trigger"
 	defaultInsightCacheTTL           = 24 * time.Hour
 	defaultInsightBatchLimit         = 50
 	defaultScoreDropInsightThreshold = 10
@@ -154,10 +156,12 @@ func (p *InsightPipeline) GenerateCustomerInsight(ctx context.Context, orgID, cu
 
 	data := p.buildPromptData(ctx, customer, healthScore, events)
 	completion, err := p.llm.Complete(ctx, LLMCompletionRequest{
-		OrgID:        orgID,
-		TemplateName: string(prompts.CustomerAnalysisTemplate),
-		TemplateData: data,
-		MaxTokens:    prompts.Specs()[prompts.CustomerAnalysisTemplate].MaxOutputTokens,
+		OrgID:              orgID,
+		TemplateName:       string(prompts.CustomerAnalysisTemplate),
+		TemplateData:       data,
+		MaxTokens:          prompts.Specs()[prompts.CustomerAnalysisTemplate].MaxOutputTokens,
+		RequestType:        InsightRequestTypeCustomerInsight,
+		ManualRegeneration: opts.Force,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("generate insight: %w", err)
@@ -169,6 +173,9 @@ func (p *InsightPipeline) GenerateCustomerInsight(ctx context.Context, orgID, cu
 	content, err := structuredInsightContent(structured)
 	if err != nil {
 		return nil, err
+	}
+	if opts.Trigger != "" {
+		content[insightContentKeyTrigger] = opts.Trigger
 	}
 	insight := &repository.CustomerInsight{
 		OrgID:       orgID,
