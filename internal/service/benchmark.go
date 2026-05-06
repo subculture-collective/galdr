@@ -152,8 +152,223 @@ type BenchmarkContributionReader interface {
 	ListLatestContributions(ctx context.Context) ([]repository.BenchmarkContribution, error)
 }
 
+type BenchmarkAggregateReader interface {
+	ListLatestAggregates(ctx context.Context, industry, companySizeBucket string) ([]repository.BenchmarkAggregate, error)
+}
+
+type BenchmarkOrganizationReader interface {
+	GetByID(ctx context.Context, id uuid.UUID) (*repository.Organization, error)
+}
+
 type BenchmarkAggregateWriter interface {
 	CreateAggregate(ctx context.Context, aggregate *repository.BenchmarkAggregate) error
+}
+
+type BenchmarkComparisonService struct {
+	organizations BenchmarkOrganizationReader
+	metrics       BenchmarkMetricsReader
+	aggregates    BenchmarkAggregateReader
+}
+
+type BenchmarkComparisonResponse struct {
+	Participating bool                      `json:"participating"`
+	Industry      string                    `json:"industry"`
+	Size          string                    `json:"size"`
+	Percentile    *float64                  `json:"percentile"`
+	Metrics       []BenchmarkMetricResponse `json:"metrics"`
+}
+
+type BenchmarkMetricResponse struct {
+	Key         string                 `json:"key"`
+	Label       string                 `json:"label"`
+	Unit        string                 `json:"unit"`
+	YourValue   float64                `json:"your_value"`
+	Percentile  *float64               `json:"percentile"`
+	Benchmarks  *BenchmarkPercentiles  `json:"benchmarks"`
+	SampleCount int                    `json:"sample_count"`
+}
+
+type BenchmarkPercentiles struct {
+	P25 float64 `json:"p25"`
+	P50 float64 `json:"p50"`
+	P75 float64 `json:"p75"`
+}
+
+func NewBenchmarkComparisonService(
+	organizations BenchmarkOrganizationReader,
+	metrics BenchmarkMetricsReader,
+	aggregates BenchmarkAggregateReader,
+) *BenchmarkComparisonService {
+	return &BenchmarkComparisonService{
+		organizations: organizations,
+		metrics:       metrics,
+		aggregates:    aggregates,
+	}
+}
+
+func (s *BenchmarkComparisonService) Compare(ctx context.Context, orgID uuid.UUID, industry, companySizeBucket string) (*BenchmarkComparisonResponse, error) {
+	org, err := s.organizations.GetByID(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("get benchmark organization: %w", err)
+	}
+	if org == nil {
+		return nil, &NotFoundError{Resource: "organization", Message: "organization not found"}
+	}
+
+	segmentIndustry := NormalizeBenchmarkIndustry(defaultBenchmarkIndustry(industry, org.Industry))
+	segmentBucket := normalizeBenchmarkBucket(companySizeBucket, org.CompanySize)
+	response := &BenchmarkComparisonResponse{
+		Participating: org.BenchmarkingEnabled,
+		Industry:      segmentIndustry,
+		Size:          segmentBucket,
+		Metrics:       []BenchmarkMetricResponse{},
+	}
+	if !org.BenchmarkingEnabled {
+		return response, nil
+	}
+
+	aggregates, err := s.aggregates.ListLatestAggregates(ctx, segmentIndustry, segmentBucket)
+	if err != nil {
+		return nil, fmt.Errorf("list benchmark aggregates: %w", err)
+	}
+	if len(aggregates) == 0 {
+		return response, nil
+	}
+
+	values, err := s.currentMetricValues(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+
+	percentiles := make([]float64, 0, len(aggregates))
+	for _, aggregate := range aggregates {
+		definition, ok := benchmarkMetricDefinitions[aggregate.MetricName]
+		if !ok {
+			continue
+		}
+		value := values[aggregate.MetricName]
+		position := benchmarkPosition(value, aggregate, definition)
+		percentiles = append(percentiles, position)
+		response.Metrics = append(response.Metrics, BenchmarkMetricResponse{
+			Key:        aggregate.MetricName,
+			Label:      definition.label,
+			Unit:       definition.unit,
+			YourValue:  value,
+			Percentile: floatPtr(position),
+			Benchmarks: &BenchmarkPercentiles{
+				P25: aggregate.P25,
+				P50: aggregate.P50,
+				P75: aggregate.P75,
+			},
+			SampleCount: aggregate.SampleCount,
+		})
+	}
+	if len(percentiles) > 0 {
+		response.Percentile = floatPtr(math.Round(averageFloat64(percentiles)))
+	}
+
+	return response, nil
+}
+
+type benchmarkMetricDefinition struct {
+	label         string
+	unit          string
+	lowerIsBetter bool
+}
+
+var benchmarkMetricDefinitions = map[string]benchmarkMetricDefinition{
+	repository.BenchmarkMetricHealthScore:      {label: "Avg health score", unit: "score"},
+	repository.BenchmarkMetricMRRPerCustomer:   {label: "MRR/customer", unit: "currency"},
+	repository.BenchmarkMetricChurnRate:        {label: "Churn rate", unit: "percent", lowerIsBetter: true},
+	repository.BenchmarkMetricIntegrationUsage: {label: "Integration count", unit: "count"},
+}
+
+func benchmarkPosition(value float64, aggregate repository.BenchmarkAggregate, definition benchmarkMetricDefinition) float64 {
+	position := estimateBenchmarkPercentile(value, aggregate)
+	if definition.lowerIsBetter {
+		return 100 - position
+	}
+	return position
+}
+
+func (s *BenchmarkComparisonService) currentMetricValues(ctx context.Context, orgID uuid.UUID) (map[string]float64, error) {
+	customerCount, err := s.metrics.CountCustomers(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("count benchmark customers: %w", err)
+	}
+	totalMRR, err := s.metrics.TotalMRR(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("sum benchmark mrr: %w", err)
+	}
+	avgScore, err := s.metrics.AverageHealthScore(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("average benchmark score: %w", err)
+	}
+	churnRate, err := s.metrics.ChurnRate(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("benchmark churn rate: %w", err)
+	}
+	integrationCount, err := s.metrics.ActiveIntegrationCount(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("count benchmark active integrations: %w", err)
+	}
+
+	return map[string]float64{
+		repository.BenchmarkMetricHealthScore:      avgScore,
+		repository.BenchmarkMetricMRRPerCustomer:   float64(averageMRR(totalMRR, customerCount)),
+		repository.BenchmarkMetricChurnRate:        churnRate,
+		repository.BenchmarkMetricIntegrationUsage: float64(integrationCount),
+	}, nil
+}
+
+func defaultBenchmarkIndustry(requested, fallback string) string {
+	if strings.TrimSpace(requested) != "" {
+		return requested
+	}
+	return fallback
+}
+
+func normalizeBenchmarkBucket(requested string, fallback int) string {
+	trimmed := strings.TrimSpace(requested)
+	switch trimmed {
+	case repository.BenchmarkBucket1To10,
+		repository.BenchmarkBucket11To50,
+		repository.BenchmarkBucket51To200,
+		repository.BenchmarkBucket201To1000,
+		repository.BenchmarkBucket1000Plus:
+		return trimmed
+	}
+	if fallback > 0 {
+		return BucketCompanySize(fallback)
+	}
+	return repository.BenchmarkBucket51To200
+}
+
+func estimateBenchmarkPercentile(value float64, aggregate repository.BenchmarkAggregate) float64 {
+	switch {
+	case value <= aggregate.P25:
+		return interpolatePercentile(value, 0, aggregate.P25, 0, 25)
+	case value <= aggregate.P50:
+		return interpolatePercentile(value, aggregate.P25, aggregate.P50, 25, 50)
+	case value <= aggregate.P75:
+		return interpolatePercentile(value, aggregate.P50, aggregate.P75, 50, 75)
+	case value <= aggregate.P90:
+		return interpolatePercentile(value, aggregate.P75, aggregate.P90, 75, 90)
+	default:
+		return math.Min(100, interpolatePercentile(value, aggregate.P90, aggregate.P90+(aggregate.P90-aggregate.P75), 90, 100))
+	}
+}
+
+func interpolatePercentile(value, lowerValue, upperValue, lowerPercentile, upperPercentile float64) float64 {
+	if upperValue <= lowerValue {
+		return upperPercentile
+	}
+	ratio := (value - lowerValue) / (upperValue - lowerValue)
+	return math.Round(lowerPercentile + ratio*(upperPercentile-lowerPercentile))
+}
+
+func floatPtr(value float64) *float64 {
+	return &value
 }
 
 const (

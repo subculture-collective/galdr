@@ -393,6 +393,112 @@ func TestBenchmarkAggregationServiceExcludesInvalidPersistedContributions(t *tes
 	assertFloatEqual(t, health.P50, 52)
 }
 
+func TestBenchmarkComparisonServiceReturnsSegmentMetrics(t *testing.T) {
+	orgID := uuid.New()
+	orgs := &fakeBenchmarkOrgRepo{orgs: []repository.Organization{{
+		ID:                  orgID,
+		Industry:            "SaaS",
+		CompanySize:         120,
+		BenchmarkingEnabled: true,
+	}}}
+	metrics := &fakeBenchmarkMetricsRepo{
+		customerCounts: map[uuid.UUID]int{orgID: 10},
+		totalMRR:       map[uuid.UUID]int64{orgID: 420000},
+		avgScores:      map[uuid.UUID]float64{orgID: 82},
+		churnRates:     map[uuid.UUID]float64{orgID: 0.04},
+		integrations:   map[uuid.UUID]int{orgID: 3},
+	}
+	aggregates := &fakeBenchmarkAggregateRepo{aggregates: []*repository.BenchmarkAggregate{
+		{Industry: "saas", CompanySizeBucket: repository.BenchmarkBucket51To200, MetricName: repository.BenchmarkMetricHealthScore, P25: 61, P50: 70, P75: 79, P90: 88, SampleCount: 42},
+		{Industry: "saas", CompanySizeBucket: repository.BenchmarkBucket51To200, MetricName: repository.BenchmarkMetricMRRPerCustomer, P25: 20000, P50: 35000, P75: 50000, P90: 70000, SampleCount: 42},
+	}}
+	service := NewBenchmarkComparisonService(orgs, metrics, aggregates)
+
+	response, err := service.Compare(context.Background(), orgID, "SaaS", repository.BenchmarkBucket51To200)
+	if err != nil {
+		t.Fatalf("compare benchmarks: %v", err)
+	}
+
+	if !response.Participating {
+		t.Fatal("expected participating org")
+	}
+	if response.Industry != "saas" || response.Size != repository.BenchmarkBucket51To200 {
+		t.Fatalf("expected saas 51-200 segment, got %s %s", response.Industry, response.Size)
+	}
+	if len(response.Metrics) != 2 {
+		t.Fatalf("expected 2 metrics, got %d", len(response.Metrics))
+	}
+	if response.Metrics[0].Key != repository.BenchmarkMetricHealthScore {
+		t.Fatalf("expected health metric first, got %s", response.Metrics[0].Key)
+	}
+	if response.Metrics[0].YourValue != 82 || response.Metrics[0].SampleCount != 42 {
+		t.Fatalf("unexpected health metric values: %+v", response.Metrics[0])
+	}
+	if response.Metrics[0].Percentile == nil || *response.Metrics[0].Percentile <= 75 {
+		t.Fatalf("expected health percentile above p75, got %+v", response.Metrics[0].Percentile)
+	}
+	if response.Percentile == nil {
+		t.Fatal("expected peer-position percentile")
+	}
+}
+
+func TestBenchmarkComparisonServiceRanksLowerChurnAsBetter(t *testing.T) {
+	orgID := uuid.New()
+	orgs := &fakeBenchmarkOrgRepo{orgs: []repository.Organization{{
+		ID:                  orgID,
+		Industry:            "SaaS",
+		CompanySize:         120,
+		BenchmarkingEnabled: true,
+	}}}
+	metrics := &fakeBenchmarkMetricsRepo{
+		customerCounts: map[uuid.UUID]int{orgID: 10},
+		churnRates:     map[uuid.UUID]float64{orgID: 0.02},
+	}
+	aggregates := &fakeBenchmarkAggregateRepo{aggregates: []*repository.BenchmarkAggregate{
+		{Industry: "saas", CompanySizeBucket: repository.BenchmarkBucket51To200, MetricName: repository.BenchmarkMetricChurnRate, P25: 0.03, P50: 0.05, P75: 0.08, P90: 0.12, SampleCount: 42},
+	}}
+	service := NewBenchmarkComparisonService(orgs, metrics, aggregates)
+
+	response, err := service.Compare(context.Background(), orgID, "SaaS", repository.BenchmarkBucket51To200)
+	if err != nil {
+		t.Fatalf("compare benchmarks: %v", err)
+	}
+
+	if len(response.Metrics) != 1 {
+		t.Fatalf("expected churn metric, got %d metrics", len(response.Metrics))
+	}
+	if response.Metrics[0].Percentile == nil || *response.Metrics[0].Percentile < 75 {
+		t.Fatalf("expected low churn to rank in a high percentile, got %+v", response.Metrics[0].Percentile)
+	}
+}
+
+func TestBenchmarkComparisonServiceReturnsOptInPromptState(t *testing.T) {
+	orgID := uuid.New()
+	orgs := &fakeBenchmarkOrgRepo{orgs: []repository.Organization{{
+		ID:                  orgID,
+		Industry:            "SaaS",
+		CompanySize:         120,
+		BenchmarkingEnabled: false,
+	}}}
+	metrics := &fakeBenchmarkMetricsRepo{}
+	aggregates := &fakeBenchmarkAggregateRepo{}
+	service := NewBenchmarkComparisonService(orgs, metrics, aggregates)
+
+	response, err := service.Compare(context.Background(), orgID, "", "")
+	if err != nil {
+		t.Fatalf("compare benchmarks: %v", err)
+	}
+	if response.Participating {
+		t.Fatal("expected non-participating org")
+	}
+	if len(response.Metrics) != 0 {
+		t.Fatalf("expected no metrics while opted out, got %d", len(response.Metrics))
+	}
+	if response.Size != repository.BenchmarkBucket51To200 {
+		t.Fatalf("expected fallback size bucket, got %s", response.Size)
+	}
+}
+
 func benchmarkContribution(industry, bucket string, score float64, mrr int64, churnRate float64, integrationCount int) repository.BenchmarkContribution {
 	return benchmarkContributionAt(industry, bucket, score, mrr, churnRate, integrationCount, time.Now().UTC())
 }
@@ -419,6 +525,15 @@ func assertFloatEqual(t *testing.T, got, expected float64) {
 
 type fakeBenchmarkOrgRepo struct {
 	orgs []repository.Organization
+}
+
+func (f *fakeBenchmarkOrgRepo) GetByID(ctx context.Context, id uuid.UUID) (*repository.Organization, error) {
+	for _, org := range f.orgs {
+		if org.ID == id {
+			return &org, nil
+		}
+	}
+	return nil, nil
 }
 
 func (f *fakeBenchmarkOrgRepo) ListBenchmarkingEnabled(ctx context.Context) ([]repository.Organization, error) {
@@ -480,6 +595,16 @@ func (f *fakeBenchmarkAggregateRepo) ListLatestContributions(ctx context.Context
 func (f *fakeBenchmarkAggregateRepo) CreateAggregate(ctx context.Context, aggregate *repository.BenchmarkAggregate) error {
 	f.aggregates = append(f.aggregates, aggregate)
 	return nil
+}
+
+func (f *fakeBenchmarkAggregateRepo) ListLatestAggregates(ctx context.Context, industry, companySizeBucket string) ([]repository.BenchmarkAggregate, error) {
+	aggregates := []repository.BenchmarkAggregate{}
+	for _, aggregate := range f.aggregates {
+		if aggregate.Industry == industry && aggregate.CompanySizeBucket == companySizeBucket {
+			aggregates = append(aggregates, *aggregate)
+		}
+	}
+	return aggregates, nil
 }
 
 func (f *fakeBenchmarkAggregateRepo) aggregateByMetric(metric string) *repository.BenchmarkAggregate {

@@ -37,6 +37,10 @@ type dashboardServicer interface {
 	GetScoreDistribution(ctx context.Context, orgID uuid.UUID) (*service.ScoreDistributionResponse, error)
 }
 
+type benchmarkServicer interface {
+	Compare(ctx context.Context, orgID uuid.UUID, industry, companySizeBucket string) (*service.BenchmarkComparisonResponse, error)
+}
+
 // integrationServicer defines the methods the IntegrationHandler needs.
 type integrationServicer interface {
 	List(ctx context.Context, orgID uuid.UUID) ([]service.IntegrationSummary, error)
