@@ -695,6 +695,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				integrationHandler := handler.NewIntegrationHandler(integrationSvc)
 				r.Route("/integrations", func(r chi.Router) {
 					r.Get("/", integrationHandler.List)
+					r.Get("/health", integrationHandler.Health)
 					r.Route("/generic-webhooks", func(r chi.Router) {
 						r.Use(middleware.RequireRole("admin"))
 						r.Get("/", genericWebhookHandler.List)

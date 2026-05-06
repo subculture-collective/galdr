@@ -199,6 +199,51 @@ export const teamApi = {
     api.delete(`/invitations/${encodeURIComponent(invitationID)}`),
 };
 
+export type IntegrationHealthStatus =
+  | "healthy"
+  | "warning"
+  | "down"
+  | "disconnected";
+
+export interface IntegrationHealthAlert {
+  type: string;
+  severity: "info" | "warning" | "critical" | string;
+  message: string;
+}
+
+export interface IntegrationSyncHistoryPoint {
+  date: string;
+  status: "success" | "error" | string;
+  records_synced: number;
+  duration_ms: number;
+}
+
+export interface IntegrationHealthSummary {
+  provider: string;
+  status: string;
+  health_status: IntegrationHealthStatus;
+  last_sync_at: string | null;
+  connected_at: string | null;
+  records_synced: number;
+  error_count: number;
+  sync_duration_ms: number;
+  error_rate: number;
+  customer_count: number;
+  last_sync_error?: string;
+  alerts: IntegrationHealthAlert[];
+  sync_history: IntegrationSyncHistoryPoint[];
+}
+
+export interface IntegrationHealthResponse {
+  generated_at: string;
+  stale_after_hours: number;
+  integrations: IntegrationHealthSummary[];
+}
+
+export const integrationsApi = {
+  getHealth: () => api.get<IntegrationHealthResponse>("/integrations/health"),
+};
+
 // Alert types and API
 export interface AlertRule {
   id: string;

@@ -49,6 +49,71 @@ func TestIntegrationServiceListIncludesRegistryConnectors(t *testing.T) {
 	}
 }
 
+func TestIntegrationServiceHealthFlagsStaleAndErroringConnections(t *testing.T) {
+	orgID := uuid.New()
+	now := time.Now().UTC()
+	staleSync := now.Add(-25 * time.Hour)
+	recentSync := now.Add(-time.Hour)
+	registry := connectorsdk.NewRegistry()
+	for _, provider := range []string{"stripe", "hubspot", "zendesk"} {
+		if _, err := registry.Register(&recordingConnector{id: provider}); err != nil {
+			t.Fatalf("register %s: %v", provider, err)
+		}
+	}
+
+	store := &fakeIntegrationStore{
+		connections: []*repository.IntegrationConnection{
+			{
+				OrgID:      orgID,
+				Provider:   "stripe",
+				Status:     "active",
+				LastSyncAt: &staleSync,
+				CreatedAt:  now.Add(-48 * time.Hour),
+				Metadata: map[string]any{
+					"records_synced":        120,
+					"last_sync_duration_ms": 4300,
+					"success_count":         8,
+				},
+			},
+			{
+				OrgID:          orgID,
+				Provider:       "hubspot",
+				Status:         "error",
+				LastSyncAt:     &recentSync,
+				LastSyncError:  "rate limited",
+				CreatedAt:      now.Add(-72 * time.Hour),
+				Metadata:       map[string]any{"error_count": 5, "success_count": 5},
+			},
+		},
+		customerCounts: map[string]int{"stripe": 120, "hubspot": 80},
+	}
+	svc := NewIntegrationService(store, nil, registry)
+
+	health, err := svc.GetHealth(context.Background(), orgID)
+	if err != nil {
+		t.Fatalf("get health: %v", err)
+	}
+
+	if len(health.Integrations) != 3 {
+		t.Fatalf("expected registry and connected integrations, got %#v", health.Integrations)
+	}
+	stripe := health.Integrations[0]
+	if stripe.Provider != "stripe" || stripe.HealthStatus != "warning" || len(stripe.Alerts) == 0 {
+		t.Fatalf("expected stale stripe warning, got %#v", stripe)
+	}
+	if stripe.RecordsSynced != 120 || stripe.SyncDurationMS != 4300 || len(stripe.SyncHistory) != 1 {
+		t.Fatalf("expected stripe sync metrics, got %#v", stripe)
+	}
+	hubspot := health.Integrations[1]
+	if hubspot.Provider != "hubspot" || hubspot.HealthStatus != "down" || hubspot.ErrorRate != 0.5 {
+		t.Fatalf("expected hubspot down with error rate, got %#v", hubspot)
+	}
+	zendesk := health.Integrations[2]
+	if zendesk.Provider != "zendesk" || zendesk.HealthStatus != "disconnected" {
+		t.Fatalf("expected disconnected registry connector, got %#v", zendesk)
+	}
+}
+
 type fakeIntegrationStore struct {
 	connections    []*repository.IntegrationConnection
 	customerCounts map[string]int

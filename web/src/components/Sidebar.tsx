@@ -4,6 +4,7 @@ import {
   Users,
   BarChart3,
   Plug,
+  Activity,
   Store,
   Settings,
   ChevronLeft,
@@ -25,6 +26,7 @@ const navItems = [
     icon: BarChart3,
     requiredFeature: FEATURE_BENCHMARKS,
   },
+  { to: "/integration-health", label: "Integration Health", icon: Activity },
   { to: "/settings/integrations", label: "Integrations", icon: Plug },
   { to: "/settings", label: "Settings", icon: Settings, end: true },
 ];
