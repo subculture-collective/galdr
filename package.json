@@ -3,8 +3,9 @@
   "scripts": {
     "preinstall": "pnpm exec only-allow pnpm",
     "sandcastle": "pnpm exec tsx .sandcastle/main.mts",
-    "test": "node scripts/validate-roadmap.mjs && node scripts/validate-stripe-app-package.test.mjs",
+    "test": "node scripts/validate-roadmap.mjs && node scripts/validate-stripe-app-package.test.mjs && node scripts/validate-marketplace-listing.mjs",
     "test:stripe-app": "node scripts/validate-stripe-app-package.test.mjs",
+    "test:marketplace-listing": "node scripts/validate-marketplace-listing.mjs",
     "typecheck": "pnpm --dir web run typecheck"
   },
   "dependencies": {

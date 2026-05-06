@@ -1,0 +1,45 @@
+{
+  "app_name": "PulseScore",
+  "issue_reference": "#176",
+  "parent_epic_reference": "#24",
+  "short_description": "Customer health scores and churn alerts powered by Stripe billing data.",
+  "long_description": "PulseScore helps B2B SaaS teams spot churn risk earlier by turning Stripe billing activity into clear customer health scores. Connect Stripe with read-only OAuth, import customers, subscriptions, invoices, and payments, then review every account through health scoring, risk segmentation, customer detail timelines, and alert workflows.\n\nThe app highlights payment recency, failed-payment risk, MRR movement, account activity, and support signals so customer success and revenue teams can prioritize the accounts that need action before renewal risk becomes visible in revenue. Teams can view portfolio health, drill into a customer detail page, and create email alerts when scores drop or customers move into an at-risk tier.\n\nPulseScore is built for SaaS operators who already run billing through Stripe and need a simple customer-health layer without spreadsheets or custom scripts. The Stripe connection is read-only; PulseScore cannot create charges, issue refunds, modify subscriptions, or access banking data.",
+  "categories": ["analytics", "customer management"],
+  "app_url": "https://pulsescore.app",
+  "support_url": "https://pulsescore.app/support",
+  "privacy_policy_url": "https://pulsescore.app/privacy",
+  "terms_url": "https://pulsescore.app/terms",
+  "support_email": "support@pulsescore.app",
+  "logo": {
+    "file": "assets/pulsescore-marketplace-logo.svg",
+    "width": 1024,
+    "height": 1024,
+    "alt": "PulseScore marketplace logo"
+  },
+  "screenshots": [
+    {
+      "file": "assets/screenshot-dashboard.svg",
+      "width": 1280,
+      "height": 800,
+      "caption": "Dashboard view showing portfolio health, MRR, at-risk customers, and risk distribution."
+    },
+    {
+      "file": "assets/screenshot-customer-detail.svg",
+      "width": 1280,
+      "height": 800,
+      "caption": "Customer detail page with health score, signal breakdown, subscriptions, and event timeline."
+    },
+    {
+      "file": "assets/screenshot-health-scores.svg",
+      "width": 1280,
+      "height": 800,
+      "caption": "Health score table with green, yellow, and red risk tiers for Stripe customers."
+    },
+    {
+      "file": "assets/screenshot-alerts.svg",
+      "width": 1280,
+      "height": 800,
+      "caption": "Alert rule configuration for score drops and customer risk changes."
+    }
+  ]
+}

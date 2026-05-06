@@ -1,0 +1,43 @@
+<svg width="1280" height="800" viewBox="0 0 1280 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="800" rx="28" fill="#0B0B12"/>
+  <rect x="40" y="40" width="1200" height="720" rx="24" fill="#111827" stroke="#334155"/>
+  <text x="82" y="102" fill="#F8FAFC" font-family="Arial" font-size="34" font-weight="700">PulseScore Dashboard</text>
+  <text x="82" y="138" fill="#94A3B8" font-family="Arial" font-size="18">Portfolio health from Stripe billing data</text>
+  <g>
+    <rect x="82" y="184" width="250" height="122" rx="18" fill="#0F172A" stroke="#334155"/>
+    <text x="106" y="230" fill="#94A3B8" font-family="Arial" font-size="18">Customers</text>
+    <text x="106" y="276" fill="#F8FAFC" font-family="Arial" font-size="44" font-weight="700">842</text>
+  </g>
+  <g>
+    <rect x="358" y="184" width="250" height="122" rx="18" fill="#0F172A" stroke="#334155"/>
+    <text x="382" y="230" fill="#94A3B8" font-family="Arial" font-size="18">At risk</text>
+    <text x="382" y="276" fill="#FBBF24" font-family="Arial" font-size="44" font-weight="700">116</text>
+  </g>
+  <g>
+    <rect x="634" y="184" width="250" height="122" rx="18" fill="#0F172A" stroke="#334155"/>
+    <text x="658" y="230" fill="#94A3B8" font-family="Arial" font-size="18">MRR watched</text>
+    <text x="658" y="276" fill="#F8FAFC" font-family="Arial" font-size="44" font-weight="700">$1.4M</text>
+  </g>
+  <g>
+    <rect x="910" y="184" width="250" height="122" rx="18" fill="#0F172A" stroke="#334155"/>
+    <text x="934" y="230" fill="#94A3B8" font-family="Arial" font-size="18">Avg score</text>
+    <text x="934" y="276" fill="#34D399" font-family="Arial" font-size="44" font-weight="700">74</text>
+  </g>
+  <rect x="82" y="348" width="690" height="330" rx="22" fill="#0F172A" stroke="#334155"/>
+  <text x="110" y="400" fill="#E0E7FF" font-family="Arial" font-size="24" font-weight="700">Risk distribution</text>
+  <rect x="120" y="464" width="560" height="28" rx="14" fill="#1E293B"/>
+  <rect x="120" y="464" width="346" height="28" rx="14" fill="#34D399"/>
+  <rect x="466" y="464" width="146" height="28" fill="#FBBF24"/>
+  <rect x="612" y="464" width="68" height="28" rx="14" fill="#FB7185"/>
+  <text x="120" y="545" fill="#34D399" font-family="Arial" font-size="22">Green 62%</text>
+  <text x="320" y="545" fill="#FBBF24" font-family="Arial" font-size="22">Yellow 26%</text>
+  <text x="548" y="545" fill="#FB7185" font-family="Arial" font-size="22">Red 12%</text>
+  <rect x="806" y="348" width="354" height="330" rx="22" fill="#0F172A" stroke="#334155"/>
+  <text x="834" y="400" fill="#E0E7FF" font-family="Arial" font-size="24" font-weight="700">Top risks</text>
+  <text x="834" y="462" fill="#F8FAFC" font-family="Arial" font-size="20">Acme Ops</text>
+  <text x="1080" y="462" fill="#FB7185" font-family="Arial" font-size="20" font-weight="700">37</text>
+  <text x="834" y="526" fill="#F8FAFC" font-family="Arial" font-size="20">Orbit Analytics</text>
+  <text x="1080" y="526" fill="#FBBF24" font-family="Arial" font-size="20" font-weight="700">64</text>
+  <text x="834" y="590" fill="#F8FAFC" font-family="Arial" font-size="20">Northwind SaaS</text>
+  <text x="1080" y="590" fill="#34D399" font-family="Arial" font-size="20" font-weight="700">89</text>
+</svg>
