@@ -74,7 +74,7 @@ func (s *LLMUsageService) CheckLLMUsage(ctx context.Context, orgID uuid.UUID, es
 	if limits.DailyRequests >= 0 && summary.RequestsToday >= limits.DailyRequests {
 		return ErrLLMRateLimited
 	}
-	if limits.BudgetUSD >= 0 && summary.MonthlyCostUSD+estimatedCostUSD > limits.BudgetUSD {
+	if limits.BudgetUSD >= 0 && summary.MonthlyCostUSD+estimatedCostUSD >= limits.BudgetUSD {
 		if manualRegeneration {
 			return ErrLLMBudgetConfirmationRequired
 		}

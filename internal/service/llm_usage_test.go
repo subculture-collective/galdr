@@ -58,6 +58,15 @@ func TestLLMUsageServiceEnforcesTierBudget(t *testing.T) {
 	}
 }
 
+func TestLLMUsageServiceEnforcesBudgetAtLimit(t *testing.T) {
+	svc := NewLLMUsageService(&fakeLLMUsageRepo{cost: 4.99}, fakeLLMPlanResolver{tier: "growth"}, nil)
+
+	err := svc.CheckLLMUsage(context.Background(), uuid.New(), 0.01, false)
+	if !errors.Is(err, ErrLLMBudgetExceeded) {
+		t.Fatalf("expected budget exceeded at limit, got %v", err)
+	}
+}
+
 func TestLLMUsageServiceRequiresConfirmationForManualRegenerationOverBudget(t *testing.T) {
 	svc := NewLLMUsageService(&fakeLLMUsageRepo{cost: 4.99}, fakeLLMPlanResolver{tier: "growth"}, nil)
 
