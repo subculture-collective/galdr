@@ -27,6 +27,19 @@ interface OrganizationBenchmarkSettings {
   benchmarking_enabled?: boolean;
 }
 
+interface BenchmarkPageViewProps {
+  industry: string;
+  size: string;
+  participating: boolean;
+  loading: boolean;
+  error: boolean;
+  metrics: BenchmarkMetric[];
+  calloutPercentile: number | null;
+  onIndustryChange: (industry: string) => void;
+  onSizeChange: (size: string) => void;
+  onRetry: () => void;
+}
+
 function defaultSize(size?: number | string) {
   if (typeof size === "string" && COMPANY_SIZES.includes(size)) return size;
   if (typeof size !== "number") return "51-200";
@@ -63,52 +76,18 @@ function highestPercentile(metrics: BenchmarkMetric[]) {
   );
 }
 
-export default function BenchmarkPage() {
-  const [industry, setIndustry] = useState("SaaS");
-  const [size, setSize] = useState("51-200");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [participating, setParticipating] = useState(true);
-  const [data, setData] = useState<BenchmarksResponse | null>(null);
-
-  useEffect(() => {
-    async function fetchDefaults() {
-      try {
-        const { data: org } = await api.get<OrganizationBenchmarkSettings>(
-          "/organizations/current",
-        );
-        if (org.industry) setIndustry(org.industry);
-        setSize(defaultSize(org.company_size));
-        setParticipating(org.benchmarking_enabled !== false);
-      } catch {
-        setParticipating(true);
-      }
-    }
-    void fetchDefaults();
-  }, []);
-
-  const fetchBenchmarks = useCallback(async () => {
-    setLoading(true);
-    setError(false);
-    try {
-      const { data: response } = await benchmarksApi.compare({ industry, size });
-      setData(response);
-      setParticipating(response.participating);
-    } catch {
-      setError(true);
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [industry, size]);
-
-  useEffect(() => {
-    void fetchBenchmarks();
-  }, [fetchBenchmarks]);
-
-  const metrics = data?.metrics.map(normalizeMetric) ?? [];
-  const calloutPercentile = data?.percentile ?? highestPercentile(metrics);
-
+export function BenchmarkPageView({
+  industry,
+  size,
+  participating,
+  loading,
+  error,
+  metrics,
+  calloutPercentile,
+  onIndustryChange,
+  onSizeChange,
+  onRetry,
+}: BenchmarkPageViewProps) {
   return (
     <div className="space-y-6">
       <div className="galdr-card overflow-hidden p-6">
@@ -131,7 +110,7 @@ export default function BenchmarkPage() {
               Industry
               <select
                 value={industry}
-                onChange={(event) => setIndustry(event.target.value)}
+                onChange={(event) => onIndustryChange(event.target.value)}
                 className="galdr-input mt-1 w-full px-3 py-2 text-sm"
               >
                 {ORGANIZATION_INDUSTRIES.map((option) => (
@@ -145,7 +124,7 @@ export default function BenchmarkPage() {
               Company size
               <select
                 value={size}
-                onChange={(event) => setSize(event.target.value)}
+                onChange={(event) => onSizeChange(event.target.value)}
                 className="galdr-input mt-1 w-full px-3 py-2 text-sm"
               >
                 {COMPANY_SIZES.map((option) => (
@@ -199,7 +178,7 @@ export default function BenchmarkPage() {
         <div role="alert" className="galdr-alert-danger p-6 text-center">
           <p className="text-sm">Failed to load benchmark data.</p>
           <button
-            onClick={fetchBenchmarks}
+            onClick={onRetry}
             className="galdr-link mt-2 inline-flex items-center gap-2 text-sm font-medium"
           >
             <RefreshCw className="h-4 w-4" /> Retry
@@ -221,5 +200,67 @@ export default function BenchmarkPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function BenchmarkPage() {
+  const [industry, setIndustry] = useState("SaaS");
+  const [size, setSize] = useState("51-200");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [participating, setParticipating] = useState(true);
+  const [data, setData] = useState<BenchmarksResponse | null>(null);
+
+  useEffect(() => {
+    async function fetchDefaults() {
+      try {
+        const { data: org } = await api.get<OrganizationBenchmarkSettings>(
+          "/organizations/current",
+        );
+        if (org.industry) setIndustry(org.industry);
+        setSize(defaultSize(org.company_size));
+        setParticipating(org.benchmarking_enabled !== false);
+      } catch {
+        setParticipating(true);
+      }
+    }
+    void fetchDefaults();
+  }, []);
+
+  const fetchBenchmarks = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const { data: response } = await benchmarksApi.compare({ industry, size });
+      setData(response);
+      setParticipating(response.participating);
+    } catch {
+      setError(true);
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [industry, size]);
+
+  useEffect(() => {
+    void fetchBenchmarks();
+  }, [fetchBenchmarks]);
+
+  const metrics = data?.metrics.map(normalizeMetric) ?? [];
+  const calloutPercentile = data?.percentile ?? highestPercentile(metrics);
+
+  return (
+    <BenchmarkPageView
+      industry={industry}
+      size={size}
+      participating={participating}
+      loading={loading}
+      error={error}
+      metrics={metrics}
+      calloutPercentile={calloutPercentile}
+      onIndustryChange={setIndustry}
+      onSizeChange={setSize}
+      onRetry={fetchBenchmarks}
+    />
   );
 }

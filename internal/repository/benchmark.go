@@ -180,6 +180,49 @@ func (r *BenchmarkRepository) CreateAggregate(ctx context.Context, aggregate *Be
 	return nil
 }
 
+func (r *BenchmarkRepository) ListLatestAggregates(ctx context.Context, industry, companySizeBucket string) ([]BenchmarkAggregate, error) {
+	query := `
+		SELECT DISTINCT ON (metric_name)
+			id, industry, company_size_bucket, metric_name, p25, p50,
+			p75, p90, sample_count, quality_score, quality_level, calculated_at
+		FROM benchmark_aggregates
+		WHERE industry = $1 AND company_size_bucket = $2
+		ORDER BY metric_name, calculated_at DESC`
+
+	rows, err := r.pool.Query(ctx, query, industry, companySizeBucket)
+	if err != nil {
+		return nil, fmt.Errorf("list latest benchmark aggregates: %w", err)
+	}
+	defer rows.Close()
+
+	aggregates := []BenchmarkAggregate{}
+	for rows.Next() {
+		var aggregate BenchmarkAggregate
+		if err := rows.Scan(
+			&aggregate.ID,
+			&aggregate.Industry,
+			&aggregate.CompanySizeBucket,
+			&aggregate.MetricName,
+			&aggregate.P25,
+			&aggregate.P50,
+			&aggregate.P75,
+			&aggregate.P90,
+			&aggregate.SampleCount,
+			&aggregate.QualityScore,
+			&aggregate.QualityLevel,
+			&aggregate.CalculatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan latest benchmark aggregate: %w", err)
+		}
+		aggregates = append(aggregates, aggregate)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate latest benchmark aggregates: %w", err)
+	}
+
+	return aggregates, nil
+}
+
 type BenchmarkMetricsRepository struct {
 	customers    *CustomerRepository
 	healthScores *HealthScoreRepository

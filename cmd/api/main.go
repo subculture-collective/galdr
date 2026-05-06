@@ -683,6 +683,12 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 					middleware.RequireFeature(billingLimitsSvc, billingcatalog.FeatureFullDashboard),
 				).Get("/dashboard/score-distribution", dashboardHandler.GetScoreDistribution)
 
+				benchmarkComparisonSvc := service.NewBenchmarkComparisonService(orgRepo, benchmarkMetricsRepo, benchmarkRepo)
+				benchmarkHandler := handler.NewBenchmarkHandler(benchmarkComparisonSvc)
+				r.With(
+					middleware.RequireFeature(billingLimitsSvc, billingcatalog.FeatureBenchmarks),
+				).Get("/benchmarks", benchmarkHandler.Compare)
+
 				// Integration management routes (admin+ required)
 				integrationSvc := service.NewIntegrationService(connRepo, connectorSyncSvc, connectorRegistry)
 				integrationHandler := handler.NewIntegrationHandler(integrationSvc)
