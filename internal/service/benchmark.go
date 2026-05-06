@@ -199,7 +199,11 @@ func NewBenchmarkComparisonService(
 	metrics BenchmarkMetricsReader,
 	aggregates BenchmarkAggregateReader,
 ) *BenchmarkComparisonService {
-	return &BenchmarkComparisonService{organizations: organizations, metrics: metrics, aggregates: aggregates}
+	return &BenchmarkComparisonService{
+		organizations: organizations,
+		metrics:       metrics,
+		aggregates:    aggregates,
+	}
 }
 
 func (s *BenchmarkComparisonService) Compare(ctx context.Context, orgID uuid.UUID, industry, companySizeBucket string) (*BenchmarkComparisonResponse, error) {
@@ -236,7 +240,7 @@ func (s *BenchmarkComparisonService) Compare(ctx context.Context, orgID uuid.UUI
 		return nil, err
 	}
 
-	var percentiles []float64
+	percentiles := make([]float64, 0, len(aggregates))
 	for _, aggregate := range aggregates {
 		definition, ok := benchmarkMetricDefinitions[aggregate.MetricName]
 		if !ok {
@@ -325,13 +329,14 @@ func defaultBenchmarkIndustry(requested, fallback string) string {
 }
 
 func normalizeBenchmarkBucket(requested string, fallback int) string {
-	switch strings.TrimSpace(requested) {
+	trimmed := strings.TrimSpace(requested)
+	switch trimmed {
 	case repository.BenchmarkBucket1To10,
 		repository.BenchmarkBucket11To50,
 		repository.BenchmarkBucket51To200,
 		repository.BenchmarkBucket201To1000,
 		repository.BenchmarkBucket1000Plus:
-		return strings.TrimSpace(requested)
+		return trimmed
 	}
 	if fallback > 0 {
 		return BucketCompanySize(fallback)

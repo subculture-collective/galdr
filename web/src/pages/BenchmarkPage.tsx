@@ -41,12 +41,24 @@ interface BenchmarkPageViewProps {
 }
 
 function defaultSize(size?: number | string) {
-  if (typeof size === "string" && COMPANY_SIZES.includes(size)) return size;
-  if (typeof size !== "number") return "51-200";
-  if (size <= 10) return "1-10";
-  if (size <= 50) return "11-50";
-  if (size <= 200) return "51-200";
-  if (size <= 1000) return "201-1000";
+  if (typeof size === "string" && COMPANY_SIZES.includes(size)) {
+    return size;
+  }
+  if (typeof size !== "number") {
+    return "51-200";
+  }
+  if (size <= 10) {
+    return "1-10";
+  }
+  if (size <= 50) {
+    return "11-50";
+  }
+  if (size <= 200) {
+    return "51-200";
+  }
+  if (size <= 1000) {
+    return "201-1000";
+  }
   return "1000+";
 }
 
@@ -66,11 +78,13 @@ function normalizeMetric(metric: BenchmarkMetricResponse): BenchmarkMetric {
   };
 }
 
-function highestPercentile(metrics: BenchmarkMetric[]) {
+function averageMetricPercentile(metrics: BenchmarkMetric[]) {
   const percentiles = metrics
     .map((metric) => metric.percentile)
     .filter((value): value is number => value !== null);
-  if (percentiles.length === 0) return null;
+  if (percentiles.length === 0) {
+    return null;
+  }
   return Math.round(
     percentiles.reduce((sum, value) => sum + value, 0) / percentiles.length,
   );
@@ -88,6 +102,47 @@ export function BenchmarkPageView({
   onSizeChange,
   onRetry,
 }: BenchmarkPageViewProps) {
+  let metricContent;
+  if (loading) {
+    metricContent = (
+      <div className="grid gap-4 lg:grid-cols-2">
+        {[...Array(4)].map((_, index) => (
+          <ChartSkeleton key={index} />
+        ))}
+      </div>
+    );
+  } else if (error) {
+    metricContent = (
+      <div role="alert" className="galdr-alert-danger p-6 text-center">
+        <p className="text-sm">Failed to load benchmark data.</p>
+        <button
+          onClick={onRetry}
+          className="galdr-link mt-2 inline-flex items-center gap-2 text-sm font-medium"
+        >
+          <RefreshCw className="h-4 w-4" /> Retry
+        </button>
+      </div>
+    );
+  } else if (metrics.length === 0) {
+    metricContent = (
+      <div className="galdr-card p-6">
+        <EmptyState
+          icon={<BarChart3 className="h-12 w-12" />}
+          title="No benchmark data yet"
+          description="Choose another peer segment or wait for enough opted-in organizations to produce a safe aggregate."
+        />
+      </div>
+    );
+  } else {
+    metricContent = (
+      <div className="grid gap-4 lg:grid-cols-2">
+        {metrics.map((metric) => (
+          <BenchmarkChart key={metric.key} metric={metric} />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="galdr-card overflow-hidden p-6">
@@ -168,37 +223,7 @@ export function BenchmarkPageView({
         </section>
       )}
 
-      {loading ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {[...Array(4)].map((_, index) => (
-            <ChartSkeleton key={index} />
-          ))}
-        </div>
-      ) : error ? (
-        <div role="alert" className="galdr-alert-danger p-6 text-center">
-          <p className="text-sm">Failed to load benchmark data.</p>
-          <button
-            onClick={onRetry}
-            className="galdr-link mt-2 inline-flex items-center gap-2 text-sm font-medium"
-          >
-            <RefreshCw className="h-4 w-4" /> Retry
-          </button>
-        </div>
-      ) : metrics.length === 0 ? (
-        <div className="galdr-card p-6">
-          <EmptyState
-            icon={<BarChart3 className="h-12 w-12" />}
-            title="No benchmark data yet"
-            description="Choose another peer segment or wait for enough opted-in organizations to produce a safe aggregate."
-          />
-        </div>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {metrics.map((metric) => (
-            <BenchmarkChart key={metric.key} metric={metric} />
-          ))}
-        </div>
-      )}
+      {metricContent}
     </div>
   );
 }
@@ -247,7 +272,7 @@ export default function BenchmarkPage() {
   }, [fetchBenchmarks]);
 
   const metrics = data?.metrics.map(normalizeMetric) ?? [];
-  const calloutPercentile = data?.percentile ?? highestPercentile(metrics);
+  const calloutPercentile = data?.percentile ?? averageMetricPercentile(metrics);
 
   return (
     <BenchmarkPageView
