@@ -3,6 +3,7 @@ import api from "./api";
 export interface SalesforceStatus {
   status: string;
   external_account_id?: string;
+  instance_url?: string;
   last_sync_at?: string;
   last_sync_error?: string;
   connected_at?: string;

@@ -177,6 +177,19 @@ export function SalesforceConnectionCardView({
               <span className="font-mono">{status.external_account_id}</span>
             </p>
           )}
+          {status.instance_url && (
+            <p>
+              Instance URL:{" "}
+              <a
+                className="font-mono text-[var(--galdr-accent-2)] hover:underline"
+                href={status.instance_url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                {status.instance_url}
+              </a>
+            </p>
+          )}
           {status.last_sync_at && (
             <p>Last sync: {new Date(status.last_sync_at).toLocaleString()}</p>
           )}

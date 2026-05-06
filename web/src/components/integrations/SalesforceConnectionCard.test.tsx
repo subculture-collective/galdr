@@ -49,6 +49,7 @@ assertNoMatch(disconnected, /Sync Now/);
 const connected = render({
   status: "active",
   external_account_id: "00Dxx0000001gPFEAY",
+  instance_url: "https://acme.my.salesforce.com",
   account_count: 12,
   contact_count: 340,
   opportunity_count: 28,
@@ -57,6 +58,8 @@ const connected = render({
 assertMatch(connected, /Connected/);
 assertMatch(connected, /Org ID:/);
 assertMatch(connected, /00Dxx0000001gPFEAY/);
+assertMatch(connected, /Instance URL:/);
+assertMatch(connected, /https:\/\/acme\.my\.salesforce\.com/);
 assertMatch(connected, /Accounts synced: 12/);
 assertMatch(connected, /Contacts synced: 340/);
 assertMatch(connected, /Opportunities synced: 28/);

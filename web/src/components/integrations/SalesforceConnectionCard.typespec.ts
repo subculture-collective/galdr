@@ -7,6 +7,7 @@ const card: ComponentType = SalesforceConnectionCard;
 const connectedStatus: SalesforceStatus = {
   status: "active",
   external_account_id: "00Dxx0000001gPFEAY",
+  instance_url: "https://acme.my.salesforce.com",
   account_count: 12,
   contact_count: 340,
   opportunity_count: 28,
