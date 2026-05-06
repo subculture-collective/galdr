@@ -1,0 +1,33 @@
+<svg width="1280" height="800" viewBox="0 0 1280 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="800" rx="28" fill="#0B0B12"/>
+  <rect x="40" y="40" width="1200" height="720" rx="24" fill="#111827" stroke="#334155"/>
+  <text x="82" y="106" fill="#F8FAFC" font-family="Arial" font-size="34" font-weight="700">Health Scores</text>
+  <text x="82" y="142" fill="#94A3B8" font-family="Arial" font-size="18">Prioritize every Stripe customer by current risk tier</text>
+  <rect x="82" y="188" width="1076" height="72" rx="18" fill="#0F172A" stroke="#334155"/>
+  <text x="122" y="232" fill="#94A3B8" font-family="Arial" font-size="18">Customer</text>
+  <text x="498" y="232" fill="#94A3B8" font-family="Arial" font-size="18">MRR</text>
+  <text x="684" y="232" fill="#94A3B8" font-family="Arial" font-size="18">Score</text>
+  <text x="886" y="232" fill="#94A3B8" font-family="Arial" font-size="18">Risk</text>
+  <g font-family="Arial" font-size="20">
+    <rect x="82" y="284" width="1076" height="84" rx="18" fill="#0F172A" stroke="#334155"/>
+    <text x="122" y="336" fill="#F8FAFC">Northwind SaaS</text>
+    <text x="498" y="336" fill="#CBD5E1">$8,400</text>
+    <text x="684" y="336" fill="#34D399" font-weight="700">89</text>
+    <text x="886" y="336" fill="#34D399" font-weight="700">Green</text>
+    <rect x="82" y="392" width="1076" height="84" rx="18" fill="#0F172A" stroke="#334155"/>
+    <text x="122" y="444" fill="#F8FAFC">Orbit Analytics</text>
+    <text x="498" y="444" fill="#CBD5E1">$3,200</text>
+    <text x="684" y="444" fill="#FBBF24" font-weight="700">64</text>
+    <text x="886" y="444" fill="#FBBF24" font-weight="700">Yellow</text>
+    <rect x="82" y="500" width="1076" height="84" rx="18" fill="#0F172A" stroke="#334155"/>
+    <text x="122" y="552" fill="#F8FAFC">Acme Ops</text>
+    <text x="498" y="552" fill="#CBD5E1">$1,250</text>
+    <text x="684" y="552" fill="#FB7185" font-weight="700">37</text>
+    <text x="886" y="552" fill="#FB7185" font-weight="700">Red</text>
+    <rect x="82" y="608" width="1076" height="84" rx="18" fill="#0F172A" stroke="#334155"/>
+    <text x="122" y="660" fill="#F8FAFC">Meridian Cloud</text>
+    <text x="498" y="660" fill="#CBD5E1">$5,900</text>
+    <text x="684" y="660" fill="#34D399" font-weight="700">76</text>
+    <text x="886" y="660" fill="#34D399" font-weight="700">Green</text>
+  </g>
+</svg>
