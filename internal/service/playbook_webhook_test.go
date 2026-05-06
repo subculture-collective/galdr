@@ -109,6 +109,28 @@ func TestWebhookActionRetriesTransientFailure(t *testing.T) {
 	}
 }
 
+func TestWebhookActionRetriesRequestErrors(t *testing.T) {
+	attempts := 0
+	client := &http.Client{
+		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			attempts++
+			return nil, errors.New("dial webhook: connection refused")
+		}),
+	}
+
+	executor := NewWebhookActionExecutor(WebhookActionExecutorConfig{
+		HTTPClient:  client,
+		RetryDelays: []time.Duration{0, 0},
+	})
+	result, err := executor.Execute(context.Background(), minimalWebhookRequest("https://example.test/hook"))
+	if err == nil {
+		t.Fatal("expected request failure")
+	}
+	if attempts != 3 || result.Attempts != 3 || result.Error == "" {
+		t.Fatalf("expected recorded third-attempt request failure, attempts=%d result=%+v", attempts, result)
+	}
+}
+
 func TestWebhookActionRejectsNonHTTPSURL(t *testing.T) {
 	executor := NewWebhookActionExecutor(WebhookActionExecutorConfig{})
 	_, err := executor.Execute(context.Background(), minimalWebhookRequest("http://example.test/hook"))
@@ -178,4 +200,10 @@ func nestedString(t *testing.T, values map[string]any, objectKey, valueKey strin
 		t.Fatalf("expected %q.%q to be a string, got %+v", objectKey, valueKey, nested[valueKey])
 	}
 	return value
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
