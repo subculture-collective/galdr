@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -148,6 +149,7 @@ func TestCustomerList_Success(t *testing.T) {
 
 func TestCustomerList_QueryParams(t *testing.T) {
 	orgID := uuid.New()
+	userID := uuid.New()
 	var captured repository.CustomerListParams
 	mock := &mockCustomerService{
 		listFn: func(ctx context.Context, params repository.CustomerListParams) (*service.CustomerListResponse, error) {
@@ -159,6 +161,7 @@ func TestCustomerList_QueryParams(t *testing.T) {
 	h := NewCustomerHandler(mock)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/customers?page=2&per_page=10&sort=mrr&order=desc&risk=high&churn_risk=high&search=acme&source=stripe&assignee=me", nil)
 	req = req.WithContext(auth.WithOrgID(req.Context(), orgID))
+	req = req.WithContext(auth.WithUserID(req.Context(), userID))
 	rr := httptest.NewRecorder()
 
 	h.List(rr, req)
@@ -192,6 +195,60 @@ func TestCustomerList_QueryParams(t *testing.T) {
 	}
 	if captured.Assignee != "me" {
 		t.Errorf("expected assignee me, got %s", captured.Assignee)
+	}
+	if captured.AssigneeUserID != userID {
+		t.Errorf("expected assignee user ID %s, got %s", userID, captured.AssigneeUserID)
+	}
+}
+
+func TestCustomerListAssignments_Success(t *testing.T) {
+	orgID := uuid.New()
+	customerID := uuid.New()
+	assigneeID := uuid.New()
+	assignedAt := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+	mock := &mockCustomerService{
+		listAssignFn: func(ctx context.Context, cID, oID uuid.UUID) (*service.CustomerAssignmentsResponse, error) {
+			if cID != customerID {
+				t.Errorf("expected customerID %s, got %s", customerID, cID)
+			}
+			if oID != orgID {
+				t.Errorf("expected orgID %s, got %s", orgID, oID)
+			}
+			return &service.CustomerAssignmentsResponse{Assignments: []service.CustomerAssignmentResponse{
+				{
+					CustomerID: customerID,
+					UserID:     assigneeID,
+					Assignee: service.CustomerAssignmentUser{
+						ID:    assigneeID,
+						Name:  "Ada Lovelace",
+						Email: "ada@example.com",
+					},
+					AssignedAt: assignedAt,
+				},
+			}}, nil
+		},
+	}
+
+	h := NewCustomerHandler(mock)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/customers/"+customerID.String()+"/assignments", nil)
+	req = req.WithContext(auth.WithOrgID(req.Context(), orgID))
+	req = withChiParam(req, "id", customerID.String())
+	rr := httptest.NewRecorder()
+
+	h.ListAssignments(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp service.CustomerAssignmentsResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(resp.Assignments) != 1 {
+		t.Fatalf("expected 1 assignment, got %d", len(resp.Assignments))
+	}
+	if resp.Assignments[0].Assignee.Email != "ada@example.com" {
+		t.Errorf("expected assignee email ada@example.com, got %s", resp.Assignments[0].Assignee.Email)
 	}
 }
 
@@ -229,6 +286,39 @@ func TestCustomerAssign_Success(t *testing.T) {
 
 	if rr.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d", rr.Code)
+	}
+}
+
+func TestCustomerUnassign_Success(t *testing.T) {
+	orgID := uuid.New()
+	customerID := uuid.New()
+	assigneeID := uuid.New()
+	mock := &mockCustomerService{
+		unassignFn: func(ctx context.Context, cID, oID, aID uuid.UUID) error {
+			if cID != customerID {
+				t.Errorf("expected customerID %s, got %s", customerID, cID)
+			}
+			if oID != orgID {
+				t.Errorf("expected orgID %s, got %s", orgID, oID)
+			}
+			if aID != assigneeID {
+				t.Errorf("expected assigneeID %s, got %s", assigneeID, aID)
+			}
+			return nil
+		},
+	}
+
+	h := NewCustomerHandler(mock)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/customers/"+customerID.String()+"/assignments/"+assigneeID.String(), nil)
+	req = req.WithContext(auth.WithOrgID(req.Context(), orgID))
+	req = withChiParam(req, "id", customerID.String())
+	req = withChiParam(req, "userID", assigneeID.String())
+	rr := httptest.NewRecorder()
+
+	h.UnassignCustomer(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rr.Code)
 	}
 }
 

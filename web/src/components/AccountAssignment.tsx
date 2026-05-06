@@ -36,9 +36,11 @@ interface AccountAssignmentProps {
   initialAssignments?: CustomerAssignment[];
 }
 
+const EMPTY_ASSIGNMENTS: CustomerAssignment[] = [];
+
 export default function AccountAssignment({
   customerId,
-  initialAssignments = [],
+  initialAssignments = EMPTY_ASSIGNMENTS,
 }: AccountAssignmentProps) {
   const [assignments, setAssignments] =
     useState<CustomerAssignment[]>(initialAssignments);
@@ -111,9 +113,9 @@ export default function AccountAssignment({
     }
   }
 
-  const assignedIDs = new Set(assignments.map((item) => item.user_id));
+  const assignedIds = new Set(assignments.map((item) => item.user_id));
   const availableMembers = members.filter(
-    (member) => !assignedIDs.has(member.user_id),
+    (member) => !assignedIds.has(member.user_id),
   );
 
   return (

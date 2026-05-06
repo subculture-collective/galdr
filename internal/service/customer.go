@@ -100,13 +100,8 @@ func (s *CustomerService) List(ctx context.Context, params repository.CustomerLi
 	if params.Risk != "" && !validRisks[params.Risk] {
 		return nil, &ValidationError{Field: "risk", Message: "invalid risk level"}
 	}
-	if params.Assignee == "me" && params.AssigneeUserID == uuid.Nil {
-		return nil, &ValidationError{Field: "assignee", Message: "current user is required"}
-	}
-	if params.Assignee != "" && params.Assignee != "me" && params.Assignee != "unassigned" {
-		if _, err := uuid.Parse(params.Assignee); err != nil {
-			return nil, &ValidationError{Field: "assignee", Message: "invalid assignee"}
-		}
+	if err := validateAssigneeFilter(params); err != nil {
+		return nil, err
 	}
 	validChurnRisks := map[string]bool{"low": true, "medium": true, "high": true}
 	if params.ChurnRisk != "" && !validChurnRisks[params.ChurnRisk] {
@@ -144,6 +139,25 @@ func (s *CustomerService) List(ctx context.Context, params repository.CustomerLi
 			TotalPages: result.TotalPages,
 		},
 	}, nil
+}
+
+func validateAssigneeFilter(params repository.CustomerListParams) error {
+	switch params.Assignee {
+	case "":
+		return nil
+	case "me":
+		if params.AssigneeUserID == uuid.Nil {
+			return &ValidationError{Field: "assignee", Message: "current user is required"}
+		}
+		return nil
+	case "unassigned":
+		return nil
+	default:
+		if _, err := uuid.Parse(params.Assignee); err != nil {
+			return &ValidationError{Field: "assignee", Message: "invalid assignee"}
+		}
+		return nil
+	}
 }
 
 // GetChurnPrediction returns the current churn prediction for a customer.
