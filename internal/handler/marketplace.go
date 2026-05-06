@@ -109,14 +109,8 @@ func (h *MarketplaceHandler) Review(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, errorResponse("unauthorized"))
 		return
 	}
-	id := connectorIDParam(r)
-	if id == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse("connector id is required"))
-		return
-	}
-	version := strings.TrimSpace(chi.URLParam(r, "version"))
-	if version == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse("connector version is required"))
+	id, version, ok := connectorVersionParams(w, r)
+	if !ok {
 		return
 	}
 

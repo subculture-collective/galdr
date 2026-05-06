@@ -87,12 +87,17 @@ func (s *ConnectorReviewService) Review(ctx context.Context, reviewerID uuid.UUI
 		return nil, err
 	}
 	connector.Status = connectorStatus
-	if s.notifier != nil {
-		if err := s.notifier.NotifyConnectorStatusChange(ctx, connector, connectorStatus); err != nil {
-			return nil, err
-		}
+	if err := s.notifyStatusChange(ctx, connector, connectorStatus); err != nil {
+		return nil, err
 	}
 	return result, nil
+}
+
+func (s *ConnectorReviewService) notifyStatusChange(ctx context.Context, connector *repository.MarketplaceConnector, status string) error {
+	if s.notifier == nil {
+		return nil
+	}
+	return s.notifier.NotifyConnectorStatusChange(ctx, connector, status)
 }
 
 func runAutomatedConnectorChecks(manifest connectorsdk.ConnectorManifest) []repository.ConnectorReviewCheck {

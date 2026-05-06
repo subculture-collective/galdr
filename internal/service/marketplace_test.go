@@ -21,6 +21,12 @@ type mockMarketplaceRepository struct {
 	updateConnectorStatusFn   func(ctx context.Context, id, version, status string) error
 }
 
+type mockConnectorStatusNotifier func(ctx context.Context, connector *repository.MarketplaceConnector, status string) error
+
+func (m mockConnectorStatusNotifier) NotifyConnectorStatusChange(ctx context.Context, connector *repository.MarketplaceConnector, status string) error {
+	return m(ctx, connector, status)
+}
+
 func (m *mockMarketplaceRepository) CreateConnector(ctx context.Context, connector *repository.MarketplaceConnector) error {
 	return m.createConnectorFn(ctx, connector)
 }
@@ -230,7 +236,7 @@ func TestMarketplaceRejectConnectorNotifiesDeveloper(t *testing.T) {
 			return nil
 		},
 	}
-	notifier := connectorStatusNotifierFunc(func(ctx context.Context, c *repository.MarketplaceConnector, status string) error {
+	notifier := mockConnectorStatusNotifier(func(ctx context.Context, c *repository.MarketplaceConnector, status string) error {
 		notifiedStatus = status
 		return nil
 	})

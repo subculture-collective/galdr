@@ -27,12 +27,6 @@ type connectorStatusNotifier interface {
 	NotifyConnectorStatusChange(ctx context.Context, connector *repository.MarketplaceConnector, status string) error
 }
 
-type connectorStatusNotifierFunc func(ctx context.Context, connector *repository.MarketplaceConnector, status string) error
-
-func (f connectorStatusNotifierFunc) NotifyConnectorStatusChange(ctx context.Context, connector *repository.MarketplaceConnector, status string) error {
-	return f(ctx, connector, status)
-}
-
 type RegisterConnectorRequest struct {
 	Manifest connectorsdk.ConnectorManifest `json:"manifest"`
 	Status   string                         `json:"status,omitempty"`
