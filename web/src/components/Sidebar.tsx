@@ -10,12 +10,21 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
+import {
+  FEATURE_BENCHMARKS,
+  useFeatureFlag,
+} from "@/contexts/FeatureFlagContext";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/customers", label: "Customers", icon: Users },
   { to: "/marketplace", label: "Marketplace", icon: Store },
-  { to: "/benchmarks", label: "Benchmarks", icon: BarChart3 },
+  {
+    to: "/benchmarks",
+    label: "Benchmarks",
+    icon: BarChart3,
+    feature: FEATURE_BENCHMARKS,
+  },
   { to: "/settings/integrations", label: "Integrations", icon: Plug },
   { to: "/settings", label: "Settings", icon: Settings, end: true },
 ];
@@ -34,6 +43,10 @@ export default function Sidebar({
   onCloseMobile,
 }: SidebarProps) {
   const location = useLocation();
+  const benchmarkAccess = useFeatureFlag(FEATURE_BENCHMARKS);
+  const visibleNavItems = navItems.filter(
+    (item) => item.feature !== FEATURE_BENCHMARKS || benchmarkAccess.allowed,
+  );
 
   function isActive(to: string, end?: boolean) {
     if (end) return location.pathname === to;
@@ -43,7 +56,7 @@ export default function Sidebar({
 
   const nav = (
     <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
-      {navItems.map((item) => {
+      {visibleNavItems.map((item) => {
         const active = isActive(item.to, item.end);
         const Icon = item.icon;
         return (

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/onnwee/pulse-score/internal/auth"
@@ -13,6 +14,10 @@ import (
 
 type featureAccessChecker interface {
 	CanAccess(ctx context.Context, orgID uuid.UUID, featureName string) (*billing.FeatureDecision, error)
+}
+
+type integrationLimitChecker interface {
+	CheckIntegrationLimit(ctx context.Context, orgID uuid.UUID, provider string) (*billing.LimitDecision, error)
 }
 
 // RequireFeature enforces plan feature access for the current org.
@@ -47,7 +52,16 @@ func RequireFeature(limitsSvc featureAccessChecker, featureName string) func(htt
 }
 
 // RequireIntegrationLimit enforces integration connection limits for the current org.
-func RequireIntegrationLimit(limitsSvc *billing.LimitsService, provider string) func(http.Handler) http.Handler {
+func RequireIntegrationLimit(limitsSvc integrationLimitChecker, provider string) func(http.Handler) http.Handler {
+	return requireIntegrationLimit(limitsSvc, func(*http.Request) string { return provider })
+}
+
+// RequireIntegrationLimitParam enforces integration limits using a route parameter as provider name.
+func RequireIntegrationLimitParam(limitsSvc integrationLimitChecker, paramName string) func(http.Handler) http.Handler {
+	return requireIntegrationLimit(limitsSvc, func(r *http.Request) string { return chi.URLParam(r, paramName) })
+}
+
+func requireIntegrationLimit(limitsSvc integrationLimitChecker, providerForRequest func(*http.Request) string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			orgID, ok := auth.GetOrgID(r.Context())
@@ -56,7 +70,7 @@ func RequireIntegrationLimit(limitsSvc *billing.LimitsService, provider string) 
 				return
 			}
 
-			decision, err := limitsSvc.CheckIntegrationLimit(r.Context(), orgID, provider)
+			decision, err := limitsSvc.CheckIntegrationLimit(r.Context(), orgID, providerForRequest(r))
 			if err != nil {
 				writeFeatureGateJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 				return

@@ -5,6 +5,11 @@ import BenchmarkChart, {
 } from "@/components/charts/BenchmarkChart";
 import EmptyState from "@/components/EmptyState";
 import ChartSkeleton from "@/components/skeletons/ChartSkeleton";
+import UpgradePrompt from "@/components/UpgradePrompt";
+import {
+  FEATURE_BENCHMARKS,
+  useFeatureFlag,
+} from "@/contexts/FeatureFlagContext";
 import api, {
   benchmarksApi,
   type BenchmarkMetricResponse,
@@ -63,7 +68,22 @@ function highestPercentile(metrics: BenchmarkMetric[]) {
   );
 }
 
+export function BenchmarkAccessPrompt({
+  recommendedTier,
+}: {
+  recommendedTier: string | null;
+}) {
+  return (
+    <UpgradePrompt
+      featureName="Benchmarking"
+      recommendedTier={recommendedTier ?? "scale"}
+      description="Anonymized peer benchmarks are available on Scale so mature revenue teams can compare health, churn, and integration adoption safely."
+    />
+  );
+}
+
 export default function BenchmarkPage() {
+  const benchmarkAccess = useFeatureFlag(FEATURE_BENCHMARKS);
   const [industry, setIndustry] = useState("SaaS");
   const [size, setSize] = useState("51-200");
   const [loading, setLoading] = useState(true);
@@ -72,6 +92,8 @@ export default function BenchmarkPage() {
   const [data, setData] = useState<BenchmarksResponse | null>(null);
 
   useEffect(() => {
+    if (!benchmarkAccess.allowed) return;
+
     async function fetchDefaults() {
       try {
         const { data: org } = await api.get<OrganizationBenchmarkSettings>(
@@ -85,9 +107,15 @@ export default function BenchmarkPage() {
       }
     }
     void fetchDefaults();
-  }, []);
+  }, [benchmarkAccess.allowed]);
 
   const fetchBenchmarks = useCallback(async () => {
+    if (!benchmarkAccess.allowed) {
+      setLoading(false);
+      setData(null);
+      return;
+    }
+
     setLoading(true);
     setError(false);
     try {
@@ -100,7 +128,7 @@ export default function BenchmarkPage() {
     } finally {
       setLoading(false);
     }
-  }, [industry, size]);
+  }, [benchmarkAccess.allowed, industry, size]);
 
   useEffect(() => {
     void fetchBenchmarks();
@@ -108,6 +136,10 @@ export default function BenchmarkPage() {
 
   const metrics = data?.metrics.map(normalizeMetric) ?? [];
   const calloutPercentile = data?.percentile ?? highestPercentile(metrics);
+
+  if (!benchmarkAccess.allowed) {
+    return <BenchmarkAccessPrompt recommendedTier={benchmarkAccess.recommendedTier} />;
+  }
 
   return (
     <div className="space-y-6">

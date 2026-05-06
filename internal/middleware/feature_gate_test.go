@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/onnwee/pulse-score/internal/auth"
@@ -18,6 +19,19 @@ type mockFeatureAccessChecker struct {
 	decision *billing.FeatureDecision
 	err      error
 	called   bool
+}
+
+type mockIntegrationLimitChecker struct {
+	decision *billing.LimitDecision
+	err      error
+	provider string
+	called   bool
+}
+
+func (m *mockIntegrationLimitChecker) CheckIntegrationLimit(ctx context.Context, orgID uuid.UUID, provider string) (*billing.LimitDecision, error) {
+	m.called = true
+	m.provider = provider
+	return m.decision, m.err
 }
 
 func (m *mockFeatureAccessChecker) CanAccess(ctx context.Context, orgID uuid.UUID, featureName string) (*billing.FeatureDecision, error) {
@@ -92,5 +106,42 @@ func TestRequireFeatureCallsNextForAllowedFeature(t *testing.T) {
 	}
 	if !checker.called {
 		t.Fatal("feature checker was not called")
+	}
+}
+
+func TestRequireIntegrationLimitParamUsesRouteProvider(t *testing.T) {
+	checker := &mockIntegrationLimitChecker{decision: &billing.LimitDecision{
+		Allowed:                false,
+		CurrentPlan:            string(billingcatalog.TierFree),
+		LimitType:              billing.LimitIntegration,
+		CurrentUsage:           1,
+		Limit:                  1,
+		RecommendedUpgradeTier: string(billingcatalog.TierGrowth),
+	}}
+	nextCalled := false
+	handler := RequireIntegrationLimitParam(checker, "provider")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/integrations/zendesk/connect", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("provider", "zendesk")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	req = req.WithContext(auth.WithOrgID(req.Context(), uuid.New()))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusPaymentRequired {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusPaymentRequired)
+	}
+	if nextCalled {
+		t.Fatal("next handler called for denied integration limit")
+	}
+	if !checker.called {
+		t.Fatal("integration limit checker was not called")
+	}
+	if checker.provider != "zendesk" {
+		t.Fatalf("provider = %q, want zendesk", checker.provider)
 	}
 }
