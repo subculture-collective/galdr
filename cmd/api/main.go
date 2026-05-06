@@ -664,7 +664,9 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				r.Patch("/customers/saved-views/{id}", savedViewHandler.Update)
 				r.Delete("/customers/saved-views/{id}", savedViewHandler.Delete)
 				r.Get("/customers/{id}", customerHandler.GetDetail)
-				r.Get("/customers/{id}/churn-prediction", customerHandler.GetChurnPrediction)
+				r.With(
+					middleware.RequireFeature(billingLimitsSvc, billingcatalog.FeatureAIInsights),
+				).Get("/customers/{id}/churn-prediction", customerHandler.GetChurnPrediction)
 				r.Get("/customers/{id}/events", customerHandler.ListEvents)
 				r.Get("/customers/{id}/assignments", customerHandler.ListAssignments)
 				r.Post("/customers/{id}/assignments", customerHandler.AssignCustomer)
@@ -673,8 +675,12 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 				r.Post("/customers/{id}/notes", customerHandler.CreateNote)
 				r.Put("/customers/{id}/notes/{noteID}", customerHandler.UpdateNote)
 				r.Delete("/customers/{id}/notes/{noteID}", customerHandler.DeleteNote)
-				r.Get("/customers/{id}/insights", customerHandler.ListInsights)
-				r.Post("/customers/{id}/insights", customerHandler.GenerateInsight)
+				r.With(
+					middleware.RequireFeature(billingLimitsSvc, billingcatalog.FeatureAIInsights),
+				).Get("/customers/{id}/insights", customerHandler.ListInsights)
+				r.With(
+					middleware.RequireFeature(billingLimitsSvc, billingcatalog.FeatureAIInsights),
+				).Post("/customers/{id}/insights", customerHandler.GenerateInsight)
 
 				// Dashboard routes
 				dashboardSvc := service.NewDashboardService(customerRepo, healthScoreRepo)
@@ -700,7 +706,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 					})
 					r.Route("/{provider}", func(r chi.Router) {
 						r.Use(middleware.RequireRole("admin"))
-						r.Post("/connect", integrationHandler.Connect)
+						r.With(middleware.RequireIntegrationLimitParam(billingLimitsSvc, "provider")).Post("/connect", integrationHandler.Connect)
 						r.Get("/status", integrationHandler.GetStatus)
 						r.Post("/sync", integrationHandler.TriggerSync)
 						r.Delete("/", integrationHandler.Disconnect)
@@ -718,7 +724,7 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 						r.Post("/", marketplaceHandler.Register)
 						r.Get("/{id}/analytics", marketplaceHandler.Analytics)
 						r.Post("/{id}/versions/{version}/review", marketplaceHandler.Review)
-						r.Post("/{id}/install", marketplaceHandler.Install)
+						r.With(middleware.RequireIntegrationLimitParam(billingLimitsSvc, "id")).Post("/{id}/install", marketplaceHandler.Install)
 					})
 				})
 

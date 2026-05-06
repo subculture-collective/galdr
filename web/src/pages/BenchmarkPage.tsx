@@ -5,6 +5,11 @@ import BenchmarkChart, {
 } from "@/components/charts/BenchmarkChart";
 import EmptyState from "@/components/EmptyState";
 import ChartSkeleton from "@/components/skeletons/ChartSkeleton";
+import UpgradePrompt from "@/components/UpgradePrompt";
+import {
+  FEATURE_BENCHMARKS,
+  useFeatureFlag,
+} from "@/contexts/FeatureFlagContext";
 import api, {
   benchmarksApi,
   type BenchmarkMetricResponse,
@@ -66,7 +71,78 @@ function highestPercentile(metrics: BenchmarkMetric[]) {
   );
 }
 
+export function BenchmarkAccessPrompt({
+  recommendedTier,
+}: {
+  recommendedTier: string | null;
+}) {
+  return (
+    <UpgradePrompt
+      featureName="Benchmarking"
+      recommendedTier={recommendedTier ?? "scale"}
+      description="Anonymized peer benchmarks are available on Scale so mature revenue teams can compare health, churn, and integration adoption safely."
+    />
+  );
+}
+
+function BenchmarkContent({
+  loading,
+  error,
+  metrics,
+  onRetry,
+}: {
+  loading: boolean;
+  error: boolean;
+  metrics: BenchmarkMetric[];
+  onRetry: () => void;
+}) {
+  if (loading) {
+    return (
+      <div className="grid gap-4 lg:grid-cols-2">
+        {[...Array(4)].map((_, index) => (
+          <ChartSkeleton key={index} />
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div role="alert" className="galdr-alert-danger p-6 text-center">
+        <p className="text-sm">Failed to load benchmark data.</p>
+        <button
+          onClick={onRetry}
+          className="galdr-link mt-2 inline-flex items-center gap-2 text-sm font-medium"
+        >
+          <RefreshCw className="h-4 w-4" /> Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (metrics.length === 0) {
+    return (
+      <div className="galdr-card p-6">
+        <EmptyState
+          icon={<BarChart3 className="h-12 w-12" />}
+          title="No benchmark data yet"
+          description="Choose another peer segment or wait for enough opted-in organizations to produce a safe aggregate."
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      {metrics.map((metric) => (
+        <BenchmarkChart key={metric.key} metric={metric} />
+      ))}
+    </div>
+  );
+}
+
 export default function BenchmarkPage() {
+  const benchmarkAccess = useFeatureFlag(FEATURE_BENCHMARKS);
   const [industry, setIndustry] = useState("SaaS");
   const [size, setSize] = useState("51-200");
   const [loading, setLoading] = useState(true);
@@ -76,6 +152,8 @@ export default function BenchmarkPage() {
   const [data, setData] = useState<BenchmarksResponse | null>(null);
 
   useEffect(() => {
+    if (!benchmarkAccess.allowed) return;
+
     async function fetchDefaults() {
       try {
         const { data: org } = await api.get<OrganizationBenchmarkSettings>(
@@ -91,9 +169,15 @@ export default function BenchmarkPage() {
       }
     }
     void fetchDefaults();
-  }, []);
+  }, [benchmarkAccess.allowed]);
 
   const fetchBenchmarks = useCallback(async () => {
+    if (!benchmarkAccess.allowed) {
+      setLoading(false);
+      setData(null);
+      return;
+    }
+
     setLoading(true);
     setError(false);
     try {
@@ -109,7 +193,7 @@ export default function BenchmarkPage() {
     } finally {
       setLoading(false);
     }
-  }, [industry, size]);
+  }, [benchmarkAccess.allowed, industry, size]);
 
   useEffect(() => {
     if (!defaultsLoaded) return;
@@ -125,49 +209,11 @@ export default function BenchmarkPage() {
   const metrics = data?.metrics.map(normalizeMetric) ?? [];
   const calloutPercentile = data?.percentile ?? highestPercentile(metrics);
 
-  function renderBenchmarkContent() {
-    if (loading) {
-      return (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {[...Array(4)].map((_, index) => (
-            <ChartSkeleton key={index} />
-          ))}
-        </div>
-      );
-    }
-
-    if (error) {
-      return (
-        <div role="alert" className="galdr-alert-danger p-6 text-center">
-          <p className="text-sm">Failed to load benchmark data.</p>
-          <button
-            onClick={fetchBenchmarks}
-            className="galdr-link mt-2 inline-flex items-center gap-2 text-sm font-medium"
-          >
-            <RefreshCw className="h-4 w-4" /> Retry
-          </button>
-        </div>
-      );
-    }
-
-    if (metrics.length === 0) {
-      return (
-        <div className="galdr-card p-6">
-          <EmptyState
-            icon={<BarChart3 className="h-12 w-12" />}
-            title="No benchmark data yet"
-            description="Choose another peer segment or wait for enough opted-in organizations to produce a safe aggregate."
-          />
-        </div>
-      );
-    }
-
+  if (!benchmarkAccess.allowed) {
     return (
-      <div className="grid gap-4 lg:grid-cols-2">
-        {metrics.map((metric) => (
-          <BenchmarkChart key={metric.key} metric={metric} />
-        ))}
-      </div>
+      <BenchmarkAccessPrompt
+        recommendedTier={benchmarkAccess.recommendedTier}
+      />
     );
   }
 
@@ -251,7 +297,12 @@ export default function BenchmarkPage() {
         </section>
       )}
 
-      {renderBenchmarkContent()}
+      <BenchmarkContent
+        loading={loading}
+        error={error}
+        metrics={metrics}
+        onRetry={fetchBenchmarks}
+      />
     </div>
   );
 }
