@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { postHogApi, type PostHogStatus } from "@/lib/posthog";
+import {
+  postHogApi,
+  type PostHogConnectResult,
+  type PostHogStatus,
+} from "@/lib/posthog";
 import {
   getPostHogConnectionView,
   validatePostHogCredentials,
@@ -63,12 +67,7 @@ export default function PostHogConnectionCard() {
         api_key: apiKey.trim(),
         project_id: projectId.trim(),
       });
-      setStatus({
-        status: "active",
-        project_id:
-          data.metadata?.project_id ?? data.external_account_id ?? projectId.trim(),
-        external_account_id: data.external_account_id,
-      });
+      setStatus(postHogStatusFromConnectResult(data, projectId));
       setApiKey("");
       setMessage("PostHog connected and API key validated.");
     } catch {
@@ -155,8 +154,9 @@ export function PostHogConnectionCardView({
   }
 
   const view = getPostHogConnectionView(status);
+  const isConnected = view.isConnected;
   const showStatusDetails =
-    view.isConnected || Boolean(status?.last_sync_error);
+    isConnected || Boolean(status?.last_sync_error);
 
   return (
     <div className="galdr-card overflow-hidden p-6">
@@ -210,7 +210,7 @@ export function PostHogConnectionCardView({
         </div>
       )}
 
-      {!view.isConnected && (
+      {!isConnected && (
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <label className="block text-sm font-medium text-[var(--galdr-fg-muted)]">
             API key
@@ -237,7 +237,7 @@ export function PostHogConnectionCardView({
         </div>
       )}
 
-      {!view.isConnected && (
+      {!isConnected && (
         <p className="mt-3 text-xs text-[var(--galdr-fg-muted)]">
           Use a PostHog personal API key with project read access. PulseScore
           validates the key before saving it.
@@ -245,7 +245,7 @@ export function PostHogConnectionCardView({
       )}
 
       <div className="mt-6 flex flex-wrap gap-3">
-        {view.isConnected ? (
+        {isConnected ? (
           <>
             <button
               onClick={onSync}
@@ -280,6 +280,18 @@ function StatusBadge({ status, label }: { status?: string; label: string }) {
   const className = postHogStatusBadgeClassName(status);
 
   return <span className={className}>{label}</span>;
+}
+
+function postHogStatusFromConnectResult(
+  result: PostHogConnectResult,
+  projectId: string,
+): PostHogStatus {
+  return {
+    status: "active",
+    project_id:
+      result.metadata?.project_id ?? result.external_account_id ?? projectId.trim(),
+    external_account_id: result.external_account_id,
+  };
 }
 
 function postHogStatusBadgeClassName(status?: string): string {

@@ -72,8 +72,8 @@ function badgeLabel(status: string): string {
 function connectionMetrics(status: PostHogConnectionStatus): string[] {
   const metrics: string[] = [];
 
-  const projectID = status.project_id ?? status.external_account_id;
-  if (projectID) metrics.push(`Project ID: ${projectID}`);
+  const projectId = status.project_id ?? status.external_account_id;
+  if (projectId) metrics.push(`Project ID: ${projectId}`);
   if (status.customer_count !== undefined) {
     metrics.push(`Customers synced: ${formatCount(status.customer_count)}`);
   }

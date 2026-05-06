@@ -8,21 +8,23 @@ import {
 const noop = () => undefined;
 
 function render(status: PostHogStatus | null, apiKey = "", projectId = "") {
+  const props = {
+    status,
+    apiKey,
+    projectId,
+    loading: false,
+    actionLoading: false,
+    error: "",
+    message: "",
+    onApiKeyChange: noop,
+    onProjectIdChange: noop,
+    onSave: noop,
+    onDisconnect: noop,
+    onSync: noop,
+  };
+
   return renderToStaticMarkup(
-    React.createElement(PostHogConnectionCardView, {
-      status,
-      apiKey,
-      projectId,
-      loading: false,
-      actionLoading: false,
-      error: "",
-      message: "",
-      onApiKeyChange: noop,
-      onProjectIdChange: noop,
-      onSave: noop,
-      onDisconnect: noop,
-      onSync: noop,
-    }),
+    React.createElement(PostHogConnectionCardView, props),
   );
 }
 
