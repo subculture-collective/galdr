@@ -437,7 +437,10 @@ func benchmarkQualityLevel(score float64) string {
 	}
 }
 
-const benchmarkInsightNotificationType = "benchmark_insight"
+const (
+	benchmarkInsightNotificationType = "benchmark_insight"
+	benchmarkDigestFrequencyWeekly   = "weekly"
+)
 
 type BenchmarkContributionPairReader interface {
 	ListLatestContributionPairs(ctx context.Context) ([]repository.BenchmarkContributionPair, error)
@@ -470,7 +473,6 @@ type BenchmarkInsightNotificationDeps struct {
 	Notifications  BenchmarkNotificationWriter
 	Preferences    BenchmarkPreferenceReader
 	Emails         BenchmarkEmailSender
-	FrontendURL    string
 }
 
 type BenchmarkInsightNotificationService struct {
@@ -480,7 +482,6 @@ type BenchmarkInsightNotificationService struct {
 	notifications  BenchmarkNotificationWriter
 	preferences    BenchmarkPreferenceReader
 	emails         BenchmarkEmailSender
-	frontendURL    string
 }
 
 type BenchmarkWeeklyDigestSummary struct {
@@ -509,7 +510,6 @@ func NewBenchmarkInsightNotificationService(deps BenchmarkInsightNotificationDep
 		notifications:  deps.Notifications,
 		preferences:    deps.Preferences,
 		emails:         deps.Emails,
-		frontendURL:    deps.FrontendURL,
 	}
 }
 
@@ -529,11 +529,7 @@ func (s *BenchmarkInsightNotificationService) RunOnce(ctx context.Context) error
 
 	for _, pair := range pairs {
 		for _, metric := range benchmarkContributionMetrics(pair.Previous, pair.Current) {
-			aggregate, ok := aggregateByKey[benchmarkAggregateKey{
-				industry:          pair.Current.Industry,
-				companySizeBucket: pair.Current.CompanySizeBucket,
-				metricName:        metric.name,
-			}]
+			aggregate, ok := aggregateByKey[benchmarkAggregateKeyFor(pair.Current, metric.name)]
 			if !ok {
 				continue
 			}
@@ -591,20 +587,11 @@ func (s *BenchmarkInsightNotificationService) SendWeeklyDigestFromLatest(ctx con
 
 	summaries := make([]BenchmarkWeeklyDigestSummary, 0, len(pairs))
 	for _, pair := range pairs {
-		aggregate, ok := aggregateByKey[benchmarkAggregateKey{
-			industry:          pair.Current.Industry,
-			companySizeBucket: pair.Current.CompanySizeBucket,
-			metricName:        repository.BenchmarkMetricHealthScore,
-		}]
+		summary, ok := benchmarkDigestSummaryFromPair(pair, aggregateByKey)
 		if !ok {
 			continue
 		}
-		summaries = append(summaries, BenchmarkWeeklyDigestSummary{
-			OrgID:              pair.Current.OrgID,
-			MetricName:         repository.BenchmarkMetricHealthScore,
-			PreviousPercentile: benchmarkPosition(pair.Previous.AvgHealthScore, aggregate),
-			CurrentPercentile:  benchmarkPosition(pair.Current.AvgHealthScore, aggregate),
-		})
+		summaries = append(summaries, summary)
 	}
 	return s.SendWeeklyDigest(ctx, summaries)
 }
@@ -662,7 +649,7 @@ func (s *BenchmarkInsightNotificationService) preference(ctx context.Context, us
 
 func (s *BenchmarkInsightNotificationService) shouldSendDigest(ctx context.Context, userID, orgID uuid.UUID) bool {
 	pref := s.preference(ctx, userID, orgID)
-	return pref.EmailEnabled && pref.DigestEnabled && pref.DigestFrequency == "weekly"
+	return pref.EmailEnabled && pref.DigestEnabled && pref.DigestFrequency == benchmarkDigestFrequencyWeekly
 }
 
 func defaultBenchmarkNotificationPreference(userID, orgID uuid.UUID) *repository.NotificationPreference {
@@ -671,7 +658,7 @@ func defaultBenchmarkNotificationPreference(userID, orgID uuid.UUID) *repository
 		OrgID:           orgID,
 		EmailEnabled:    true,
 		InAppEnabled:    true,
-		DigestFrequency: "weekly",
+		DigestFrequency: benchmarkDigestFrequencyWeekly,
 	}
 }
 
@@ -684,9 +671,34 @@ type benchmarkAggregateKey struct {
 func benchmarkAggregateByKey(aggregates []repository.BenchmarkAggregate) map[benchmarkAggregateKey]repository.BenchmarkAggregate {
 	byKey := make(map[benchmarkAggregateKey]repository.BenchmarkAggregate, len(aggregates))
 	for _, aggregate := range aggregates {
-		byKey[benchmarkAggregateKey{industry: aggregate.Industry, companySizeBucket: aggregate.CompanySizeBucket, metricName: aggregate.MetricName}] = aggregate
+		byKey[benchmarkAggregateKey{
+			industry:          aggregate.Industry,
+			companySizeBucket: aggregate.CompanySizeBucket,
+			metricName:        aggregate.MetricName,
+		}] = aggregate
 	}
 	return byKey
+}
+
+func benchmarkAggregateKeyFor(contribution repository.BenchmarkContribution, metricName string) benchmarkAggregateKey {
+	return benchmarkAggregateKey{
+		industry:          contribution.Industry,
+		companySizeBucket: contribution.CompanySizeBucket,
+		metricName:        metricName,
+	}
+}
+
+func benchmarkDigestSummaryFromPair(pair repository.BenchmarkContributionPair, aggregates map[benchmarkAggregateKey]repository.BenchmarkAggregate) (BenchmarkWeeklyDigestSummary, bool) {
+	aggregate, ok := aggregates[benchmarkAggregateKeyFor(pair.Current, repository.BenchmarkMetricHealthScore)]
+	if !ok {
+		return BenchmarkWeeklyDigestSummary{}, false
+	}
+	return BenchmarkWeeklyDigestSummary{
+		OrgID:              pair.Current.OrgID,
+		MetricName:         repository.BenchmarkMetricHealthScore,
+		PreviousPercentile: benchmarkPosition(pair.Previous.AvgHealthScore, aggregate),
+		CurrentPercentile:  benchmarkPosition(pair.Current.AvgHealthScore, aggregate),
+	}, true
 }
 
 type benchmarkContributionMetric struct {

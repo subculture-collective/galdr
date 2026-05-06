@@ -106,7 +106,6 @@ func TestBenchmarkInsightWeeklyDigestEmailsOptedInMembers(t *testing.T) {
 		Members:     repo,
 		Preferences: repo,
 		Emails:      emails,
-		FrontendURL: "https://app.example.com",
 	})
 
 	err := notifier.SendWeeklyDigest(context.Background(), []BenchmarkWeeklyDigestSummary{
@@ -671,7 +670,13 @@ func (f *fakeBenchmarkInsightRepo) Get(ctx context.Context, userID, orgID uuid.U
 	if pref, ok := f.prefs[userID]; ok {
 		return pref, nil
 	}
-	return &repository.NotificationPreference{UserID: userID, OrgID: orgID, EmailEnabled: true, InAppEnabled: true, DigestFrequency: "weekly"}, nil
+	return &repository.NotificationPreference{
+		UserID:          userID,
+		OrgID:           orgID,
+		EmailEnabled:    true,
+		InAppEnabled:    true,
+		DigestFrequency: benchmarkDigestFrequencyWeekly,
+	}, nil
 }
 
 func (f *fakeBenchmarkInsightRepo) Create(ctx context.Context, notification *repository.Notification) error {

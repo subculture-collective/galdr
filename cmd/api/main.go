@@ -574,7 +574,6 @@ func registerAPIRoutes(r *chi.Mux, cfg *config.Config, pool *database.Pool, jwtM
 					Notifications:  notifRepo,
 					Preferences:    notifPrefSvc,
 					Emails:         emailSvc,
-					FrontendURL:    cfg.SendGrid.FrontendURL,
 				})
 				benchmarkWorkflow := service.NewBenchmarkWorkflow(benchmarkPipeline, benchmarkAggregation, benchmarkNotifications)
 				benchmarkScheduler := service.NewBenchmarkScheduler(benchmarkWorkflow, time.Duration(cfg.Benchmark.ContributionIntervalHr)*time.Hour)
