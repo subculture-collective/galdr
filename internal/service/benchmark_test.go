@@ -442,6 +442,36 @@ func TestBenchmarkComparisonServiceReturnsSegmentMetrics(t *testing.T) {
 	}
 }
 
+func TestBenchmarkComparisonServiceRanksLowerChurnAsBetter(t *testing.T) {
+	orgID := uuid.New()
+	orgs := &fakeBenchmarkOrgRepo{orgs: []repository.Organization{{
+		ID:                  orgID,
+		Industry:            "SaaS",
+		CompanySize:         120,
+		BenchmarkingEnabled: true,
+	}}}
+	metrics := &fakeBenchmarkMetricsRepo{
+		customerCounts: map[uuid.UUID]int{orgID: 10},
+		churnRates:     map[uuid.UUID]float64{orgID: 0.02},
+	}
+	aggregates := &fakeBenchmarkAggregateRepo{aggregates: []*repository.BenchmarkAggregate{
+		{Industry: "saas", CompanySizeBucket: repository.BenchmarkBucket51To200, MetricName: repository.BenchmarkMetricChurnRate, P25: 0.03, P50: 0.05, P75: 0.08, P90: 0.12, SampleCount: 42},
+	}}
+	service := NewBenchmarkComparisonService(orgs, metrics, aggregates)
+
+	response, err := service.Compare(context.Background(), orgID, "SaaS", repository.BenchmarkBucket51To200)
+	if err != nil {
+		t.Fatalf("compare benchmarks: %v", err)
+	}
+
+	if len(response.Metrics) != 1 {
+		t.Fatalf("expected churn metric, got %d metrics", len(response.Metrics))
+	}
+	if response.Metrics[0].Percentile == nil || *response.Metrics[0].Percentile < 75 {
+		t.Fatalf("expected low churn to rank in a high percentile, got %+v", response.Metrics[0].Percentile)
+	}
+}
+
 func TestBenchmarkComparisonServiceReturnsOptInPromptState(t *testing.T) {
 	orgID := uuid.New()
 	orgs := &fakeBenchmarkOrgRepo{orgs: []repository.Organization{{

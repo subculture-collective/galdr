@@ -243,7 +243,7 @@ func (s *BenchmarkComparisonService) Compare(ctx context.Context, orgID uuid.UUI
 			continue
 		}
 		value := values[aggregate.MetricName]
-		position := estimateBenchmarkPercentile(value, aggregate)
+		position := benchmarkPosition(value, aggregate, definition)
 		percentiles = append(percentiles, position)
 		response.Metrics = append(response.Metrics, BenchmarkMetricResponse{
 			Key:        aggregate.MetricName,
@@ -267,15 +267,24 @@ func (s *BenchmarkComparisonService) Compare(ctx context.Context, orgID uuid.UUI
 }
 
 type benchmarkMetricDefinition struct {
-	label string
-	unit  string
+	label         string
+	unit          string
+	lowerIsBetter bool
 }
 
 var benchmarkMetricDefinitions = map[string]benchmarkMetricDefinition{
 	repository.BenchmarkMetricHealthScore:      {label: "Avg health score", unit: "score"},
 	repository.BenchmarkMetricMRRPerCustomer:   {label: "MRR/customer", unit: "currency"},
-	repository.BenchmarkMetricChurnRate:        {label: "Churn rate", unit: "percent"},
+	repository.BenchmarkMetricChurnRate:        {label: "Churn rate", unit: "percent", lowerIsBetter: true},
 	repository.BenchmarkMetricIntegrationUsage: {label: "Integration count", unit: "count"},
+}
+
+func benchmarkPosition(value float64, aggregate repository.BenchmarkAggregate, definition benchmarkMetricDefinition) float64 {
+	position := estimateBenchmarkPercentile(value, aggregate)
+	if definition.lowerIsBetter {
+		return 100 - position
+	}
+	return position
 }
 
 func (s *BenchmarkComparisonService) currentMetricValues(ctx context.Context, orgID uuid.UUID) (map[string]float64, error) {
