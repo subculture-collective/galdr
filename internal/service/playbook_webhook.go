@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultWebhookTimeout = 10 * time.Second
+	defaultWebhookTimeout  = 10 * time.Second
 	defaultWebhookAttempts = 3
 	webhookSignatureHeader = "X-PulseScore-Signature"
 
@@ -158,6 +158,9 @@ func (e *WebhookActionExecutor) send(ctx context.Context, cfg webhookActionConfi
 	result := &WebhookActionResult{Attempts: attempt, LatencyMS: latency}
 	if err != nil {
 		result.Error = err.Error()
+		if unwrapped := errors.Unwrap(err); unwrapped != nil {
+			result.Error = unwrapped.Error()
+		}
 		return result, err
 	}
 	defer res.Body.Close()

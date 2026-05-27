@@ -911,8 +911,8 @@ func benchmarkDigestSummaryFromPair(pair repository.BenchmarkContributionPair, a
 	return BenchmarkWeeklyDigestSummary{
 		OrgID:              pair.Current.OrgID,
 		MetricName:         repository.BenchmarkMetricHealthScore,
-		PreviousPercentile: benchmarkPosition(pair.Previous.AvgHealthScore, aggregate),
-		CurrentPercentile:  benchmarkPosition(pair.Current.AvgHealthScore, aggregate),
+		PreviousPercentile: benchmarkBucketPosition(pair.Previous.AvgHealthScore, aggregate),
+		CurrentPercentile:  benchmarkBucketPosition(pair.Current.AvgHealthScore, aggregate),
 	}, true
 }
 
@@ -932,8 +932,8 @@ func benchmarkContributionMetrics(previous, current repository.BenchmarkContribu
 }
 
 func benchmarkInsightFromMetric(orgID uuid.UUID, metric benchmarkContributionMetric, aggregate repository.BenchmarkAggregate) (benchmarkInsight, bool) {
-	previousPercentile := benchmarkPosition(metric.previous, aggregate)
-	currentPercentile := benchmarkPosition(metric.current, aggregate)
+	previousPercentile := benchmarkBucketPosition(metric.previous, aggregate)
+	currentPercentile := benchmarkBucketPosition(metric.current, aggregate)
 	switch {
 	case metric.previous >= aggregate.P50 && metric.current < aggregate.P50:
 		return benchmarkInsight{
@@ -960,7 +960,7 @@ func benchmarkInsightFromMetric(orgID uuid.UUID, metric benchmarkContributionMet
 	}
 }
 
-func benchmarkPosition(value float64, aggregate repository.BenchmarkAggregate) float64 {
+func benchmarkBucketPosition(value float64, aggregate repository.BenchmarkAggregate) float64 {
 	switch {
 	case value < aggregate.P25:
 		return 10

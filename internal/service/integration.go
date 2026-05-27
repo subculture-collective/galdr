@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -79,26 +80,26 @@ type IntegrationStatus struct {
 
 // IntegrationHealthResponse reports sync health across all known integrations.
 type IntegrationHealthResponse struct {
-	GeneratedAt      time.Time                  `json:"generated_at"`
+	GeneratedAt     time.Time                  `json:"generated_at"`
 	StaleAfterHours int                        `json:"stale_after_hours"`
-	Integrations     []IntegrationHealthSummary `json:"integrations"`
+	Integrations    []IntegrationHealthSummary `json:"integrations"`
 }
 
 // IntegrationHealthSummary holds dashboard-level sync health for one provider.
 type IntegrationHealthSummary struct {
-	Provider       string                         `json:"provider"`
-	Status         string                         `json:"status"`
-	HealthStatus   string                         `json:"health_status"`
-	LastSyncAt     *time.Time                     `json:"last_sync_at"`
-	ConnectedAt    *time.Time                     `json:"connected_at"`
-	RecordsSynced  int                            `json:"records_synced"`
-	ErrorCount     int                            `json:"error_count"`
-	SyncDurationMS int                            `json:"sync_duration_ms"`
-	ErrorRate      float64                        `json:"error_rate"`
-	CustomerCount  int                            `json:"customer_count"`
-	LastSyncError  string                         `json:"last_sync_error,omitempty"`
-	Alerts         []IntegrationHealthAlert       `json:"alerts"`
-	SyncHistory    []IntegrationSyncHistoryPoint  `json:"sync_history"`
+	Provider       string                        `json:"provider"`
+	Status         string                        `json:"status"`
+	HealthStatus   string                        `json:"health_status"`
+	LastSyncAt     *time.Time                    `json:"last_sync_at"`
+	ConnectedAt    *time.Time                    `json:"connected_at"`
+	RecordsSynced  int                           `json:"records_synced"`
+	ErrorCount     int                           `json:"error_count"`
+	SyncDurationMS int                           `json:"sync_duration_ms"`
+	ErrorRate      float64                       `json:"error_rate"`
+	CustomerCount  int                           `json:"customer_count"`
+	LastSyncError  string                        `json:"last_sync_error,omitempty"`
+	Alerts         []IntegrationHealthAlert      `json:"alerts"`
+	SyncHistory    []IntegrationSyncHistoryPoint `json:"sync_history"`
 }
 
 // IntegrationHealthAlert describes an actionable integration health warning.
@@ -201,40 +202,43 @@ func (s *IntegrationService) GetHealth(ctx context.Context, orgID uuid.UUID) (*I
 		return nil, fmt.Errorf("list integrations: %w", err)
 	}
 
-	connectionsByProvider := make(map[string]*repository.IntegrationConnection, len(conns))
-	for _, conn := range conns {
-		connectionsByProvider[conn.Provider] = conn
-	}
-
-	seen := make(map[string]bool, len(conns))
 	integrations := make([]IntegrationHealthSummary, 0, len(conns))
+	seen := make(map[string]bool, len(conns))
+	for _, conn := range conns {
+		integration, err := s.integrationHealth(ctx, orgID, conn.Provider, conn)
+		if err != nil {
+			return nil, err
+		}
+		seen[conn.Provider] = true
+		integrations = append(integrations, integration)
+	}
 	if s.registry != nil {
 		for _, registered := range s.registry.List() {
 			provider := registered.Manifest.ID
-			seen[provider] = true
-			integration, err := s.integrationHealth(ctx, orgID, provider, connectionsByProvider[provider])
+			if seen[provider] {
+				continue
+			}
+			integration, err := s.integrationHealth(ctx, orgID, provider, nil)
 			if err != nil {
 				return nil, err
 			}
 			integrations = append(integrations, integration)
 		}
 	}
-
-	for _, conn := range conns {
-		if seen[conn.Provider] {
-			continue
+	slices.SortStableFunc(integrations[len(conns):], func(a, b IntegrationHealthSummary) int {
+		if a.Provider < b.Provider {
+			return -1
 		}
-		integration, err := s.integrationHealth(ctx, orgID, conn.Provider, conn)
-		if err != nil {
-			return nil, err
+		if a.Provider > b.Provider {
+			return 1
 		}
-		integrations = append(integrations, integration)
-	}
+		return 0
+	})
 
 	return &IntegrationHealthResponse{
-		GeneratedAt:      time.Now().UTC(),
+		GeneratedAt:     time.Now().UTC(),
 		StaleAfterHours: int(integrationHealthStaleAfter / time.Hour),
-		Integrations:     integrations,
+		Integrations:    integrations,
 	}, nil
 }
 

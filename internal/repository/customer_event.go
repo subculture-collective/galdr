@@ -26,12 +26,18 @@ type CustomerEvent struct {
 
 // CustomerEventRepository handles customer_events database operations.
 type CustomerEventRepository struct {
-	pool *pgxpool.Pool
+	pool        *pgxpool.Pool
+	afterUpsert func(context.Context, *CustomerEvent) error
 }
 
 // NewCustomerEventRepository creates a new CustomerEventRepository.
 func NewCustomerEventRepository(pool *pgxpool.Pool) *CustomerEventRepository {
 	return &CustomerEventRepository{pool: pool}
+}
+
+// SetAfterUpsert registers a callback that runs after a new event is inserted.
+func (r *CustomerEventRepository) SetAfterUpsert(callback func(context.Context, *CustomerEvent) error) {
+	r.afterUpsert = callback
 }
 
 // Upsert creates a customer event (idempotent by org_id, source, external_event_id).
@@ -49,7 +55,15 @@ func (r *CustomerEventRepository) Upsert(ctx context.Context, e *CustomerEvent) 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	if r.afterUpsert != nil {
+		if err := r.afterUpsert(ctx, e); err != nil {
+			return fmt.Errorf("after customer event upsert: %w", err)
+		}
+	}
+	return nil
 }
 
 // ListByCustomerAndType returns events for a customer of a specific type since a given time.

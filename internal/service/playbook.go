@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	maxPlaybookNameLength       = 255
+	maxPlaybookNameLength        = 255
 	scoreThresholdDirectionAbove = "above"
 	scoreThresholdDirectionBelow = "below"
 )
@@ -193,10 +193,10 @@ func (s *PlaybookService) withActions(ctx context.Context, playbook *repository.
 func (s *PlaybookService) createActions(ctx context.Context, playbookID uuid.UUID, actions []PlaybookActionRequest) error {
 	for i, req := range actions {
 		action := &repository.PlaybookAction{
-			PlaybookID:    playbookID,
-			ActionType:    req.ActionType,
-			ActionConfig:  nonNilMap(req.ActionConfig),
-			OrderIndex:    i,
+			PlaybookID:   playbookID,
+			ActionType:   req.ActionType,
+			ActionConfig: nonNilMap(req.ActionConfig),
+			OrderIndex:   i,
 		}
 		if err := s.actions.Create(ctx, action); err != nil {
 			return fmt.Errorf("create playbook action: %w", err)
@@ -236,8 +236,8 @@ func validatePlaybookTrigger(triggerType string, config map[string]any) error {
 			return &ValidationError{Field: "trigger_config.direction", Message: "direction must be above or below"}
 		}
 	case repository.PlaybookTriggerCustomerEvent:
-		if strings.TrimSpace(stringConfigValue(config, "event_type")) == "" {
-			return &ValidationError{Field: "trigger_config.event_type", Message: "event_type is required"}
+		if len(stringSliceConfigValue(config, "event_types")) == 0 && strings.TrimSpace(stringConfigValue(config, "event_type")) == "" {
+			return &ValidationError{Field: "trigger_config.event_types", Message: "event_types is required"}
 		}
 	case repository.PlaybookTriggerSchedule:
 		_, hasInterval := numberConfigValue(config, "interval_minutes")
