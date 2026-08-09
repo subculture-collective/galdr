@@ -163,3 +163,7 @@ PulseScore now includes a dedicated Stripe billing domain (separate from Stripe 
 Optional:
 
 - `STRIPE_BILLING_PORTAL_RETURN_URL` (defaults to `http://localhost:5173/settings/billing`)
+
+## License
+
+Licensed under `GPL-3.0-or-later`. See [LICENSE](LICENSE).
