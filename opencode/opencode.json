@@ -50,7 +50,6 @@
   "instructions": [
     "AGENTS.md",
     "README.md",
-    "docs/**/*.md",
     ".opencode/rules/**/*.md",
     "~/.config/opencode/plugin/shell-strategy/shell_strategy.md"
   ],
